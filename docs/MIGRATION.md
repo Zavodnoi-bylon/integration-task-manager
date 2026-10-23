@@ -1,6 +1,61 @@
 # Переезд на отдельный сервер
 
-Статус: подготовка. Новый сервер пользователь ещё арендует. Код уже на его компьютере; GitHub он опубликует сам. Старый сервис работает. Цель — воспроизводимо собрать контейнеры из Git и отдельно восстановить данные.
+Статус: пробное восстановление проверено 23 октября 2026. Новый сервер `172.105.249.196`, Ubuntu 24.04.4 LTS, alias `team-activity`, пользователь `teamactivity`. Docker/Compose и Python venv установлены, firewall включён, SSH-пароли отключены. Приложение собрано, snapshot старой БД восстановлен в отдельную `activity_trial`, таблицы и полный контрольный API-отчёт совпали (см. STATUS). Production остаётся на старом сервере; collector и финальное переключение ещё впереди. Push без запроса не выполнять.
+
+## Доступ к пробной копии
+
+По запросу пользователя основной доступ теперь без туннеля:
+**https://team-bi.172-105-249-196.sslip.io/** — HTTPS и Basic Auth на все UI/API.
+Покупка собственного домена отложена; используется бесплатное техническое имя sslip.io.
+Логин `activity_viewer`, случайный пароль в локальном gitignored
+`state/access/dashboard-access.txt`; пароль не сохранять в документации/Git.
+Серверная копия credentials — root-only `/etc/team-activity-access/viewer-credentials.txt`.
+
+Туннель оставлен как дополнительный способ диагностики из локальной папки проекта Windows:
+
+```powershell
+.\scripts\dashboard-tunnel.ps1 -SshAlias team-activity -LocalPort 8481 -RemotePort 8481
+```
+
+Открыть `http://127.0.0.1:8481`, оставляя терминал туннеля открытым.
+Это snapshot для проверки, не текущий production. Проверочный туннель executor закрыт.
+
+Новый Compose project — `team-activity-trial`, явные файлы `compose.yaml` и
+`deploy/compose.trial.yaml`; каталог `/home/teamactivity/team-activity-explorer`.
+PostgreSQL опубликован только на `127.0.0.1:55432`, UI только на `127.0.0.1:8481`.
+Дополнительная bridge-сеть `trial_access` обеспечивает host-подключение writer;
+на этом Docker публикация порта для единственной internal-сети не создавала binding.
+Пользователь не добавлен в Docker group и не имеет sudo. Секреты созданы на новом хосте,
+не выводились; `.env` имеет 0600 и принадлежит root. Обычному пользователю доступен
+только `.env.client` (0600) с reader/writer, без пароля администратора БД;
+trial-sync и check-trial-access используют именно этот файл.
+
+HTTPS-прокси — отдельный Compose project `team-activity-access` с явным файлом
+`deploy/compose.dashboard-access.yaml`; Caddy 2.11.7 закреплён digest образа.
+Рабочие конфиги `/etc/team-activity-access/Caddyfile` и `access.env` принадлежат root
+(0600, каталог 0700); access.env содержит hostname, bcrypt-хеши трёх логинов и секретный токен прокси.
+Хеш в env-файле заключён в одинарные кавычки для буквальной передачи знаков `$` Compose.
+Volume `team-activity-access_caddy_data` хранит сертификат/ACME state, сертификат Let's Encrypt
+выдан и проверен внешним HTTPS-запросом с обычной проверкой доверия.
+Открыты 80/tcp и 443/tcp в UFW; 80 перенаправляет на HTTPS. Прокси работает с host network
+и передаёт запросы только в локальный UI 8481; PostgreSQL 55432 остаётся на loopback.
+Basic Auth покрывает также health/API; перед upstream заголовок Authorization удаляется.
+Прокси перезаписывает identity/token, backend проверяет роли: см. [ACCESS](ACCESS.md).
+Текущий activity_viewer — admin; viver — viewer; tech_lead пока без панелей.
+Общая раскладка находится в /home/teamactivity/ui-state/layout.json, отдельный защищённый
+каталог примонтирован в web и должен сохраняться в backup вместе с конфигурацией.
+Caddy admin API выключен, доступ-логи с содержимым запросов не включались.
+
+Подготовлены процедуры `scripts/export-migration-trial.sh` (старый сервер, интерактивный
+sudo), `scripts/restore-migration-trial.sh` (новый сервер, только новая trial-БД),
+`scripts/check-trial-access.py` (реальные reader/writer-подключения с откатом пробной записи)
+и `scripts/trial-sync.sh` (CLI от обычного SSH-пользователя, строго trial-БД).
+Сам факт наличия CLI не разрешает принятие новых proposals.
+
+Пробный export создаёт согласованный pg_dump и сравнивает counts до/после, но не замораживает
+источник: это не процедура финального cutover. Совпадение counts не исключает изменения
+полей во время export; полное совпадение отчёта после restore проверено отдельно.
+Для финального snapshot остаётся согласованная остановка записи из последовательности ниже.
 
 ## Состав
 

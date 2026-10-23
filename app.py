@@ -8,12 +8,14 @@ import threading
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from activity import domain
+from activity import domain, access
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from activity.demo import DemoRepository
 from activity.repository import PostgresRepository, RepositoryError, positive_setting
 
@@ -61,11 +63,51 @@ async def http_error(_request, exc):
 
 @app.middleware("http")
 async def no_cache_api(request, call_next):
+    if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        try:
+            request.state.person = access.principal(request.headers)
+            access.authorize(request.state.person, request.url.path, request.method)
+        except HTTPException as exc:
+            body = exc.detail if isinstance(exc.detail, dict) else {"detail": exc.detail}
+            return JSONResponse(status_code=exc.status_code, content=body, headers={"Cache-Control": "no-store"})
     response = await call_next(request)
     if request.url.path == "/api" or request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@app.get("/api/access")
+def dashboard_access(request: Request):
+    return {**request.state.person, "today": datetime.now(ZoneInfo("Europe/Moscow")).date().isoformat()}
+
+
+@app.get("/api/layout")
+def dashboard_layout(request: Request):
+    result = access.read_layout()
+    return {**result, "layout": {"version": 1, "widgets": [w for w in result["layout"]["widgets"] if w["id"] in request.state.person["panels"]]}}
+
+
+@app.put("/api/layout")
+async def update_layout(request: Request):
+    # Cross-origin forms cannot supply this header or JSON without a preflight.
+    # No CORS middleware is enabled. Basic-auth cookies alone are insufficient.
+    if request.headers.get("x-activity-action") != "save-layout" or request.headers.get("content-type", "").split(";")[0] != "application/json":
+        raise HTTPException(403, "Invalid layout request.")
+    if request.headers.get("sec-fetch-site") == "cross-site":
+        raise HTTPException(403, "Cross-site writes are not allowed.")
+    if len(await request.body()) > 8192:
+        raise HTTPException(413, "Layout request too large.")
+    try:
+        value = await request.json()
+    except ValueError:
+        raise HTTPException(422, "Invalid JSON.") from None
+    return access.save_layout(value)
+
+
+@app.get("/api/schedule")
+def dashboard_schedule():
+    return {"people": access.TEAM_SCHEDULE}
 
 
 def date_filters(
@@ -90,13 +132,19 @@ def health(repo=Depends(repository)):
 
 
 @app.get("/api/meta")
-def meta(dataset=Depends(snapshot)):
-    return domain.metadata(dataset)
+def meta(request: Request, dataset=Depends(snapshot)):
+    result = domain.metadata(dataset)
+    if "registry" not in request.state.person["panels"]:
+        result = {k: result[k] for k in ("timezone", "today", "default_from", "default_to", "demo", "coverage") if k in result}
+    return result
 
 
 @app.get("/api/report")
-def report(bucket: Literal["day", "week"] = "day", query=Depends(date_filters), dataset=Depends(snapshot)):
-    return domain.report(dataset, bucket=bucket, **query)
+def report(request: Request, bucket: Literal["day", "week"] = "day", query=Depends(date_filters), dataset=Depends(snapshot)):
+    panels = request.state.person["panels"]
+    if "registry" not in panels and any(query["filters"].values()):
+        raise HTTPException(403, "Detailed filters require registry access.")
+    return access.restrict_report(domain.report(dataset, bucket=bucket, **query), panels)
 
 
 @app.get("/api/tasks")

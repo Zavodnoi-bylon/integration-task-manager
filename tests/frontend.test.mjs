@@ -2,6 +2,108 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { backlogChart, flowChart } from "../src/charts.js";
 import { createRequestGate, escapeHtml, formatNumber, presetPeriod, queryString, safeSourceUrl, validatePeriod } from "../src/utils.js";
+import { calendarDaysMarkup, calendarMonth, moscowToday, shiftPhase, workingOn } from "../src/schedule.js";
+import { LAYOUT_KEY, moveWidget, normalizeLayout, readLayout, resizedWidget, widgetDefinitions, writeLayout } from "../src/layout-model.js";
+
+const teamSchedule = [
+  {name:"AIex911",anchor:"2026-10-23",color:"alex"},
+  {name:"stanedgart",anchor:"2026-10-22",color:"stan"},
+  {name:"Custodes112",anchor:"2026-10-25",color:"custodes"},
+  {name:"Dmee911",anchor:"2026-10-24",color:"dmee"},
+];
+
+test("saved layout cannot duplicate/drop widgets or inject unknown blocks and CSS values", () => {
+  const layout = normalizeLayout({ version: 1, widgets: [
+    { id: "calendar", span: 99, height: -200 },
+    { id: "calendar", span: 3 }, { id: "foreign", span: 12 },
+    { id: "flow", span: "4;display:none", height: "100vh" }, null,
+  ] });
+  assert.equal(layout.widgets.length, widgetDefinitions.length);
+  assert.equal(new Set(layout.widgets.map((row) => row.id)).size, widgetDefinitions.length);
+  assert.deepEqual(layout.widgets[0], { id: "calendar", span: 12, height: 372 });
+  assert.deepEqual(layout.widgets[1], { id: "flow", span: 7, height: null });
+  assert.deepEqual(normalizeLayout({version: 99,widgets:[]}), normalizeLayout(null));
+});
+
+test("moving a block preserves all widgets and their sizes without mutating the saved snapshot", () => {
+  const saved = normalizeLayout(null);
+  const next = moveWidget(saved, "calendar", "metrics");
+  assert.equal(saved.widgets[0].id, "metrics");
+  assert.equal(next.widgets[0].id, "calendar");
+  assert.deepEqual([...next.widgets].sort((a,b)=>a.id.localeCompare(b.id)), [...saved.widgets].sort((a,b)=>a.id.localeCompare(b.id)));
+  assert.equal(moveWidget(next,"calendar","registry",true).widgets.at(-1).id,"calendar");
+});
+
+test("resizing snaps to columns and bounds width/height so data stays readable", () => {
+  assert.deepEqual(resizedWidget("calendar",{span:3,height:372},200,108,100),{id:"calendar",span:5,height:480});
+  assert.deepEqual(resizedWidget("registry",{span:12,height:600},-5000,-5000,100),{id:"registry",span:6,height:320});
+  assert.deepEqual(resizedWidget("flow",{span:7,height:300},5000,5000,100),{id:"flow",span:12,height:1200});
+});
+
+test("layout reloads after saving, recovers corrupt storage, and reports storage failures", () => {
+  const memory = new Map();
+  const storage = {getItem:(key)=>memory.get(key),setItem:(key,value)=>memory.set(key,value)};
+  const next = moveWidget(normalizeLayout(null),"calendar","metrics");
+  assert.equal(writeLayout(storage,next),true);
+  assert.deepEqual(readLayout(storage),next);
+  memory.set(LAYOUT_KEY,"broken JSON");
+  assert.deepEqual(readLayout(storage),normalizeLayout(null));
+  assert.equal(writeLayout({setItem(){throw new Error("Storage blocked");}},next),false);
+  assert.deepEqual(readLayout(null),normalizeLayout(null));
+});
+
+test("confirmed 2/2 roster matches working and resting dates for every employee", () => {
+  const expected = {
+    "2026-10-22": ["stanedgart", "Custodes112"],
+    "2026-10-23": ["AIex911", "stanedgart"],
+    "2026-10-24": ["AIex911", "Dmee911"],
+    "2026-10-25": ["Custodes112", "Dmee911"],
+    "2026-10-26": ["stanedgart", "Custodes112"],
+    "2026-10-27": ["AIex911", "stanedgart"],
+    "2026-10-28": ["AIex911", "Dmee911"],
+  };
+  for (const [date, names] of Object.entries(expected)) assert.deepEqual(workingOn(date, teamSchedule).map((p) => p.name), names);
+  for (let day = 1; day <= 31; day++) assert.equal(workingOn(`2026-10-${String(day).padStart(2, "0")}`, teamSchedule).length, 2);
+});
+
+test("2/2 repeats across month/year boundaries, leap dates and dates before anchors", () => {
+  for (const person of teamSchedule) {
+    for (const date of ["2024-02-28", "2026-09-29", "2026-10-30", "2026-12-30"]) {
+      const start = shiftPhase(date, person.anchor);
+      for (let day = 0; day < 12; day++) {
+        const next = new Date(`${date}T00:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + day);
+        assert.equal(shiftPhase(next.toISOString().slice(0, 10), person.anchor), (start + day) % 4);
+      }
+    }
+  }
+  assert.throws(() => workingOn("2026-02-29"));
+});
+
+test("calendar weeks start Monday and cover the whole month including leap February", () => {
+  const october = calendarMonth("2026-10");
+  assert.equal(october[0], "2026-09-28");
+  assert.equal(october.at(-1), "2026-11-01");
+  assert.equal(october.length, 35);
+  assert.ok(calendarMonth("2024-02").includes("2024-02-29"));
+  assert.equal(calendarMonth("2026-11").length, 42);
+  assert.throws(() => calendarMonth("2026-13"));
+});
+
+test("calendar today follows Moscow midnight independent of browser timezone", () => {
+  assert.equal(moscowToday(new Date("2026-10-23T20:59:59Z")), "2026-10-23");
+  assert.equal(moscowToday(new Date("2026-10-23T21:00:00Z")), "2026-10-24");
+});
+
+test("calendar exposes names in accessible day labels and hover tooltips", () => {
+  const markup = calendarDaysMarkup("2026-10", "2026-10-23", "2026-10-24", teamSchedule);
+  assert.match(markup, /aria-label="суббота, 24 октября\. На смене: AIex911, Dmee911\./);
+  assert.equal((markup.match(/aria-pressed="true"/g) || []).length, 1);
+  assert.equal((markup.match(/aria-current="date"/g) || []).length, 1);
+  assert.match(markup, /aria-describedby="shift-tip-2026-10-24"/);
+  const initial = calendarDaysMarkup("2026-10", "2026-10-23", null, teamSchedule);
+  assert.doesNotMatch(initial, /aria-pressed="true"|class="[^"]*is-open|shift-day-people|shift-day-dots/);
+});
 
 test("unknown measurements stay unknown and observed zero stays zero", () => {
   for (const missing of [null, undefined, "", NaN, Infinity]) assert.equal(formatNumber(missing), "—");

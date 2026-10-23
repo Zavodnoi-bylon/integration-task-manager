@@ -16,6 +16,7 @@
       </a>
       <nav class="header-nav" aria-label="Разделы отчёта">
         <a class="nav-active" href="#main">Обзор</a>
+        <a href="#schedule-section">График смен</a>
         <a href="#registry-section">Реестр задач</a>
         <button id="open-proposals" class="nav-link" type="button">На проверке <span id="nav-proposal-count" class="count-pill">—</span></button>
       </nav>
@@ -31,6 +32,19 @@
         <div class="freshness"><span class="status-dot" aria-hidden="true"></span><span id="freshness-text">Подключаем источники…</span><small>Часовой пояс: Москва (UTC+3)</small></div>
       </section>
 
+      <section id="layout-toolbar" hidden class="layout-toolbar" aria-label="Настройка расположения">
+        <button type="button" class="secondary layout-edit-button" data-layout-edit>Настроить расположение</button>
+        <div class="layout-actions" data-layout-actions hidden>
+          <strong>Настройка расположения</strong>
+          <button type="button" class="primary" data-layout-save>Сохранить</button>
+          <button type="button" class="secondary" data-layout-cancel>Отмена</button>
+          <button type="button" class="text-button" data-layout-reset>Исходный вид</button>
+        </div>
+        <p data-layout-help hidden>За заголовок — перемещение, за нижний угол — размер. Сохранённую раскладку увидят все пользователи.</p>
+        <span class="layout-status" data-layout-status role="status" aria-live="polite"></span>
+      </section>
+
+      <p id="access-status" class="access-status" role="status">Проверяем доступ…</p>
       <div id="coverage-notice" class="coverage-notice" role="note" hidden></div>
 
       <form id="filters" class="panel activity-filters" aria-label="Фильтры отчёта">
@@ -58,26 +72,25 @@
       <div class="report-heading"><h2 id="report-period">Загрузка отчёта</h2><span id="report-status" class="status" role="status" aria-live="polite"></span></div>
       <div id="report-error" class="error-panel" role="alert" hidden></div>
       <div id="report-empty" class="empty-panel" hidden></div>
-      <section id="kpis" class="activity-kpis" aria-label="Основные показатели"></section>
+      <div id="dashboard-layout" hidden class="dashboard-layout">
+      <div class="layout-widget" data-layout-id="metrics"><div class="layout-widget-body"><section id="kpis" class="activity-kpis" aria-label="Основные показатели"></section></div></div>
 
-      <section id="chart-grid" class="chart-grid" aria-label="Динамика работы">
-        <article class="panel chart-panel">
+      <div class="layout-widget" data-layout-id="flow"><div class="layout-widget-body"><article class="panel chart-panel">
           <div class="chart-heading"><div><h2>Поток задач</h2><p>Поступило и подтверждённо завершено</p></div><span id="flow-bucket-label" class="quiet-chip">По дням</span></div>
           <div class="chart-legend"><span><i class="legend-dot incoming"></i>Поступило</span><span><i class="legend-dot completed"></i>Завершено</span></div>
           <div id="flow-chart" class="chart-container" aria-busy="true"><div class="chart-placeholder">Загрузка данных…</div></div>
           <p class="chart-footnote">Нажмите столбец, чтобы открыть задачи за этот период. Повторное завершение сохраняет ID задачи.</p>
-        </article>
-        <article class="panel chart-panel">
+        </article></div></div>
+      <div class="layout-widget" data-layout-id="backlog"><div class="layout-widget-body"><article class="panel chart-panel">
           <div class="chart-heading"><div><h2>Известно открытых</h2><p>Состояние на конец каждого периода</p></div><span class="quiet-chip">Остаток</span></div>
           <div class="chart-legend"><span><i class="legend-dot backlog"></i>Открытые случаи</span></div>
           <div id="backlog-chart" class="chart-container" aria-busy="true"><div class="chart-placeholder">Загрузка данных…</div></div>
           <p class="chart-footnote">Включает задачи, начатые раньше выбранного периода. Охват ограничен загруженными источниками.</p>
-        </article>
-      </section>
+        </article></div></div>
 
-      <section id="category-section" class="category-section" aria-labelledby="category-title"><div class="section-heading"><h2 id="category-title">Структура работы</h2><span>Случаи в выбранном срезе</span></div><div id="category-breakdown" class="category-breakdown"></div></section>
+      <div class="layout-widget" data-layout-id="categories"><div class="layout-widget-body"><section id="category-section" class="category-section" aria-labelledby="category-title"><div class="section-heading"><h2 id="category-title">Структура работы</h2><span>Случаи в выбранном срезе</span></div><div id="category-breakdown" class="category-breakdown"></div></section></div></div>
 
-      <section id="registry-section" class="panel registry-section" aria-labelledby="registry-title">
+      <div class="layout-widget" data-layout-id="registry"><div class="layout-widget-body"><section id="registry-section" class="panel registry-section" aria-labelledby="registry-title">
         <div class="registry-heading">
           <div class="registry-tabs" role="tablist" aria-label="Рабочие записи">
             <button id="registry-tab" class="registry-tab active" type="button" role="tab" aria-selected="true" aria-controls="registry-view"><span id="registry-title">Реестр задач</span><span id="task-count" class="count-pill">—</span></button>
@@ -93,7 +106,11 @@
         </div>
         <div id="proposals-view" role="tabpanel" aria-labelledby="proposals-tab" hidden><p class="proposal-note">Предложения ещё не включены в статистику. Откройте запись, чтобы проверить события и ссылки на исходные сообщения.</p><div id="proposals-list" class="proposals-list"></div></div>
         <p id="export-status" class="activity-export-status" role="status" hidden></p>
-      </section>
+      </section></div></div>
+
+      <div class="layout-widget" data-layout-id="calendar"><div class="layout-widget-body"><section id="schedule-section" class="panel shift-section" aria-labelledby="schedule-title"></section></div></div>
+
+      </div>
 
       <footer class="page-footer"><span>Одна задача — один устойчивый ID. Сообщения и алерты служат подтверждениями.</span><span>Integration Team · Activity Explorer</span></footer>
     </main>

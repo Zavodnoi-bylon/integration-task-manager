@@ -1,0 +1,23 @@
+# Isolated migration rehearsal. Always pass both files and project name explicitly.
+services:
+  postgres:
+    networks: [backend, trial_access]
+    ports:
+      - '127.0.0.1:55432:5432'
+  web:
+    environment:
+      DB_NAME: activity_trial
+      ACTIVITY_PROXY_TOKEN: ${ACTIVITY_PROXY_TOKEN:?Configure the trusted proxy token}
+      ACTIVITY_AUTH_ROLES: '${ACTIVITY_AUTH_ROLES:?Configure dashboard roles}'
+      ACTIVITY_TECH_LEAD_PANELS: '${ACTIVITY_TECH_LEAD_PANELS:-[]}'
+      ACTIVITY_UI_STATE_DIR: /var/lib/activity-ui
+    volumes:
+      - /home/teamactivity/ui-state:/var/lib/activity-ui
+    ports: !override
+      - '127.0.0.1:8481:8000'
+  cli:
+    environment:
+      ACTIVITY_WRITER_DB_NAME: activity_trial
+networks:
+  trial_access:
+    driver: bridge

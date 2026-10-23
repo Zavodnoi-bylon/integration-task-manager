@@ -1,0 +1,24 @@
+# Copy to /etc/team-activity-access/Caddyfile after selecting the public hostname.
+# The access.env file supplies a hostname and bcrypt hash, never a plaintext password.
+{
+    admin off
+}
+
+{$ACTIVITY_DASHBOARD_HOST} {
+    basic_auth {
+        activity_viewer {$ACTIVITY_VIEWER_PASSWORD_HASH}
+        viver {$ACTIVITY_VIVER_PASSWORD_HASH}
+        tech_lead {$ACTIVITY_TECH_LEAD_PASSWORD_HASH}
+    }
+    reverse_proxy 127.0.0.1:8481 {
+        header_up -Authorization
+        header_up X-Activity-User {http.auth.user.id}
+        header_up X-Activity-Proxy-Token {$ACTIVITY_PROXY_TOKEN}
+    }
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+}

@@ -1,6 +1,8 @@
 import "./base.css";
 import "./style.css";
 import { backlogChart, flowChart } from "./charts.js";
+import { mountSchedule } from "./schedule.js";
+import { mountLayout } from "./layout.js";
 import {
   categoryLabels, createRequestGate, dateLabel, escapeHtml, eventLabels, formatNumber,
   formatTimestamp, numeric, periodLabel, presetPeriod, queryString, readPreference,
@@ -17,9 +19,53 @@ const state = {
   page: 1, pageSize: [25, 50, 100].includes(savedPageSize) ? savedPageSize : 25,
   tasks: null, proposals: [], reportLoading: false, tasksLoading: false, exportLoading: false,
   activeTab: "registry",
+  access: null,
 };
 const fields = { from: $("#date-from"), to: $("#date-to"), category: $("#category"), client: $("#client"), assignee: $("#assignee"), q: $("#search") };
 const dialog = $("#detail-dialog");
+let schedule = null;
+const allowed = panel => Boolean(state.access?.panels.includes(panel));
+
+async function initializeAccess(token) {
+  const access = await apiJson("/api/access", token);
+  if (!Array.isArray(access.panels)) throw new Error("Не удалось проверить права доступа.");
+  const settings = await apiJson("/api/layout", token);
+  let revision = settings.revision;
+  state.access = access;
+  mountLayout($("#dashboard-layout"), $("#layout-toolbar"), {
+    layout: settings.layout, canEdit: access.can_edit_layout,
+    async onSave(layout) {
+      const response = await fetch("/api/layout", {
+        method: "PUT", headers: {"Content-Type":"application/json", "X-Activity-Action":"save-layout"},
+        body: JSON.stringify({layout, revision}),
+      });
+      const value = await response.json();
+      if (!response.ok) throw new Error(typeof value.detail === "string" ? value.detail : "Не удалось сохранить общую раскладку.");
+      revision = value.revision;
+    },
+  });
+  for (const node of document.querySelectorAll("[data-layout-id]")) node.hidden = !allowed(node.dataset.layoutId);
+  $("#dashboard-layout").hidden = false;
+  for (const selector of ['a[href="#schedule-section"]', 'a[href="#registry-section"]', '#open-proposals']) {
+    $(selector).hidden = !allowed(selector.includes("schedule") ? "calendar" : "registry");
+  }
+  if (allowed("calendar")) {
+    const roster = await apiJson("/api/schedule", token);
+    schedule = mountSchedule($("#schedule-section"), roster.people);
+    schedule.setToday(access.today);
+  }
+  const hasReport = access.panels.some(p => ["metrics","flow","backlog","categories","registry"].includes(p));
+  $("#filters").hidden = !hasReport;
+  $(".report-heading").hidden = !hasReport;
+  $(".freshness").hidden = !hasReport;
+  if (!allowed("registry")) {
+    for (const name of ["category", "client", "assignee", "q"]) fields[name].closest("label").hidden = true;
+  }
+  $("#access-status").textContent = access.panels.length
+    ? `Доступ: ${access.role === "admin" ? "Администратор" : access.role === "viewer" ? "Просмотр всех панелей" : "Tech lead"}`
+    : "Панели ещё не назначены. Доступ появится после выбора панелей администратором.";
+  return hasReport;
+}
 
 async function apiResponse(path, token, accept = "application/json") {
   const response = await fetch(path, { signal: token.signal, headers: { Accept: accept }, cache: "no-store" });
@@ -175,6 +221,11 @@ function renderReport(payload, params) {
 
 async function loadReport() {
   if (!state.meta) return;
+  if (!state.access?.panels.some(p => ["metrics","flow","backlog","categories"].includes(p))) {
+    state.reportParams = Object.freeze({...readFilters()});
+    if (allowed("registry")) void loadTasks();
+    return;
+  }
   const params = Object.freeze({ ...readFilters() });
   const token = gates.report.start();
   gates.tasks.abort(); gates.export.abort(); gates.detail.abort();
@@ -198,8 +249,8 @@ async function loadReport() {
     state.reportParams = params;
     renderReport(payload, params);
     markDirty();
-    void loadTasks();
-    if (state.activeTab === "proposals") void loadProposals();
+    if (allowed("registry")) void loadTasks();
+    if (allowed("registry") && state.activeTab === "proposals") void loadProposals();
   } catch (error) {
     if (!token.isCurrent() || error.name === "AbortError") return;
     clearOverview("Отчёт не загружен");
@@ -259,6 +310,7 @@ function renderTaskRows(payload) {
 }
 
 async function loadTasks() {
+  if (!allowed("registry")) return;
   const filters = registryFilters();
   if (!filters) return;
   const token = gates.tasks.start();
@@ -290,6 +342,7 @@ async function loadTasks() {
 }
 
 function chooseDrilldown(metric, row = null) {
+  if (!allowed("registry")) return;
   if (!state.reportParams || !state.report) return;
   const base = state.reportParams;
   state.drill = {
@@ -448,10 +501,13 @@ async function initialize() {
   $("#refresh").disabled = true;
   clearOverview();
   try {
+    if (!state.access && !await initializeAccess(token)) { $("#refresh").disabled = false; return; }
+    if (!state.access.panels.some(p => ["metrics","flow","backlog","categories","registry"].includes(p))) { $("#refresh").disabled = false; return; }
     const meta = await apiJson("/api/meta", token);
     if (!token.isCurrent()) return;
     if (meta.timezone !== "Europe/Moscow") throw new Error("Ожидается отчёт в часовом поясе Europe/Moscow.");
     state.meta = meta;
+    schedule?.setToday(meta.today);
     observeDemo(meta); renderCoverage(meta.coverage); renderFreshness(); updateProposalCounts(meta.pending_proposals);
     fillOptions(meta);
     const query = new URLSearchParams(location.search);
@@ -459,6 +515,7 @@ async function initialize() {
     fields.to.value = query.get("to") || meta.default_to;
     for (const name of ["category", "client", "assignee"]) selectOption(fields[name], query.get(name));
     fields.q.value = query.get("q") || "";
+    if (!allowed("registry")) for (const name of ["category", "client", "assignee", "q"]) fields[name].value = "";
     const bucket = query.get("bucket");
     if (["day", "week"].includes(bucket)) state.bucket = bucket;
     $("#page-size").value = String(state.pageSize);
@@ -471,6 +528,7 @@ async function initialize() {
     $("#report-period").textContent = "Не удалось подключиться";
     $("#report-status").textContent = "Нет данных";
     showError(error.message || "Не удалось подключиться к API. Данные не подменяются демонстрацией.");
+    if (!state.access) $("#access-status").textContent = "Не удалось проверить доступ. Обновите страницу.";
     $("#refresh").disabled = false;
   }
 }
@@ -508,6 +566,7 @@ $("#kpis").addEventListener("click", (event) => {
   if (button) chooseDrilldown(button.dataset.registryMetric);
 });
 $("#category-breakdown").addEventListener("click", (event) => {
+  if (!allowed("registry")) return;
   const button = event.target.closest("[data-category]");
   if (!button) return;
   selectOption(fields.category, button.dataset.category);

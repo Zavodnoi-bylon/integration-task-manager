@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One managed preview entry point. Demo mode must be chosen explicitly.
 import {spawn, spawnSync} from 'node:child_process';
-import {existsSync} from 'node:fs';
+import {existsSync, mkdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 
@@ -65,8 +65,10 @@ function start(command, args, env) {
 }
 console.log('DEMO: fictional tasks only — not a department report.');
 console.log(`Python 3.12 dependency preflight passed (${runtime.label}).`);
+const demoUiState = path.join(root, 'state', 'demo-ui');
+mkdirSync(demoUiState, {recursive:true});
 const api = start(runtime.command, ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', '8000', '--no-access-log'],
-  {...runtime.env, ACTIVITY_DEMO: '1'});
+  {...runtime.env, ACTIVITY_DEMO: '1', ACTIVITY_PROXY_TOKEN:'', ACTIVITY_UI_STATE_DIR:demoUiState});
 let ready = false;
 for (let attempt = 0; attempt < 80; attempt++) {
   if (stopping || api.exitCode !== null) break;
