@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/team-activity/task-proposals.schema.json",
+  "title": "Evidence-backed task proposals (pending human review)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "proposals"],
+  "properties": {
+    "schema_version": {"const": 1, "type": "integer"},
+    "demo": {"type": "boolean"},
+    "proposals": {
+      "type": "array", "maxItems": 5000,
+      "items": {"$ref": "#/$defs/proposal"}
+    }
+  },
+  "$defs": {
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 300},
+    "reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["message_key", "revision_hash"],
+      "properties": {
+        "message_key": {"$ref": "#/$defs/identifier"},
+        "revision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "taskReference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["message_key", "revision_hash"],
+      "properties": {
+        "message_key": {"$ref": "#/$defs/identifier"},
+        "revision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "event_id": {"anyOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]}
+      }
+    },
+    "event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_id", "kind", "occurred_at", "time_basis", "evidence"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/identifier"},
+        "kind": {"enum": ["requested", "observed_open", "assigned", "waiting", "resumed", "work_ready", "completed", "reopened", "cancelled"]},
+        "occurred_at": {"type": "string", "format": "date-time", "pattern": "(Z|[+-][0-9]{2}:[0-9]{2})$"},
+        "time_basis": {"enum": ["event", "message", "notification", "observed"]},
+        "evidence": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/reference"}}
+      },
+      "allOf": [{
+        "if": {"properties": {"kind": {"enum": ["requested", "completed"]}}, "required": ["kind"]},
+        "then": {"properties": {"evidence": {"minItems": 1}}}
+      }]
+    },
+    "proposal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proposal_id", "task_id", "version", "title", "category", "client", "assignee", "external_refs", "events", "evidence"],
+      "properties": {
+        "proposal_id": {"$ref": "#/$defs/identifier"},
+        "task_id": {"$ref": "#/$defs/identifier"},
+        "version": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "title": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "category": {"enum": ["integration", "incident", "support", "change", "other"]},
+        "client": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
+        "assignee": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
+        "external_refs": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {"type": "string"}, {"type": "null"},
+              {"type": "array", "items": {"type": "string"}}
+            ]
+          }
+        },
+        "events": {"type": "array", "minItems": 1, "maxItems": 10000, "items": {"$ref": "#/$defs/event"}},
+        "evidence": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/taskReference"}},
+        "context_missing": {"type": "boolean"},
+        "note": {"type": ["string", "null"], "minLength": 1, "maxLength": 10000}
+      }
+    }
+  },
+  "$comment": "The CLI additionally checks unique IDs, lifecycle chronology, bounded external_refs, and every exact message/revision FK. JSON Schema alone does not establish evidence existence or human approval. All imports stay proposed."
+}

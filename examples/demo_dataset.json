@@ -1,0 +1,1942 @@
+{
+  "coverage": {
+    "status": "partial",
+    "note": "Все задачи, авторы, клиенты и сообщения вымышлены. Примеры проверяют неполную историю, ожидание, повторное открытие и дубли уведомлений."
+  },
+  "demo": true,
+  "tasks": [
+    {
+      "task_id": "demo:long-running",
+      "title": "Интеграция с длинной историей",
+      "category": "integration",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:long-running:1",
+          "kind": "requested",
+          "occurred_at": "2026-09-28T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:long-running:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-06T16:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:long-running:3",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-21T18:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1001",
+          "revision_hash": "bff0ab8f1b6781a483b7a11038bef7f2c598c5a68f26ec472996b079982154dd",
+          "event_id": "demo:long-running:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1002",
+          "revision_hash": "54da6da55e59f2ca5d693d654eb783493fc3ef608f35600fbce07231bd0b7eef",
+          "event_id": "demo:long-running:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1003",
+          "revision_hash": "850db4135aed2675caf4df2f3ae9b452b15231cf3275b371c286e08fe555fe29",
+          "event_id": "demo:long-running:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:unknown-opening",
+      "title": "Завершение: начало истории отсутствует",
+      "category": "support",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 2",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:unknown-opening:1",
+          "kind": "assigned",
+          "occurred_at": "2026-10-01T11:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:unknown-opening:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-07T14:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1004",
+          "revision_hash": "466ccd435990ee692ad0845dfc9000835d9767b81302c025c3a12b68b91c6858",
+          "event_id": "demo:unknown-opening:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1005",
+          "revision_hash": "3569a3d2a007b2220235f16ccff11ecc55eb3076b7675ca7c8ef3b80c3646560",
+          "event_id": "demo:unknown-opening:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:setup-alpha",
+      "title": "Настройка демонстрационного подключения",
+      "category": "integration",
+      "client": "Демо-клиент A",
+      "assignee": "Специалист 1",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:setup-alpha:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-05T11:15:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:setup-alpha:2",
+          "kind": "assigned",
+          "occurred_at": "2026-10-05T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:setup-alpha:3",
+          "kind": "completed",
+          "occurred_at": "2026-10-06T15:30:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1006",
+          "revision_hash": "9251162f5cd2889fdde13525a4feed3f907f18c008462c70c69a92a656ed1989",
+          "event_id": "demo:setup-alpha:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1007",
+          "revision_hash": "bdc7bb7de391ed46888b4e31e65a2fe18cb0b154e6c66eebe6c21f8453657011",
+          "event_id": "demo:setup-alpha:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1008",
+          "revision_hash": "f392c5d71cc29ec789f89f745be4041641339c9d087de31dfe4f2ed26ccae3b2",
+          "event_id": "demo:setup-alpha:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:access-help",
+      "title": "Восстановление тестового доступа",
+      "category": "support",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 3",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:access-help:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-05T12:20:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:access-help:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-05T13:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:access-help:3",
+          "kind": "resumed",
+          "occurred_at": "2026-10-06T11:30:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:access-help:4",
+          "kind": "completed",
+          "occurred_at": "2026-10-06T12:15:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1009",
+          "revision_hash": "748a115ee96d58cd51c0c46ddf7cf9d32fbf4132b6fc37fb21a46a151679cc57",
+          "event_id": "demo:access-help:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1010",
+          "revision_hash": "17734f998a60c231aa4efd7fad56f4725a3cadc8adce758f8ca28910f687e6bd",
+          "event_id": "demo:access-help:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1011",
+          "revision_hash": "052b306702dd7a34796b347b8c287ca63ae6213e7eecfc7c21184659ad4823ee",
+          "event_id": "demo:access-help:3"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1012",
+          "revision_hash": "b7d8161923c7c664273c53d8c79c120f04a0429c584ecefac19de67ccd67fd19",
+          "event_id": "demo:access-help:4"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:night-boundary",
+      "title": "Проверка события на границе московского дня",
+      "category": "incident",
+      "client": "Демо-клиент C",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:night-boundary:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-05T22:50:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:night-boundary:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-06T00:10:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1013",
+          "revision_hash": "3a5339959f3a4595b089938bebce0a5ba13a5bfc7f841671ec63d5719411227f",
+          "event_id": "demo:night-boundary:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1014",
+          "revision_hash": "8f48b306eca3c957632965a9a95653af6e2181c987134e48eb56ae89f325d7c3",
+          "event_id": "demo:night-boundary:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:route-change",
+      "title": "Изменение тестового маршрута",
+      "category": "change",
+      "client": "Демо-клиент A",
+      "assignee": "Специалист 4",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:route-change:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-06T16:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:route-change:2",
+          "kind": "assigned",
+          "occurred_at": "2026-10-07T10:30:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:route-change:3",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-08T17:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:route-change:4",
+          "kind": "completed",
+          "occurred_at": "2026-10-09T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1015",
+          "revision_hash": "5e4a626ac2310b06d6206478e788b981a3baf91e22ff0700cd186a51aaba3b1c",
+          "event_id": "demo:route-change:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1016",
+          "revision_hash": "b45b268e2c6c5b34f285d96ed51e18b473e1261a561e2cb2b07041a00f22c661",
+          "event_id": "demo:route-change:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1017",
+          "revision_hash": "de12dc644027aaff9f71ba0a617dc885e5fd3caafc0121f424305d46bf5b7b3d",
+          "event_id": "demo:route-change:3"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1018",
+          "revision_hash": "e2105c927724b292e11cb39ba3014c5fe50c846870095ce9c4ddd38c75991ccc",
+          "event_id": "demo:route-change:4"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:waiting-answer",
+      "title": "Ожидание ответа демонстрационного клиента",
+      "category": "support",
+      "client": "Демо-клиент C",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:waiting-answer:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-07T15:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:waiting-answer:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-07T16:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1019",
+          "revision_hash": "a6c8644510909c2f7abab44cbff4ee8ee2de1179bd1cc4abe38986a7c7bef01e",
+          "event_id": "demo:waiting-answer:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1020",
+          "revision_hash": "08ec86caa32c76760a6d7b85e9718c18d1e19d2071a726418f6304818ed77bc0",
+          "event_id": "demo:waiting-answer:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:reopened-integration",
+      "title": "Повторное открытие после проверки",
+      "category": "integration",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 1",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:reopened-integration:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-08T11:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:reopened-integration:2",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-09T17:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:reopened-integration:3",
+          "kind": "completed",
+          "occurred_at": "2026-10-12T13:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:reopened-integration:4",
+          "kind": "reopened",
+          "occurred_at": "2026-10-15T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:reopened-integration:5",
+          "kind": "completed",
+          "occurred_at": "2026-10-19T14:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1021",
+          "revision_hash": "918e8d7a895111170c67f72ce06121d3cfc08935fb36a0bfdbeda96665116115",
+          "event_id": "demo:reopened-integration:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1022",
+          "revision_hash": "eb42d94be297c09b564066f30da2eecc534a2f0e15867849fda16b9b215313d7",
+          "event_id": "demo:reopened-integration:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1023",
+          "revision_hash": "6772aceceafebddb683b7d6fba57e852baf72d34a72a5282e39445705d668899",
+          "event_id": "demo:reopened-integration:3"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1024",
+          "revision_hash": "36131c07342ba9e3abe8904b55b5fca029d5328c9f7e10f2b0a1d6e4c71a0901",
+          "event_id": "demo:reopened-integration:4"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1025",
+          "revision_hash": "6772aceceafebddb683b7d6fba57e852baf72d34a72a5282e39445705d668899",
+          "event_id": "demo:reopened-integration:5"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:duplicate-notice",
+      "title": "Повторное уведомление о закрытии",
+      "category": "incident",
+      "client": "Демо-клиент A",
+      "assignee": "Специалист 2",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:duplicate-notice:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-08T13:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:duplicate-notice:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-08T15:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:duplicate-notice:3",
+          "kind": "completed",
+          "occurred_at": "2026-10-09T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1026",
+          "revision_hash": "9f14c45d5bebffff1c726b9885c542a9f73c2e86015ca90112ca6d8d412a11c0",
+          "event_id": "demo:duplicate-notice:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1027",
+          "revision_hash": "df60ab50a77e018272f7577df4af6bd6188f09b9fe162ebbe77b203b7d18df7b",
+          "event_id": "demo:duplicate-notice:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1028",
+          "revision_hash": "df60ab50a77e018272f7577df4af6bd6188f09b9fe162ebbe77b203b7d18df7b",
+          "event_id": "demo:duplicate-notice:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:cancelled-change",
+      "title": "Отменённая демонстрационная заявка",
+      "category": "other",
+      "client": "Демо-клиент C",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:cancelled-change:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-09T11:40:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:cancelled-change:2",
+          "kind": "cancelled",
+          "occurred_at": "2026-10-12T11:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1029",
+          "revision_hash": "dcc7c108c105930a86151fc879309fd448a43c092734c392291b12234867fd41",
+          "event_id": "demo:cancelled-change:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1030",
+          "revision_hash": "324dda79b1bf80e30dc977f9d2c27ca2ededae048de98d2cf67ffbc8d09358dd",
+          "event_id": "demo:cancelled-change:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:observed-waiting",
+      "title": "Открытая задача без исходного сообщения",
+      "category": "support",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:observed-waiting:1",
+          "kind": "observed_open",
+          "occurred_at": "2026-10-10T14:00:00+03:00",
+          "time_basis": "observed"
+        },
+        {
+          "event_id": "demo:observed-waiting:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-13T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1031",
+          "revision_hash": "ec7fe4557c727836d4e973a8f90132a9955e7a0e9e5024a0d557b61c8e7a8537",
+          "event_id": "demo:observed-waiting:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1032",
+          "revision_hash": "ce74fedc994e23e2d51696aaeb1859a70cfb448fdb1b2cb4950a38c5362ac9ea",
+          "event_id": "demo:observed-waiting:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:awaiting-confirmation",
+      "title": "Работа готова, подтверждение ожидается",
+      "category": "integration",
+      "client": "Демо-клиент C",
+      "assignee": "Специалист 3",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:awaiting-confirmation:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-12T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:awaiting-confirmation:2",
+          "kind": "assigned",
+          "occurred_at": "2026-10-13T11:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:awaiting-confirmation:3",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-14T18:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1033",
+          "revision_hash": "453e82f6926dc5c50faa873477a707d8bacc2b40080a9b259927e339c054bc0f",
+          "event_id": "demo:awaiting-confirmation:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1034",
+          "revision_hash": "7ca5ffec6d740188318ad27090dc2c0dca82f4389959c9f2e9f9afb53e65e4ef",
+          "event_id": "demo:awaiting-confirmation:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1035",
+          "revision_hash": "4cae710b9e9141f4f1b8d30f02117ec3ecc51d29dcf16c8319a4217c852c767a",
+          "event_id": "demo:awaiting-confirmation:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:settings-help",
+      "title": "Консультация по тестовым настройкам",
+      "category": "support",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 4",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:settings-help:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-12T15:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:settings-help:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-13T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1036",
+          "revision_hash": "0eb12d71c5317f47843668ef1773e42be9963602be5363bbb94a693d684d9ffe",
+          "event_id": "demo:settings-help:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1037",
+          "revision_hash": "f309bdc6e0abe11875410d2bd72ecf352665e47dbe2093bc852207cf57cbe4f2",
+          "event_id": "demo:settings-help:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:closure-only",
+      "title": "Наблюдаемое закрытие без начала",
+      "category": "support",
+      "client": null,
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:closure-only:1",
+          "kind": "completed",
+          "occurred_at": "2026-10-14T16:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1038",
+          "revision_hash": "3389915b6ad1932da70fa9e453306fa2772b58899055a15df4ed62bfba4c360f",
+          "event_id": "demo:closure-only:1"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:twice-same-day",
+      "title": "Две проверки одного инцидента",
+      "category": "incident",
+      "client": "Демо-клиент C",
+      "assignee": "Специалист 2",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:twice-same-day:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-14T11:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:twice-same-day:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-14T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:twice-same-day:3",
+          "kind": "reopened",
+          "occurred_at": "2026-10-14T14:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:twice-same-day:4",
+          "kind": "completed",
+          "occurred_at": "2026-10-14T16:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1039",
+          "revision_hash": "7c9f85b8bedc99d2707e0d074180b7df712ec4ca2e29d141c222c2a3a5cee232",
+          "event_id": "demo:twice-same-day:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1040",
+          "revision_hash": "fe2b77d00780dba3a4308fa11b8cbf8df8207f9598f5d7a4fcd1c08668085d5f",
+          "event_id": "demo:twice-same-day:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1041",
+          "revision_hash": "62bc37c719fe212bfd4240c07a11fe3ffa0238fb5a7e8e16d992f75bd4e9a8dc",
+          "event_id": "demo:twice-same-day:3"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1042",
+          "revision_hash": "fe2b77d00780dba3a4308fa11b8cbf8df8207f9598f5d7a4fcd1c08668085d5f",
+          "event_id": "demo:twice-same-day:4"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:field-change",
+      "title": "Согласование демонстрационного поля",
+      "category": "change",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 1",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:field-change:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-15T13:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:field-change:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-15T14:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:field-change:3",
+          "kind": "resumed",
+          "occurred_at": "2026-10-16T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:field-change:4",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-19T16:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:field-change:5",
+          "kind": "completed",
+          "occurred_at": "2026-10-20T13:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1043",
+          "revision_hash": "fff3409fb5b9ca25fa665d282f2b56f77c173bcd1f46f6bf463f89112c788b4d",
+          "event_id": "demo:field-change:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1044",
+          "revision_hash": "de5b57f1e41ef9c594c341250fd06c45258c31141406b3d9cd671cecbd1c3826",
+          "event_id": "demo:field-change:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1045",
+          "revision_hash": "da30c8204a5ebabdd2f8db2742a19caaf4df490ace529c5a3b88ba4eb846c282",
+          "event_id": "demo:field-change:3"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1046",
+          "revision_hash": "1015e569cca51f9375af285666724cb644cf0c4ac8ec8fe1841e2b5c82ff5227",
+          "event_id": "demo:field-change:4"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1047",
+          "revision_hash": "ff139895f21b3a0845d01b46b11f3b0a6ceabe714d2eafc01a000402632e870a",
+          "event_id": "demo:field-change:5"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:format-help",
+      "title": "Проверка формата тестовых данных",
+      "category": "support",
+      "client": "Демо-клиент A",
+      "assignee": "Специалист 3",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:format-help:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-16T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:format-help:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-16T14:30:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1048",
+          "revision_hash": "a3a073b80e8f809acf3aaf1ce36d6d494fc8df9b74b1fde25e8a882319c723e5",
+          "event_id": "demo:format-help:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1049",
+          "revision_hash": "1b876894ba138f58e5a1d94d35c51bbd4a5f2dddf4c6b9853de4a80eb502b7d6",
+          "event_id": "demo:format-help:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:new-connection",
+      "title": "Подготовка нового тестового подключения",
+      "category": "integration",
+      "client": "Демо-клиент C",
+      "assignee": "Специалист 4",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:new-connection:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-19T12:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:new-connection:2",
+          "kind": "assigned",
+          "occurred_at": "2026-10-19T14:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:new-connection:3",
+          "kind": "waiting",
+          "occurred_at": "2026-10-20T15:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1050",
+          "revision_hash": "ba5cbb9d5dea48f8055862fddd1f921574be29b6f11df8eb6ae2aceb5cdc7028",
+          "event_id": "demo:new-connection:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1051",
+          "revision_hash": "b9a39ca2831378fbc8d84669454d8198d3fa8e68c7e9d5ccd71f494ee5247048",
+          "event_id": "demo:new-connection:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1052",
+          "revision_hash": "92c27afcb1587035c118679d109b49736eacc9faf88846c41d390095b1c41280",
+          "event_id": "demo:new-connection:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:delivery-incident",
+      "title": "Разбор тестовой ошибки доставки",
+      "category": "incident",
+      "client": "Демо-клиент B",
+      "assignee": "Специалист 2",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:delivery-incident:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-19T16:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:delivery-incident:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-19T18:30:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1053",
+          "revision_hash": "86e03b89efa88cffc20839238f0bf603d20f0620983425af128952017f6e608c",
+          "event_id": "demo:delivery-incident:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1054",
+          "revision_hash": "7b07e42205c61f653f6408ca9cc2f94078a40e88148eebcc183d58ea3012785f",
+          "event_id": "demo:delivery-incident:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:partial-reopen",
+      "title": "Повторное открытие с неполной историей",
+      "category": "support",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:partial-reopen:1",
+          "kind": "reopened",
+          "occurred_at": "2026-10-20T14:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:partial-reopen:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-21T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1055",
+          "revision_hash": "04fdc2cc27718f862e19a0e9a240a705c602ba706f20e1ad2f703453ae52e83e",
+          "event_id": "demo:partial-reopen:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1056",
+          "revision_hash": "a4d664d397f5af4575f47286e7833ea14930dc682779fb8850c8cad31a77ac8c",
+          "event_id": "demo:partial-reopen:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:mapping-change",
+      "title": "Обновление демонстрационной схемы",
+      "category": "change",
+      "client": "Демо-клиент C",
+      "assignee": "Специалист 1",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:mapping-change:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-20T15:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:mapping-change:2",
+          "kind": "work_ready",
+          "occurred_at": "2026-10-21T17:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:mapping-change:3",
+          "kind": "completed",
+          "occurred_at": "2026-10-22T13:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1057",
+          "revision_hash": "59b8fa2c09078869713f9357c288211ff33ae0c680e5f91e524d872e3e1dd07e",
+          "event_id": "demo:mapping-change:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1058",
+          "revision_hash": "43150c9cfda250d4b56ee35d587aa96a18e21851f6703b57095a11dc796fcaf7",
+          "event_id": "demo:mapping-change:2"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1059",
+          "revision_hash": "4aeb36b72b85608f23a32ffd17040f452832e1187b5713b1cfc7fc84c87422e3",
+          "event_id": "demo:mapping-change:3"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:pending-answer",
+      "title": "Уточнение входных данных",
+      "category": "support",
+      "client": "Демо-клиент B",
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:pending-answer:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-21T16:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:pending-answer:2",
+          "kind": "waiting",
+          "occurred_at": "2026-10-22T12:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1060",
+          "revision_hash": "5f59fae410658dd8bed3a8b50870500889182d0bff2293e162ffeb33e844d711",
+          "event_id": "demo:pending-answer:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1061",
+          "revision_hash": "e43b8fcbe1d33ff8ddb5c34dd46038017f9e1d334e2cb3c46ed968613382c22b",
+          "event_id": "demo:pending-answer:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:short-incident",
+      "title": "Короткая проверка тестового инцидента",
+      "category": "incident",
+      "client": "Демо-клиент A",
+      "assignee": "Специалист 3",
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:short-incident:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-22T10:00:00+03:00",
+          "time_basis": "message"
+        },
+        {
+          "event_id": "demo:short-incident:2",
+          "kind": "completed",
+          "occurred_at": "2026-10-22T11:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1062",
+          "revision_hash": "dbf6b5a36dc72feb4168aaece70f475872872056facfc80c9f77104d94458643",
+          "event_id": "demo:short-incident:1"
+        },
+        {
+          "message_key": "telegram-desktop:demo-chat:1063",
+          "revision_hash": "c75216bb68221b20bed27bc9bf78414e0ae708264e2366b2d966407405c04256",
+          "event_id": "demo:short-incident:2"
+        }
+      ]
+    },
+    {
+      "task_id": "demo:new-request",
+      "title": "Новая демонстрационная заявка",
+      "category": "other",
+      "client": null,
+      "assignee": null,
+      "external_refs": {},
+      "revision": 1,
+      "events": [
+        {
+          "event_id": "demo:new-request:1",
+          "kind": "requested",
+          "occurred_at": "2026-10-22T18:00:00+03:00",
+          "time_basis": "message"
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-chat:1064",
+          "revision_hash": "983213f9cd59cd1479acd69dbaf288ce100d82429e42ded829ada66b7e1aab97",
+          "event_id": "demo:new-request:1"
+        }
+      ]
+    }
+  ],
+  "proposals": [
+    {
+      "proposal_id": "demo-proposal-1",
+      "task_id": "demo:proposal-1",
+      "version": 1,
+      "title": "Возможная новая заявка: требуется проверка",
+      "category": "support",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "events": [
+        {
+          "event_id": "demo:proposal-1:1",
+          "kind": "observed_open",
+          "occurred_at": "2026-10-22T17:01:00+03:00",
+          "time_basis": "message",
+          "evidence": [
+            {
+              "message_key": "telegram-desktop:demo-review:1",
+              "revision_hash": "22ea66eb7764c9ead0d79f3cde23d1c4dd1501470435797b13e5fb0a49325240"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-review:1",
+          "revision_hash": "22ea66eb7764c9ead0d79f3cde23d1c4dd1501470435797b13e5fb0a49325240"
+        }
+      ],
+      "context_missing": true,
+      "note": "Проверьте, описывает ли сообщение отдельную задачу.",
+      "state": "proposed",
+      "created_at": "2026-10-22T17:01:00+03:00"
+    },
+    {
+      "proposal_id": "demo-proposal-2",
+      "task_id": "demo:proposal-2",
+      "version": 1,
+      "title": "Возможное завершение: недостаточно контекста",
+      "category": "integration",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "events": [
+        {
+          "event_id": "demo:proposal-2:1",
+          "kind": "observed_open",
+          "occurred_at": "2026-10-22T17:02:00+03:00",
+          "time_basis": "message",
+          "evidence": [
+            {
+              "message_key": "telegram-desktop:demo-review:2",
+              "revision_hash": "d03fac8b6c3be0f952d740c7913feaf2e87c9fb1844b5a9a33b93f6497cb920b"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-review:2",
+          "revision_hash": "d03fac8b6c3be0f952d740c7913feaf2e87c9fb1844b5a9a33b93f6497cb920b"
+        }
+      ],
+      "context_missing": true,
+      "note": "Фраза о готовности не доказывает завершение; нужна ручная проверка.",
+      "state": "proposed",
+      "created_at": "2026-10-22T17:02:00+03:00"
+    },
+    {
+      "proposal_id": "demo-proposal-3",
+      "task_id": "demo:proposal-3",
+      "version": 1,
+      "title": "Возможный повтор уже известной заявки",
+      "category": "other",
+      "client": "Демо-клиент A",
+      "assignee": null,
+      "external_refs": {},
+      "events": [
+        {
+          "event_id": "demo:proposal-3:1",
+          "kind": "observed_open",
+          "occurred_at": "2026-10-22T17:03:00+03:00",
+          "time_basis": "message",
+          "evidence": [
+            {
+              "message_key": "telegram-desktop:demo-review:3",
+              "revision_hash": "39e0a1d8fffb450de9026b90055f9c693d25b254dd6fc37a502f21fbc9f37b73"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "message_key": "telegram-desktop:demo-review:3",
+          "revision_hash": "39e0a1d8fffb450de9026b90055f9c693d25b254dd6fc37a502f21fbc9f37b73"
+        }
+      ],
+      "context_missing": true,
+      "note": "Сравните с реестром перед принятием, чтобы не создать дубль.",
+      "state": "proposed",
+      "created_at": "2026-10-22T17:03:00+03:00"
+    }
+  ],
+  "messages": [
+    {
+      "message_key": "telegram-desktop:demo-chat:1001",
+      "revision_hash": "bff0ab8f1b6781a483b7a11038bef7f2c598c5a68f26ec472996b079982154dd",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Интеграция с длинной историей. Запрос получен.",
+      "sent_at": "2026-09-28T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1002",
+      "revision_hash": "54da6da55e59f2ca5d693d654eb783493fc3ef608f35600fbce07231bd0b7eef",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Интеграция с длинной историей. Ожидаем ответ.",
+      "sent_at": "2026-10-06T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1003",
+      "revision_hash": "850db4135aed2675caf4df2f3ae9b452b15231cf3275b371c286e08fe555fe29",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Интеграция с длинной историей. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-21T18:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1004",
+      "revision_hash": "466ccd435990ee692ad0845dfc9000835d9767b81302c025c3a12b68b91c6858",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Завершение: начало истории отсутствует. Явное назначение.",
+      "sent_at": "2026-10-01T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1005",
+      "revision_hash": "3569a3d2a007b2220235f16ccff11ecc55eb3076b7675ca7c8ef3b80c3646560",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Завершение: начало истории отсутствует. Завершение подтверждено.",
+      "sent_at": "2026-10-07T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1006",
+      "revision_hash": "9251162f5cd2889fdde13525a4feed3f907f18c008462c70c69a92a656ed1989",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Настройка демонстрационного подключения. Запрос получен.",
+      "sent_at": "2026-10-05T11:15:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1007",
+      "revision_hash": "bdc7bb7de391ed46888b4e31e65a2fe18cb0b154e6c66eebe6c21f8453657011",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Настройка демонстрационного подключения. Явное назначение.",
+      "sent_at": "2026-10-05T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1008",
+      "revision_hash": "f392c5d71cc29ec789f89f745be4041641339c9d087de31dfe4f2ed26ccae3b2",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Настройка демонстрационного подключения. Завершение подтверждено.",
+      "sent_at": "2026-10-06T15:30:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1009",
+      "revision_hash": "748a115ee96d58cd51c0c46ddf7cf9d32fbf4132b6fc37fb21a46a151679cc57",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Восстановление тестового доступа. Запрос получен.",
+      "sent_at": "2026-10-05T12:20:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1010",
+      "revision_hash": "17734f998a60c231aa4efd7fad56f4725a3cadc8adce758f8ca28910f687e6bd",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Восстановление тестового доступа. Ожидаем ответ.",
+      "sent_at": "2026-10-05T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1011",
+      "revision_hash": "052b306702dd7a34796b347b8c287ca63ae6213e7eecfc7c21184659ad4823ee",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Восстановление тестового доступа. Работа возобновлена.",
+      "sent_at": "2026-10-06T11:30:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1012",
+      "revision_hash": "b7d8161923c7c664273c53d8c79c120f04a0429c584ecefac19de67ccd67fd19",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Восстановление тестового доступа. Завершение подтверждено.",
+      "sent_at": "2026-10-06T12:15:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1013",
+      "revision_hash": "3a5339959f3a4595b089938bebce0a5ba13a5bfc7f841671ec63d5719411227f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Проверка события на границе московского дня. Запрос получен.",
+      "sent_at": "2026-10-05T22:50:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1014",
+      "revision_hash": "8f48b306eca3c957632965a9a95653af6e2181c987134e48eb56ae89f325d7c3",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Проверка события на границе московского дня. Завершение подтверждено.",
+      "sent_at": "2026-10-06T00:10:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1015",
+      "revision_hash": "5e4a626ac2310b06d6206478e788b981a3baf91e22ff0700cd186a51aaba3b1c",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Изменение тестового маршрута. Запрос получен.",
+      "sent_at": "2026-10-06T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1016",
+      "revision_hash": "b45b268e2c6c5b34f285d96ed51e18b473e1261a561e2cb2b07041a00f22c661",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Изменение тестового маршрута. Явное назначение.",
+      "sent_at": "2026-10-07T10:30:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1017",
+      "revision_hash": "de12dc644027aaff9f71ba0a617dc885e5fd3caafc0121f424305d46bf5b7b3d",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Изменение тестового маршрута. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-08T17:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1018",
+      "revision_hash": "e2105c927724b292e11cb39ba3014c5fe50c846870095ce9c4ddd38c75991ccc",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Изменение тестового маршрута. Завершение подтверждено.",
+      "sent_at": "2026-10-09T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1019",
+      "revision_hash": "a6c8644510909c2f7abab44cbff4ee8ee2de1179bd1cc4abe38986a7c7bef01e",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Ожидание ответа демонстрационного клиента. Запрос получен.",
+      "sent_at": "2026-10-07T15:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1020",
+      "revision_hash": "08ec86caa32c76760a6d7b85e9718c18d1e19d2071a726418f6304818ed77bc0",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Ожидание ответа демонстрационного клиента. Ожидаем ответ.",
+      "sent_at": "2026-10-07T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1021",
+      "revision_hash": "918e8d7a895111170c67f72ce06121d3cfc08935fb36a0bfdbeda96665116115",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие после проверки. Запрос получен.",
+      "sent_at": "2026-10-08T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1022",
+      "revision_hash": "eb42d94be297c09b564066f30da2eecc534a2f0e15867849fda16b9b215313d7",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие после проверки. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-09T17:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1023",
+      "revision_hash": "6772aceceafebddb683b7d6fba57e852baf72d34a72a5282e39445705d668899",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие после проверки. Завершение подтверждено.",
+      "sent_at": "2026-10-12T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1024",
+      "revision_hash": "36131c07342ba9e3abe8904b55b5fca029d5328c9f7e10f2b0a1d6e4c71a0901",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие после проверки. Задача открыта повторно.",
+      "sent_at": "2026-10-15T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1025",
+      "revision_hash": "6772aceceafebddb683b7d6fba57e852baf72d34a72a5282e39445705d668899",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие после проверки. Завершение подтверждено.",
+      "sent_at": "2026-10-19T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1026",
+      "revision_hash": "9f14c45d5bebffff1c726b9885c542a9f73c2e86015ca90112ca6d8d412a11c0",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное уведомление о закрытии. Запрос получен.",
+      "sent_at": "2026-10-08T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1027",
+      "revision_hash": "df60ab50a77e018272f7577df4af6bd6188f09b9fe162ebbe77b203b7d18df7b",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное уведомление о закрытии. Завершение подтверждено.",
+      "sent_at": "2026-10-08T15:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1028",
+      "revision_hash": "df60ab50a77e018272f7577df4af6bd6188f09b9fe162ebbe77b203b7d18df7b",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное уведомление о закрытии. Завершение подтверждено.",
+      "sent_at": "2026-10-09T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1029",
+      "revision_hash": "dcc7c108c105930a86151fc879309fd448a43c092734c392291b12234867fd41",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Отменённая демонстрационная заявка. Запрос получен.",
+      "sent_at": "2026-10-09T11:40:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1030",
+      "revision_hash": "324dda79b1bf80e30dc977f9d2c27ca2ededae048de98d2cf67ffbc8d09358dd",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Отменённая демонстрационная заявка. Запрос отменён.",
+      "sent_at": "2026-10-12T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1031",
+      "revision_hash": "ec7fe4557c727836d4e973a8f90132a9955e7a0e9e5024a0d557b61c8e7a8537",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Открытая задача без исходного сообщения. Задача наблюдается открытой; исходный запрос отсутствует.",
+      "sent_at": "2026-10-10T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1032",
+      "revision_hash": "ce74fedc994e23e2d51696aaeb1859a70cfb448fdb1b2cb4950a38c5362ac9ea",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Открытая задача без исходного сообщения. Ожидаем ответ.",
+      "sent_at": "2026-10-13T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1033",
+      "revision_hash": "453e82f6926dc5c50faa873477a707d8bacc2b40080a9b259927e339c054bc0f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Работа готова, подтверждение ожидается. Запрос получен.",
+      "sent_at": "2026-10-12T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1034",
+      "revision_hash": "7ca5ffec6d740188318ad27090dc2c0dca82f4389959c9f2e9f9afb53e65e4ef",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Работа готова, подтверждение ожидается. Явное назначение.",
+      "sent_at": "2026-10-13T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1035",
+      "revision_hash": "4cae710b9e9141f4f1b8d30f02117ec3ecc51d29dcf16c8319a4217c852c767a",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Работа готова, подтверждение ожидается. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-14T18:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1036",
+      "revision_hash": "0eb12d71c5317f47843668ef1773e42be9963602be5363bbb94a693d684d9ffe",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Консультация по тестовым настройкам. Запрос получен.",
+      "sent_at": "2026-10-12T15:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1037",
+      "revision_hash": "f309bdc6e0abe11875410d2bd72ecf352665e47dbe2093bc852207cf57cbe4f2",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Консультация по тестовым настройкам. Завершение подтверждено.",
+      "sent_at": "2026-10-13T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1038",
+      "revision_hash": "3389915b6ad1932da70fa9e453306fa2772b58899055a15df4ed62bfba4c360f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Наблюдаемое закрытие без начала. Завершение подтверждено.",
+      "sent_at": "2026-10-14T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1039",
+      "revision_hash": "7c9f85b8bedc99d2707e0d074180b7df712ec4ca2e29d141c222c2a3a5cee232",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Две проверки одного инцидента. Запрос получен.",
+      "sent_at": "2026-10-14T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1040",
+      "revision_hash": "fe2b77d00780dba3a4308fa11b8cbf8df8207f9598f5d7a4fcd1c08668085d5f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Две проверки одного инцидента. Завершение подтверждено.",
+      "sent_at": "2026-10-14T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1041",
+      "revision_hash": "62bc37c719fe212bfd4240c07a11fe3ffa0238fb5a7e8e16d992f75bd4e9a8dc",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Две проверки одного инцидента. Задача открыта повторно.",
+      "sent_at": "2026-10-14T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1042",
+      "revision_hash": "fe2b77d00780dba3a4308fa11b8cbf8df8207f9598f5d7a4fcd1c08668085d5f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Две проверки одного инцидента. Завершение подтверждено.",
+      "sent_at": "2026-10-14T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1043",
+      "revision_hash": "fff3409fb5b9ca25fa665d282f2b56f77c173bcd1f46f6bf463f89112c788b4d",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Согласование демонстрационного поля. Запрос получен.",
+      "sent_at": "2026-10-15T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1044",
+      "revision_hash": "de5b57f1e41ef9c594c341250fd06c45258c31141406b3d9cd671cecbd1c3826",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Согласование демонстрационного поля. Ожидаем ответ.",
+      "sent_at": "2026-10-15T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1045",
+      "revision_hash": "da30c8204a5ebabdd2f8db2742a19caaf4df490ace529c5a3b88ba4eb846c282",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Согласование демонстрационного поля. Работа возобновлена.",
+      "sent_at": "2026-10-16T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1046",
+      "revision_hash": "1015e569cca51f9375af285666724cb644cf0c4ac8ec8fe1841e2b5c82ff5227",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Согласование демонстрационного поля. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-19T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1047",
+      "revision_hash": "ff139895f21b3a0845d01b46b11f3b0a6ceabe714d2eafc01a000402632e870a",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Согласование демонстрационного поля. Завершение подтверждено.",
+      "sent_at": "2026-10-20T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1048",
+      "revision_hash": "a3a073b80e8f809acf3aaf1ce36d6d494fc8df9b74b1fde25e8a882319c723e5",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Проверка формата тестовых данных. Запрос получен.",
+      "sent_at": "2026-10-16T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1049",
+      "revision_hash": "1b876894ba138f58e5a1d94d35c51bbd4a5f2dddf4c6b9853de4a80eb502b7d6",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Проверка формата тестовых данных. Завершение подтверждено.",
+      "sent_at": "2026-10-16T14:30:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1050",
+      "revision_hash": "ba5cbb9d5dea48f8055862fddd1f921574be29b6f11df8eb6ae2aceb5cdc7028",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Подготовка нового тестового подключения. Запрос получен.",
+      "sent_at": "2026-10-19T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1051",
+      "revision_hash": "b9a39ca2831378fbc8d84669454d8198d3fa8e68c7e9d5ccd71f494ee5247048",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Подготовка нового тестового подключения. Явное назначение.",
+      "sent_at": "2026-10-19T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1052",
+      "revision_hash": "92c27afcb1587035c118679d109b49736eacc9faf88846c41d390095b1c41280",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Подготовка нового тестового подключения. Ожидаем ответ.",
+      "sent_at": "2026-10-20T15:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1053",
+      "revision_hash": "86e03b89efa88cffc20839238f0bf603d20f0620983425af128952017f6e608c",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Разбор тестовой ошибки доставки. Запрос получен.",
+      "sent_at": "2026-10-19T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1054",
+      "revision_hash": "7b07e42205c61f653f6408ca9cc2f94078a40e88148eebcc183d58ea3012785f",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Разбор тестовой ошибки доставки. Завершение подтверждено.",
+      "sent_at": "2026-10-19T18:30:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1055",
+      "revision_hash": "04fdc2cc27718f862e19a0e9a240a705c602ba706f20e1ad2f703453ae52e83e",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие с неполной историей. Задача открыта повторно.",
+      "sent_at": "2026-10-20T14:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1056",
+      "revision_hash": "a4d664d397f5af4575f47286e7833ea14930dc682779fb8850c8cad31a77ac8c",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Повторное открытие с неполной историей. Завершение подтверждено.",
+      "sent_at": "2026-10-21T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1057",
+      "revision_hash": "59b8fa2c09078869713f9357c288211ff33ae0c680e5f91e524d872e3e1dd07e",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Обновление демонстрационной схемы. Запрос получен.",
+      "sent_at": "2026-10-20T15:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1058",
+      "revision_hash": "43150c9cfda250d4b56ee35d587aa96a18e21851f6703b57095a11dc796fcaf7",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Обновление демонстрационной схемы. Работа готова; подтверждение ещё не получено.",
+      "sent_at": "2026-10-21T17:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1059",
+      "revision_hash": "4aeb36b72b85608f23a32ffd17040f452832e1187b5713b1cfc7fc84c87422e3",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Обновление демонстрационной схемы. Завершение подтверждено.",
+      "sent_at": "2026-10-22T13:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1060",
+      "revision_hash": "5f59fae410658dd8bed3a8b50870500889182d0bff2293e162ffeb33e844d711",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Уточнение входных данных. Запрос получен.",
+      "sent_at": "2026-10-21T16:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1061",
+      "revision_hash": "e43b8fcbe1d33ff8ddb5c34dd46038017f9e1d334e2cb3c46ed968613382c22b",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Уточнение входных данных. Ожидаем ответ.",
+      "sent_at": "2026-10-22T12:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1062",
+      "revision_hash": "dbf6b5a36dc72feb4168aaece70f475872872056facfc80c9f77104d94458643",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Короткая проверка тестового инцидента. Запрос получен.",
+      "sent_at": "2026-10-22T10:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1063",
+      "revision_hash": "c75216bb68221b20bed27bc9bf78414e0ae708264e2366b2d966407405c04256",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Короткая проверка тестового инцидента. Завершение подтверждено.",
+      "sent_at": "2026-10-22T11:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-chat:1064",
+      "revision_hash": "983213f9cd59cd1479acd69dbaf288ce100d82429e42ded829ada66b7e1aab97",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР. Новая демонстрационная заявка. Запрос получен.",
+      "sent_at": "2026-10-22T18:00:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетический чат для проверки интерфейса",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-review:1",
+      "revision_hash": "22ea66eb7764c9ead0d79f3cde23d1c4dd1501470435797b13e5fb0a49325240",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР ДЛЯ РУЧНОЙ ПРОВЕРКИ. Возможная новая заявка: требуется проверка.",
+      "sent_at": "2026-10-22T17:01:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетическая очередь проверки",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    },
+    {
+      "message_key": "telegram-desktop:demo-review:2",
+      "revision_hash": "d03fac8b6c3be0f952d740c7913feaf2e87c9fb1844b5a9a33b93f6497cb920b",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР ДЛЯ РУЧНОЙ ПРОВЕРКИ. Возможное завершение: недостаточно контекста.",
+      "sent_at": "2026-10-22T17:02:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетическая очередь проверки",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": true
+    },
+    {
+      "message_key": "telegram-desktop:demo-review:3",
+      "revision_hash": "39e0a1d8fffb450de9026b90055f9c693d25b254dd6fc37a502f21fbc9f37b73",
+      "text_plain": "СИНТЕТИЧЕСКИЙ ПРИМЕР ДЛЯ РУЧНОЙ ПРОВЕРКИ. Возможный повтор уже известной заявки.",
+      "sent_at": "2026-10-22T17:03:00+03:00",
+      "edited_at": null,
+      "sender_name": "Демо-автор",
+      "source_name": "Синтетическая очередь проверки",
+      "source_url": null,
+      "has_conflict": false,
+      "media_missing": false
+    }
+  ],
+  "imports": [
+    {
+      "status": "succeeded",
+      "completed_at": "2026-10-22T18:05:00+03:00",
+      "source_name": "synthetic-fixture"
+    }
+  ]
+}

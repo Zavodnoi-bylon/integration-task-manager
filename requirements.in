@@ -1,0 +1,5 @@
+fastapi==0.159.1
+uvicorn==0.34.3
+psycopg[binary]==3.2.9
+tzdata==2026.5; sys_platform == "win32"
+

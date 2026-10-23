@@ -1,0 +1,13 @@
+# TEMPLATE ONLY: validate the live Caddy layout and choose new credentials first.
+# The chosen domain is a proposal, not an already configured endpoint.
+activity.167-99-36-155.sslip.io {
+    basic_auth {
+        activity_viewer REPLACE_WITH_NEW_PASSWORD_HASH
+    }
+    reverse_proxy activity-dashboard:8000
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+    }
+}
+

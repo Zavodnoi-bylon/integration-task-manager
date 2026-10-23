@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "demo": true,
+  "proposals": [
+    {
+      "proposal_id": "example:fictional-case-1:v1",
+      "task_id": "example:fictional-case-1",
+      "version": 1,
+      "title": "Вымышленный пример: проверка интеграции",
+      "category": "integration",
+      "client": "Вымышленный клиент",
+      "assignee": null,
+      "external_refs": {"destination_id": "000123"},
+      "events": [
+        {
+          "event_id": "example:fictional-case-1:request",
+          "kind": "requested",
+          "occurred_at": "2026-01-01T11:00:00+03:00",
+          "time_basis": "message",
+          "evidence": [{
+            "message_key": "telegram-desktop:900000000000001:1",
+            "revision_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+          }]
+        },
+        {
+          "event_id": "example:fictional-case-1:done",
+          "kind": "completed",
+          "occurred_at": "2026-01-01T12:00:00+03:00",
+          "time_basis": "message",
+          "evidence": [{
+            "message_key": "telegram-desktop:900000000000001:2",
+            "revision_hash": "1111111111111111111111111111111111111111111111111111111111111111"
+          }]
+        }
+      ],
+      "evidence": [],
+      "context_missing": false,
+      "note": "ДЕМОНСТРАЦИОННЫЙ ПРИМЕР, НЕ ОТЧЁТ ОТДЕЛА. Хеши и ID здесь — placeholders, отсутствующие в реальном архиве. Этот файл проверяет форму (syntax_only), но не пройдёт проверку evidence до замены ссылками из собственного normalized bundle."
+    }
+  ]
+}
