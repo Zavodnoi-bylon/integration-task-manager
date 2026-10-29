@@ -16,11 +16,16 @@ export function normalizeLayout(value) {
     const definition = widgetDefinitions.find((item) => item.id === row?.id);
     if (!definition || seen.has(row.id)) continue;
     seen.add(row.id);
-    widgets.push({
+    const item = {
       id: row.id,
       span: Number.isInteger(row.span) ? Math.max(definition.minSpan, Math.min(12, row.span)) : definition.span,
       height: Number.isFinite(row.height) ? Math.max(definition.minHeight, Math.min(1200, Math.round(row.height))) : null,
-    });
+    };
+    if (Number.isInteger(row.column) && Number.isInteger(row.row)) {
+      item.column = Math.max(1, Math.min(13 - item.span, row.column));
+      item.row = Math.max(0, Math.min(10000, row.row));
+    }
+    widgets.push(item);
   }
   for (const item of widgetDefinitions) {
     if (!seen.has(item.id)) widgets.push({ id: item.id, span: item.span, height: null });
@@ -45,6 +50,30 @@ export function resizedWidget(id, initial, deltaX, deltaY, columnWidth) {
   const span = Math.max(definition.minSpan, Math.min(12, initial.span + Math.round(deltaX / columnWidth)));
   const height = Math.max(definition.minHeight, Math.min(1200, Math.round((initial.height + deltaY) / 12) * 12));
   return { id, span, height };
+}
+
+// Twelve-pixel vertical tracks allow independent stacks beside a tall widget.
+// Resolve collisions by pushing panels down, never by hiding or overlapping them.
+export function packWidgets(widgets, heights, priority = null) {
+  const placed = [];
+  const order = [...widgets].sort((a, b) => Number(b.id === priority) - Number(a.id === priority));
+  const fits = (column, row, span, rows) => placed.every(p =>
+    column + span <= p.column || p.column + p.span <= column || row + rows <= p.row || p.row + p.rows <= row);
+  for (const item of order) {
+    const rows = Math.max(1, Math.ceil(((heights[item.id] || 1) + 20) / 12));
+    const anchored = Number.isInteger(item.column) && Number.isInteger(item.row);
+    const first = anchored ? Math.max(1, Math.min(13 - item.span, item.column)) : 1;
+    const last = anchored ? first : 13 - item.span;
+    let row = anchored ? item.row : 0;
+    let column;
+    for (;;) {
+      for (column = first; column <= last; column++) if (fits(column, row, item.span, rows)) break;
+      if (column <= last) break;
+      row++;
+    }
+    placed.push({id:item.id, column, row, span:item.span, rows});
+  }
+  return placed;
 }
 
 export function readLayout(storage) {

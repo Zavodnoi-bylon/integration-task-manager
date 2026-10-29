@@ -37,7 +37,8 @@ def principal(headers):
     if role not in ("admin", "viewer", "tech_lead"):
         raise HTTPException(403, "Access not assigned.")
     panels = list(PANELS) if role != "tech_lead" else [p for p in PANELS if p in lead_panels]
-    return {"user": user, "role": role, "panels": panels, "can_edit_layout": role == "admin"}
+    return {"user": user, "role": role, "panels": panels, "can_edit_layout": role == "admin",
+            "can_edit_status": role == "admin" and os.environ.get('ACTIVITY_STATUS_WRITES') == '1'}
 
 
 def authorize(person, path, method):
@@ -55,6 +56,8 @@ def authorize(person, path, method):
         if not any(p in panels for p in PANELS[:4]):
             raise HTTPException(403, "Report access denied.")
     elif path.startswith(("/api/tasks", "/api/proposals", "/api/export")):
+        if method == 'POST' and path.startswith('/api/tasks/') and path.endswith('/status') and person['role'] != 'admin':
+            raise HTTPException(403, 'Only the owner can change task status.')
         if "registry" not in panels:
             raise HTTPException(403, "Registry access denied.")
 
@@ -74,7 +77,13 @@ def normalize_layout(value):
             raise HTTPException(422, "Invalid panel width.")
         if height is not None and (type(height) is not int or not height_min <= height <= 1200):
             raise HTTPException(422, "Invalid panel height.")
-        result.append({"id": row["id"], "span": span, "height": height})
+        item = {"id": row["id"], "span": span, "height": height}
+        if "column" in row or "row" in row:
+            column, track = row.get("column"), row.get("row")
+            if type(column) is not int or not 1 <= column <= 13-span or type(track) is not int or not 0 <= track <= 10000:
+                raise HTTPException(422, "Invalid panel position.")
+            item.update(column=column, row=track)
+        result.append(item)
     return {"version": 1, "widgets": result}
 
 

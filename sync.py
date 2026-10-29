@@ -35,9 +35,13 @@ def build_parser():
     normalize.add_argument("input")
     normalize.add_argument("--output", required=True)
     normalize.add_argument("--timezone", help="Explicit fallback timezone if Unix timestamps are absent")
+    normalize.add_argument("--tenant", choices=("traffic-angels", "theraw"))
+    normalize.add_argument("--account", choices=("account-1", "account-2"))
     messages = commands.add_parser("ingest-messages", help="Import immutable message versions")
     messages.add_argument("input")
     messages.add_argument("--timezone")
+    messages.add_argument("--tenant", choices=("traffic-angels", "theraw"))
+    messages.add_argument("--account", choices=("account-1", "account-2"))
     messages.add_argument("--dry-run", action="store_true", help="Normalize/count only; no database")
     proposals = commands.add_parser("ingest-proposals", help="Import evidence-backed candidates, without approval")
     proposals.add_argument("input")
@@ -58,6 +62,9 @@ def main(argv=None):
     try:
         if args.command in {"normalize", "ingest-messages"}:
             bundle = normalize_file(args.input, fallback_timezone=args.timezone)
+            if args.tenant or args.account:
+                from activity.tenants import apply_context
+                apply_context(bundle, args.tenant, args.account)
             if args.command == "normalize":
                 if Path(args.input).resolve() == Path(args.output).resolve():
                     raise ImportValidationError("output_must_not_overwrite_input")

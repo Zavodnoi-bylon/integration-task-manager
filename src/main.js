@@ -296,7 +296,7 @@ function renderTaskRows(payload) {
   } else {
     const body = rows.map((task) => {
       const status = Object.hasOwn(statusLabels, task.status) ? task.status : "unknown";
-      return `<tr><td class="title-cell"><button type="button" class="task-title" data-task-id="${escapeHtml(task.task_id)}">${escapeHtml(task.title)}</button><span class="task-id">${escapeHtml(task.task_id)}</span></td><td>${escapeHtml(categoryLabels[task.category] || task.category || "Не указан")}</td><td${task.client ? "" : ' class="cell-muted"'}>${escapeHtml(task.client || "Не указан")}</td><td${task.assignee ? "" : ' class="cell-muted"'}>${escapeHtml(task.assignee || "Команда / не определён")}</td><td><span class="status-badge ${status}">${statusLabels[status]}</span></td><td class="date-cell">${escapeHtml(formatTimestamp(task.requested_at))}</td><td class="date-cell">${escapeHtml(formatTimestamp(task.completed_at))}</td><td><span class="evidence-count" title="Количество подтверждений">${formatNumber(task.evidence_count)}</span></td></tr>`;
+      return `<tr><td class="title-cell"><button type="button" class="task-title" data-task-id="${escapeHtml(task.task_id)}">${escapeHtml(task.title)}</button><span class="task-id">${escapeHtml(task.task_id)}</span></td><td>${escapeHtml(categoryLabels[task.category] || task.category || "Не указан")}</td><td${task.client ? "" : ' class="cell-muted"'}>${escapeHtml(task.client || "Не указан")}</td><td${task.assignee ? "" : ' class="cell-muted"'}>${escapeHtml(task.assignee || "Команда / не определён")}</td><td><span class="status-badge ${status}">${statusLabels[status]}</span>${state.access?.can_edit_status ? `<button type="button" class="status-edit-link" data-task-id="${escapeHtml(task.task_id)}">Изменить</button>` : ''}</td><td class="date-cell">${escapeHtml(formatTimestamp(task.requested_at))}</td><td class="date-cell">${escapeHtml(formatTimestamp(task.completed_at))}</td><td><span class="evidence-count" title="Количество подтверждений">${formatNumber(task.evidence_count)}</span></td></tr>`;
     }).join("");
     $("#registry-table").innerHTML = `<table class="task-table"><caption class="sr-only">Задачи выбранного среза. Статус на конец выбранного периода.</caption><thead><tr><th scope="col">Задача</th><th scope="col">Тип</th><th scope="col">Клиент</th><th scope="col">Ответственный</th><th scope="col">Статус на конец периода</th><th scope="col">Первый запрос, МСК</th><th scope="col">Завершение, МСК</th><th scope="col">Подтверждения</th></tr></thead><tbody>${body}</tbody></table>`;
   }
@@ -429,6 +429,30 @@ async function openTask(taskId) {
     const task = payload.task;
     if (!task) throw new Error("Карточка задачи имеет неожиданный формат.");
     $("#detail-content").innerHTML = `<h2 id="detail-title">${escapeHtml(task.title)}</h2><p class="detail-id">${escapeHtml(task.task_id)}</p>${detailSummary(task, task.revision ? String(task.revision) : "")}<div class="detail-columns"><section><h3>Полная хронология · МСК</h3>${lifecycleMarkup(payload.events)}</section><section><h3>Подтверждения · ${formatNumber(payload.evidence?.length || 0)}</h3>${evidenceMarkup(payload.evidence)}</section></div>`;
+    if (state.access?.can_edit_status && !payload.demo) {
+      const closed = ['completed', 'cancelled'].includes(task.status);
+      const form = document.createElement('form');
+      form.className = 'task-status-form';
+      form.innerHTML = `<h3>Изменить статус</h3><p>Сейчас: ${escapeHtml(statusLabels[task.status] || task.status)}. Изменение сохранится на текущую дату; прошлые периоды останутся историческими.</p><label>Новый статус<select name="status"><option value="completed" ${closed ? '' : 'selected'}>Завершена</option><option value="open" ${closed ? 'selected' : ''}>Открыта</option></select></label><label>Комментарий (необязательно)<input name="reason" maxlength="1000" autocomplete="off"></label><button type="submit" class="primary">Сохранить статус</button><p class="status-feedback" role="status"></p>`;
+      let requestId = crypto.randomUUID();
+      form.addEventListener('change', () => { requestId = crypto.randomUUID(); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = form.querySelector('button'); const feedback = form.querySelector('.status-feedback');
+        button.disabled = true; feedback.textContent = 'Сохраняем…';
+        try {
+          const response = await fetch(`/api/tasks/${encodeURIComponent(task.task_id)}/status`, {
+            method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','X-Activity-Action':'change-status'},
+            body: JSON.stringify({status:form.elements.status.value,reason:form.elements.reason.value,expected_revision:task.revision,request_id:requestId}),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.detail || 'Не удалось сохранить статус.');
+          await loadReport();
+          if (dialog.open && token.isCurrent()) { await openTask(task.task_id); const notice = $('#detail-content .status-feedback'); if (notice) notice.textContent = 'Статус сохранён в БД. История обновлена.'; }
+        } catch (error) { feedback.textContent = error.message; button.disabled = false; }
+      });
+      $('#detail-content').insertBefore(form, $('#detail-content .detail-columns'));
+    }
   } catch (error) {
     if (!token.isCurrent() || error.name === "AbortError") return;
     $("#detail-content").innerHTML = `<h2 id="detail-title">Не удалось открыть задачу</h2><p class="detail-no-data">${escapeHtml(error.message)}</p>`;

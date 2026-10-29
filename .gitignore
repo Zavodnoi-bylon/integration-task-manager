@@ -19,7 +19,9 @@ backups/
 *.session-journal
 .DS_Store
 .idea/
+.tmp/
 config.json
+telegram-app.json
 targets.json
 *.sqlite*
 *.db

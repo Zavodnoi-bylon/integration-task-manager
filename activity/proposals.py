@@ -96,6 +96,10 @@ def validate_document(document: dict) -> dict:
                 isinstance(value, list) and all(isinstance(item, str) for item in value)
             ):
                 raise ProposalValidationError(f"{where}.external_refs: identifiers must be strings or arrays of strings")
+        if 'tenant_id' in proposal['external_refs']:
+            from .tenants import TENANTS
+            if not isinstance(proposal['external_refs']['tenant_id'], str) or proposal['external_refs']['tenant_id'] not in TENANTS:
+                raise ProposalValidationError(f'{where}.external_refs.tenant_id: registered tenant required')
         if "context_missing" in proposal and type(proposal["context_missing"]) is not bool:
             raise ProposalValidationError(f"{where}.context_missing: boolean required")
         if "note" in proposal:
@@ -147,7 +151,7 @@ def validate_document(document: dict) -> dict:
 
 
 def evidence_index(bundle: dict) -> set[tuple[str, str]]:
-    if not isinstance(bundle, dict) or bundle.get("kind") != "telegram-desktop-normalized":
+    if not isinstance(bundle, dict) or bundle.get("kind") not in {"telegram-desktop-normalized", "telegram-account-normalized"}:
         raise ProposalValidationError("messages bundle: expected normalized Telegram bundle")
     if not isinstance(bundle.get("messages"), list):
         raise ProposalValidationError("messages bundle: malformed messages")

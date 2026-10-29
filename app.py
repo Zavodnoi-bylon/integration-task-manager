@@ -14,6 +14,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from activity import domain, access
+from activity.ingest import ImportValidationError,StorageError
+from activity.proposals import ReviewConflict
+from activity.task_status import apply_status_change
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from activity.demo import DemoRepository
@@ -225,6 +229,22 @@ def task(task_id: str, dataset=Depends(snapshot)):
     if detail is None:
         raise HTTPException(404, "Task not found.")
     return detail
+
+
+@app.post('/api/tasks/{task_id:path}/status')
+async def update_task_status(task_id:str,request:Request):
+    if request.state.person['role']!='admin':raise HTTPException(403,'Only the owner can change task status.')
+    if os.environ.get('ACTIVITY_STATUS_WRITES')!='1':raise HTTPException(503,'Status editing is unavailable.')
+    if request.headers.get('x-activity-action')!='change-status' or request.headers.get('content-type','').split(';')[0]!='application/json' or request.headers.get('sec-fetch-site')=='cross-site':
+        raise HTTPException(403,'Invalid status request.')
+    if len(await request.body())>4096:raise HTTPException(413,'Status request too large.')
+    try:
+        value=await request.json()
+        return await run_in_threadpool(apply_status_change,task_id,request.state.person['user'],value)
+    except ReviewConflict:raise HTTPException(409,'Задача уже изменена. Обновите карточку и повторите действие.') from None
+    except ImportValidationError as error:raise HTTPException(404 if str(error)=='task_not_found' else 422,'Не удалось применить изменение к этой задаче.') from None
+    except ValueError:raise HTTPException(422,'Invalid status request.') from None
+    except StorageError:raise HTTPException(503,'Запись недоступна. Статус не изменён.') from None
 
 
 @app.get("/api")

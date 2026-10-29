@@ -213,6 +213,11 @@ def normalize_document(document: Any, *, source_name: str = "input.json",
 
 def normalize_file(path: str | Path, *, fallback_timezone: str | None = None) -> dict:
     document, digest = read_json_file(path)
+    if isinstance(document, dict) and document.get('kind') == 'telegram-account-input':
+        from .account_input import normalize_account_input
+        if fallback_timezone:
+            raise ImportValidationError('account_input_uses_original_timestamps')
+        return normalize_account_input(document, source_name=Path(path).name, content_hash=digest)
     return normalize_document(document, source_name=Path(path).name,
                               content_hash=digest, fallback_timezone=fallback_timezone)
 
@@ -233,6 +238,27 @@ def choose_current(current_hash, current_updated_at, incoming_hash, incoming_upd
     if incoming < current:
         return current_hash, bool(has_conflict), "older"
     return current_hash, True, "conflict"
+
+
+def api_same_content(left, right):
+    """Telegram rotates media download references without editing message content.
+
+    Keep both exact raw revisions, but do not classify this transport-only change
+    as contradictory evidence. All other fields remain significant.
+    """
+    import copy
+    def stable(raw):
+        value = copy.deepcopy(raw)
+        def walk(node):
+            if isinstance(node, dict):
+                if node.get('_') in {'Photo', 'Document'}:
+                    node.pop('file_reference', None)
+                for child in node.values(): walk(child)
+            elif isinstance(node, list):
+                for child in node: walk(child)
+        walk(value.get('media'))
+        return value
+    return stable(left) == stable(right)
 
 
 def writer_connection():
@@ -320,6 +346,8 @@ def ingest_bundle(conn, bundle: dict) -> dict:
                         "ON CONFLICT(source_id) DO UPDATE SET display_name=EXCLUDED.display_name",
                         tuple(source[k] for k in ("source_id", "kind", "external_id", "display_name", "coverage_status")),
                     )
+                    from .tenants import bind_source
+                    bind_source(cursor, source)
                 for m in bundle["messages"]:
                     cursor.execute(
                         "INSERT INTO raw.messages(message_key,source_id,external_id,current_revision_hash,has_conflict,first_seen_at,last_seen_at) "
@@ -352,6 +380,11 @@ def ingest_bundle(conn, bundle: dict) -> dict:
                     )
                     current_hash, current_time, conflict = cursor.fetchone()
                     selected, new_conflict, reason = choose_current(current_hash, current_time, m["revision_hash"], m["source_updated_at"], conflict)
+                    if reason == 'conflict' and m['source_id'].startswith('telegram-api:'):
+                        cursor.execute('SELECT raw_json FROM raw.message_revisions WHERE message_key=%s AND revision_hash=%s',
+                                       (m['message_key'], current_hash))
+                        if api_same_content(cursor.fetchone()[0], m['raw_json']):
+                            new_conflict, reason = conflict, 'transport_reference_only'
                     counts["current_updates"] += selected != current_hash
                     counts["conflicts"] += reason == "conflict"
                     counts["older_revisions"] += reason == "older"

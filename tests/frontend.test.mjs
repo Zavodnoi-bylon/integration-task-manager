@@ -3,7 +3,7 @@ import test from "node:test";
 import { backlogChart, flowChart } from "../src/charts.js";
 import { createRequestGate, escapeHtml, formatNumber, presetPeriod, queryString, safeSourceUrl, validatePeriod } from "../src/utils.js";
 import { calendarDaysMarkup, calendarMonth, moscowToday, shiftPhase, workingOn } from "../src/schedule.js";
-import { LAYOUT_KEY, moveWidget, normalizeLayout, readLayout, resizedWidget, widgetDefinitions, writeLayout } from "../src/layout-model.js";
+import { LAYOUT_KEY, moveWidget, normalizeLayout, packWidgets, readLayout, resizedWidget, widgetDefinitions, writeLayout } from "../src/layout-model.js";
 
 const teamSchedule = [
   {name:"AIex911",anchor:"2026-10-23",color:"alex"},
@@ -38,6 +38,33 @@ test("resizing snaps to columns and bounds width/height so data stays readable",
   assert.deepEqual(resizedWidget("calendar",{span:3,height:372},200,108,100),{id:"calendar",span:5,height:480});
   assert.deepEqual(resizedWidget("registry",{span:12,height:600},-5000,-5000,100),{id:"registry",span:6,height:320});
   assert.deepEqual(resizedWidget("flow",{span:7,height:300},5000,5000,100),{id:"flow",span:12,height:1200});
+});
+
+test("short panels can stack beside a tall calendar instead of waiting for its row", () => {
+  const widgets = [{id:'calendar',span:3}, {id:'categories',span:7}, {id:'metrics',span:9}];
+  const positions = packWidgets(widgets,{calendar:480,categories:160,metrics:160});
+  const byId = Object.fromEntries(positions.map(p=>[p.id,p]));
+  assert.equal(byId.categories.column,4);
+  assert.equal(byId.metrics.column,4);
+  assert.equal(byId.metrics.row,byId.categories.row+byId.categories.rows);
+  assert.ok(byId.metrics.row < byId.calendar.rows);
+});
+
+test("dropping into a gap saves coordinates and collisions move neighbours without overlap", () => {
+  const widgets = [{id:'calendar',span:3,column:1,row:0},
+    {id:'categories',span:7,column:4,row:0}, {id:'metrics',span:9,column:4,row:16}];
+  const heights = {calendar:480,categories:160,metrics:160};
+  const positions = packWidgets(widgets,heights,'metrics');
+  assert.equal(positions.find(p=>p.id==='metrics').row,16);
+  const grown = packWidgets(widgets,{...heights,categories:400},'metrics');
+  for (const a of grown) for (const b of grown) if(a.id!==b.id) {
+    assert.ok(a.column+a.span<=b.column || b.column+b.span<=a.column || a.row+a.rows<=b.row || b.row+b.rows<=a.row);
+  }
+  const layout = normalizeLayout({version:1,widgets});
+  assert.equal(normalizeLayout(JSON.parse(JSON.stringify(layout))).widgets.find(p=>p.id==='metrics').row,16);
+  const clamped = normalizeLayout({version:1,widgets:[{id:'metrics',span:9,column:12,row:-3}]});
+  assert.equal(clamped.widgets[0].column,4);
+  assert.equal(clamped.widgets[0].row,0);
 });
 
 test("layout reloads after saving, recovers corrupt storage, and reports storage failures", () => {

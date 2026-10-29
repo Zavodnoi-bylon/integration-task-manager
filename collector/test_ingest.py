@@ -75,6 +75,61 @@ class IngestTests(unittest.TestCase):
         app.save_batch(self.db, '123', [(1, None)], 10)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM messages').fetchone()[0], 0)
 
+    def test_topic_scope_validation_matching_and_independent_cursors(self):
+        self.assertEqual(app.target_scope({'chat_id':-100123,'topic_id':9}),(-100123,9))
+        for bad in ({'chat_id':-100123,'topic_id':None,'unexpected':True}, {'chat_id':-100123,'topic_id':1}, {'topic_id':9}):
+            with self.assertRaises(ValueError):
+                app.target_scope(bad)
+        direct=SimpleNamespace(id=10,reply_to=SimpleNamespace(forum_topic=True,reply_to_top_id=None,reply_to_msg_id=9))
+        nested=SimpleNamespace(id=11,reply_to=SimpleNamespace(forum_topic=True,reply_to_top_id=9,reply_to_msg_id=10))
+        other=SimpleNamespace(id=12,reply_to=SimpleNamespace(forum_topic=True,reply_to_top_id=8,reply_to_msg_id=9))
+        self.assertTrue(app.message_in_topic(direct,9))
+        self.assertTrue(app.message_in_topic(nested,9))
+        self.assertFalse(app.message_in_topic(other,9))
+        self.assertFalse(app.message_in_topic(SimpleNamespace(id=13),9))
+        app.save_batch(self.db,'-100123',[],50,cursor_key='-100123:topic:9')
+        app.save_batch(self.db,'-100123',[],100,cursor_key='-100123:topic:8')
+        self.assertEqual(dict(self.db.execute('SELECT chat_id,last_id FROM cursors')),
+                         {'-100123:topic:9':50,'-100123:topic:8':100})
+
+    def test_topic_collection_requests_only_topic_and_rejects_other_messages(self):
+        class FakeMessage:
+            def __init__(self,mid,topic):
+                self.id=mid
+                self.date=datetime(2026,10,1,tzinfo=timezone.utc)
+                self.edit_date=None; self.message='allowed text'; self.sender_id=42
+                self.reply_to_msg_id=topic; self.post_author=None
+                self.reply_to=SimpleNamespace(forum_topic=True,reply_to_top_id=topic,reply_to_msg_id=topic)
+            async def get_sender(self):
+                return SimpleNamespace(name='Author')
+        class FakeClient:
+            wrong=False
+            calls=[]
+            def __init__(self,*args,**kwargs): pass
+            async def connect(self): pass
+            async def disconnect(self): pass
+            async def is_user_authorized(self): return True
+            async def iter_dialogs(self):
+                yield SimpleNamespace(entity=SimpleNamespace(id=-100123,name='Forum',forum=True))
+            async def iter_messages(self,entity,**kwargs):
+                self.calls.append(kwargs)
+                yield FakeMessage(20,8 if self.wrong else 9)
+        telethon=ModuleType('telethon'); telethon.TelegramClient=FakeClient
+        telethon.utils=SimpleNamespace(get_peer_id=lambda e:e.id,get_display_name=lambda e:e.name)
+        types=ModuleType('telethon.tl.types'); types.Message=FakeMessage
+        config={'api_id':1,'api_hash':'fake','chats':[{'chat_id':-100123,'topic_id':9}]}
+        with patch.dict(sys.modules,{'telethon':telethon,'telethon.tl.types':types}):
+            asyncio.run(app.collect(self.db,config))
+            stored=json.loads(self.db.execute('SELECT payload FROM messages').fetchone()[0])
+            self.assertEqual(stored['topic_id'],9)
+            self.assertEqual(FakeClient.calls[-1]['reply_to'],9)
+            self.assertEqual(self.db.execute('SELECT chat_id FROM cursors').fetchone()[0],'-100123:topic:9')
+            self.db.execute('DELETE FROM messages'); self.db.commit()
+            FakeClient.wrong=True
+            with self.assertRaises(ValueError):
+                asyncio.run(app.collect(self.db,config))
+            self.assertEqual(self.db.execute('SELECT COUNT(*) FROM messages').fetchone()[0],0)
+
     def test_collector_resume_after_partial_network_failure(self):
         class FakeMessage:
             def __init__(self, mid):

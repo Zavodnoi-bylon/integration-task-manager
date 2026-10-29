@@ -1,5 +1,5 @@
 import { escapeHtml } from "./utils.js";
-import { moveWidget, normalizeLayout, resizedWidget, widgetDefinitions } from "./layout-model.js";
+import { normalizeLayout, packWidgets, resizedWidget, widgetDefinitions } from "./layout-model.js";
 
 export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) {
   let saved = normalizeLayout(layout);
@@ -16,7 +16,7 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
     const tools = document.createElement("div");
     tools.className = "layout-widget-tools";
     tools.hidden = true;
-    tools.innerHTML = `<button type="button" class="layout-drag" data-layout-drag aria-label="Переместить: ${title}. Стрелки вверх и вниз меняют порядок."><span aria-hidden="true">⠿</span><span>${title}</span></button><label class="layout-width"><span class="sr-only">Ширина: ${title}</span><select data-layout-width aria-label="Ширина: ${title}">${Array.from({length: 13 - definition.minSpan}, (_, i) => i + definition.minSpan).map((span) => `<option value="${span}">${span === 12 ? "Вся ширина" : `${Math.round(span / 12 * 100)}%`}</option>`).join("")}</select></label><button type="button" class="layout-auto" data-layout-auto aria-label="Высота по содержимому: ${title}" title="Высота по содержимому">Авто</button>`;
+    tools.innerHTML = `<button type="button" class="layout-drag" data-layout-drag aria-label="Переместить: ${title}. Стрелки перемещают блок по сетке."><span aria-hidden="true">⠿</span><span>${title}</span></button><label class="layout-width"><span class="sr-only">Ширина: ${title}</span><select data-layout-width aria-label="Ширина: ${title}">${Array.from({length: 13 - definition.minSpan}, (_, i) => i + definition.minSpan).map((span) => `<option value="${span}">${span === 12 ? "Вся ширина" : `${Math.round(span / 12 * 100)}%`}</option>`).join("")}</select></label><button type="button" class="layout-auto" data-layout-auto aria-label="Высота по содержимому: ${title}" title="Высота по содержимому">Авто</button>`;
     widget.prepend(tools);
     const resize = document.createElement("button");
     resize.type = "button";
@@ -28,6 +28,31 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
     widget.append(resize);
   }
 
+  let positions = [];
+  let frame = null;
+  function place(priority = null) {
+    frame = null;
+    const visible = draft.widgets.filter(item => !nodes.get(item.id).hidden);
+    const heights = Object.fromEntries(visible.map(item => [item.id, nodes.get(item.id).getBoundingClientRect().height]));
+    positions = packWidgets(visible, heights, priority || (gesture?.started && !gesture.resize ? gesture.id : null));
+    for (const p of positions) {
+      const node = nodes.get(p.id);
+      const column = `${p.column} / span ${p.span}`;
+      const row = `${p.row + 1} / span ${p.rows}`;
+      if (node.style.gridColumn !== column) node.style.gridColumn = column;
+      if (node.style.gridRow !== row) node.style.gridRow = row;
+    }
+  }
+  function schedulePlace() { if (frame === null) frame = requestAnimationFrame(() => place()); }
+  const observer = new ResizeObserver(schedulePlace);
+  observer.observe(grid);
+  for (const node of nodes.values()) observer.observe(node);
+  function capturePositions() {
+    for (const p of positions) {
+      const item = draft.widgets.find(item => item.id === p.id);
+      item.column = p.column; item.row = p.row;
+    }
+  }
   function apply() {
     for (const item of draft.widgets) {
       const node = nodes.get(item.id);
@@ -35,8 +60,10 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
       grid.append(node);
       node.style.setProperty("--widget-span", item.span);
       node.style.setProperty("--widget-height", item.height === null ? "0px" : `${item.height}px`);
+      if (Number.isInteger(item.column)) item.column = Math.min(item.column, 13 - item.span);
       node.querySelector("[data-layout-width]").value = String(item.span);
     }
+    place();
   }
   function setEditing(value) {
     editing = value;
@@ -49,15 +76,17 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
       node.querySelector(".layout-widget-tools").hidden = !value;
       node.querySelector(".layout-resize").hidden = !value;
     }
+    schedulePlace();
   }
   toolbar.addEventListener("click", async (event) => {
     if (!canEdit) return;
     if (event.target.closest("[data-layout-edit]")) {
       draft = normalizeLayout(saved); apply(); setEditing(true);
-      status.textContent = "Перетащите блок за заголовок или измените размер за нижний угол.";
+      status.textContent = "Перетащите блок в свободное место. Ширину и высоту меняйте за нижний угол.";
     } else if (event.target.closest("[data-layout-save]")) {
       const buttons = [...toolbar.querySelectorAll("button")];
       buttons.forEach(b => { b.disabled = true; });
+      place(); capturePositions();
       const pending = normalizeLayout(draft);
       setEditing(false);
       status.textContent = "Сохраняем общую раскладку…";
@@ -96,7 +125,9 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
     const finished = gesture;
     gesture = null;
     finished.preview?.remove();
+    if (finished.started) { place(finished.resize ? null : finished.id); capturePositions(); }
     finished.node.classList.remove("layout-moving", "layout-sizing");
+    schedulePlace();
     if (grid.hasPointerCapture(finished.pointerId)) grid.releasePointerCapture(finished.pointerId);
     document.body.classList.remove("layout-gesture");
   }
@@ -111,6 +142,7 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
       node, handle, pointerId: event.pointerId, id: item.id,
       x: event.clientX, y: event.clientY, resize: handle.hasAttribute("data-layout-resize"),
       initial: { span: item.span, height: bounds.height },
+      offsetX: event.clientX - bounds.left, offsetY: event.clientY - bounds.top,
       columnWidth: (grid.getBoundingClientRect().width + 16) / 12,
     };
     grid.setPointerCapture(event.pointerId);
@@ -129,7 +161,10 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
       gesture.node.classList.add("layout-sizing");
       gesture.node.style.setProperty("--widget-span", size.span);
       gesture.node.style.setProperty("--widget-height", `${size.height}px`);
+      const current = draft.widgets.find(row => row.id === gesture.id);
+      if (Number.isInteger(current.column)) current.column = Math.min(current.column, 13 - current.span);
       gesture.node.querySelector("[data-layout-width]").value = String(size.span);
+      place();
       status.textContent = `${widgetDefinitions.find((row) => row.id === item.id).title}: ${Math.round(size.span / 12 * 100)}% ширины, высота от ${size.height}px.`;
       return;
     }
@@ -142,12 +177,22 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
     }
     gesture.preview.style.left = `${event.clientX + 14}px`;
     gesture.preview.style.top = `${event.clientY + 14}px`;
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-layout-id]");
-    if (target && target !== gesture.node && grid.contains(target)) {
-      const box = target.getBoundingClientRect();
-      const after = event.clientY > box.top + box.height / 2;
-      draft = moveWidget(draft, gesture.id, target.dataset.layoutId, after);
-      apply();
+    if (matchMedia('(min-width: 901px)').matches) {
+      const box = grid.getBoundingClientRect();
+      const item = draft.widgets.find(item => item.id === gesture.id);
+      item.column = Math.max(1, Math.min(13-item.span, Math.round((event.clientX-box.left-gesture.offsetX)/gesture.columnWidth)+1));
+      item.row = Math.max(0, Math.min(10000, Math.round((event.clientY-box.top-gesture.offsetY)/12)));
+      place();
+      status.textContent = `Место: колонка ${item.column}. Соседние блоки сдвигаются без перекрытия.`;
+    } else {
+      // The mobile single-column reading order remains editable.
+      const target = document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-layout-id]');
+      if (target && target !== gesture.node && grid.contains(target)) {
+        const item = draft.widgets.find(item => item.id === gesture.id);
+        draft.widgets = draft.widgets.filter(row => row !== item);
+        draft.widgets.splice(draft.widgets.findIndex(row => row.id === target.dataset.layoutId),0,item);
+        apply();
+      }
     }
     if (event.clientY < 90) window.scrollBy(0, -22);
     if (event.clientY > innerHeight - 80) window.scrollBy(0, 22);
@@ -162,10 +207,16 @@ export function mountLayout(grid, toolbar, { layout, canEdit = false, onSave }) 
     const node = handle.closest("[data-layout-id]");
     const index = draft.widgets.findIndex((row) => row.id === node.dataset.layoutId);
     const item = draft.widgets[index];
-    if (handle.hasAttribute("data-layout-drag") && ["ArrowUp", "ArrowDown"].includes(event.key)) {
+    if (handle.hasAttribute("data-layout-drag") && event.key.startsWith('Arrow')) {
       event.preventDefault();
-      const next = draft.widgets[index + (event.key === "ArrowUp" ? -1 : 1)];
-      if (next) { draft = moveWidget(draft, item.id, next.id, event.key === "ArrowDown"); apply(); handle.focus({preventScroll:true}); }
+      const pos = positions.find(p => p.id === item.id);
+      const steps = {ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-2],ArrowDown:[0,2]}[event.key];
+      if (!pos || !steps) return;
+      item.column = Math.max(1,Math.min(13-item.span,pos.column+steps[0]));
+      item.row = Math.max(0,Math.min(10000,pos.row+steps[1]));
+      positions = packWidgets(draft.widgets.filter(row=>!nodes.get(row.id).hidden),
+        Object.fromEntries([...nodes].map(([id,node])=>[id,node.getBoundingClientRect().height])),item.id);
+      capturePositions(); apply(); handle.focus({preventScroll:true});
     } else if (handle.hasAttribute("data-layout-resize") && event.key.startsWith("Arrow")) {
       event.preventDefault();
       const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[event.key];

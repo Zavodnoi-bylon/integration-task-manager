@@ -68,6 +68,7 @@ def normalize(chat, message):
         'edited_at': timestamp(message.get('edited'), message.get('edited_unixtime')),
         'sender': {'id': str(message.get('from_id') or '').removeprefix('user').removeprefix('channel'), 'name': message.get('from') or 'Неизвестный автор'},
         'reply_to_message_id': message.get('reply_to_message_id'), 'text': text,
+        'topic_id': message.get('topic_id'),
     }
 
 
@@ -187,6 +188,29 @@ def settings():
     return config
 
 
+def target_scope(target):
+    """Legacy scalar = entire explicitly selected chat; dict can restrict a topic."""
+    if not isinstance(target, dict):
+        return target, None
+    if set(target) - {'chat_id', 'topic_id'} or 'chat_id' not in target:
+        raise ValueError('Invalid source scope')
+    cid = target['chat_id']
+    if isinstance(cid, bool) or not str(cid).lstrip('-').isdigit():
+        raise ValueError('Numeric chat ID required for scoped source')
+    topic = target.get('topic_id')
+    if topic is not None and (type(topic) is not int or topic <= 1):
+        raise ValueError('Explicit non-General forum topic ID required')
+    return cid, topic
+
+
+def message_in_topic(message, topic):
+    if message.id == topic:
+        return True
+    reply = getattr(message, 'reply_to', None)
+    return bool(reply and getattr(reply, 'forum_topic', False)
+                and (getattr(reply, 'reply_to_top_id', None) or getattr(reply, 'reply_to_msg_id', None)) == topic)
+
+
 async def collect(db, config):
     from telethon import TelegramClient, utils
     from telethon.tl.types import Message
@@ -201,19 +225,29 @@ async def collect(db, config):
         # Cache dialogs so numeric IDs also work for private chats already joined.
         entities = {utils.get_peer_id(d.entity): d.entity async for d in client.iter_dialogs()}
         for target in config['chats']:
+            target, topic = target_scope(target)
             numeric = int(target) if str(target).lstrip('-').isdigit() else None
             entity = entities.get(numeric)
             if entity is None:
                 entity = await client.get_entity(numeric if numeric is not None else target)
             cid = str(utils.get_peer_id(entity))
+            if topic is not None and not getattr(entity, 'forum', False):
+                raise ValueError('Scoped forum source is no longer a forum')
             chat = {'id': cid, 'name': utils.get_display_name(entity), 'type': 'telethon'}
-            row = db.execute('SELECT last_id FROM cursors WHERE chat_id=?', (cid,)).fetchone()
+            cursor_key = cid if topic is None else f'{cid}:topic:{topic}'
+            row = db.execute('SELECT last_id FROM cursors WHERE chat_id=?', (cursor_key,)).fetchone()
             last = row[0] if row else 0
             overlap = max(0, last - int(config.get('edit_overlap_ids', 1000)))
             # Commits in batches: checkpoint advances only with durable records.
             pending = []
             seen = last
-            async for msg in client.iter_messages(entity, min_id=overlap, reverse=True, limit=None):
+            query = {'min_id': overlap, 'reverse': True, 'limit': None}
+            if topic is not None:
+                query['reply_to'] = topic
+            async for msg in client.iter_messages(entity, **query):
+                # Fail closed if the remote response crosses the allowed topic.
+                if topic is not None and not message_in_topic(msg, topic):
+                    raise ValueError('Message outside allowed forum topic')
                 seen = max(seen, msg.id)
                 record = None
                 if isinstance(msg, Message):
@@ -224,18 +258,19 @@ async def collect(db, config):
                         'edited': msg.edit_date.isoformat() if msg.edit_date else None,
                         'from': utils.get_display_name(sender) if sender else msg.post_author,
                         'from_id': str(msg.sender_id or ''), 'reply_to_message_id': msg.reply_to_msg_id,
+                        'topic_id': topic,
                     })
                 pending.append((msg.id, record))
                 if len(pending) >= 100:
-                    save_batch(db, cid, pending, seen)
+                    save_batch(db, cid, pending, seen, cursor_key=cursor_key)
                     pending = []
             if pending:
-                save_batch(db, cid, pending, seen)
+                save_batch(db, cid, pending, seen, cursor_key=cursor_key)
     finally:
         await client.disconnect()
 
 
-def save_batch(db, cid, pending, seen):
+def save_batch(db, cid, pending, seen, cursor_key=None):
     with db:
         for mid, record in pending:
             if record:
@@ -243,7 +278,7 @@ def save_batch(db, cid, pending, seen):
             else:
                 # A recent message edited to empty should leave the text dataset.
                 db.execute('DELETE FROM messages WHERE source_key=?', (f'telegram:{cid}:{mid}',))
-        db.execute('INSERT INTO cursors VALUES (?, ?) ON CONFLICT(chat_id) DO UPDATE SET last_id=MAX(last_id, excluded.last_id)', (cid, seen))
+        db.execute('INSERT INTO cursors VALUES (?, ?) ON CONFLICT(chat_id) DO UPDATE SET last_id=MAX(last_id, excluded.last_id)', (cursor_key or cid, seen))
 
 
 async def setup():

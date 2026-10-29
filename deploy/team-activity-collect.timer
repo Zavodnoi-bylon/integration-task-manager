@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect both Team Activity Telegram accounts at 00:10 Moscow
+
+[Timer]
+OnCalendar=*-*-* 00:10:00 Europe/Moscow
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+Unit=team-activity-collect.service
+
+[Install]
+WantedBy=timers.target

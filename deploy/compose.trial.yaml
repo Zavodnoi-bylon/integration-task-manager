@@ -11,6 +11,12 @@ services:
       ACTIVITY_AUTH_ROLES: '${ACTIVITY_AUTH_ROLES:?Configure dashboard roles}'
       ACTIVITY_TECH_LEAD_PANELS: '${ACTIVITY_TECH_LEAD_PANELS:-[]}'
       ACTIVITY_UI_STATE_DIR: /var/lib/activity-ui
+      ACTIVITY_STATUS_WRITES: '1'
+      ACTIVITY_WRITER_DB_HOST: postgres
+      ACTIVITY_WRITER_DB_PORT: '5432'
+      ACTIVITY_WRITER_DB_NAME: activity_trial
+      ACTIVITY_WRITER_DB_USER: activity_writer
+      ACTIVITY_WRITER_DB_PASSWORD: ${ACTIVITY_WRITER_PASSWORD:?Configure writer password}
     volumes:
       - /home/teamactivity/ui-state:/var/lib/activity-ui
     ports: !override

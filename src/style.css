@@ -123,7 +123,7 @@ button.kpi-card:hover { border-color: #52668d; background: #1a2332; }
 .registry-status-label { display: flex; align-items: center; margin-left: auto; gap: 8px; font-size: 10px; }
 .registry-status-label select { height: 30px; font-size: 10px; width: 160px; }
 .registry-note { font-size: 10px; color: #6c7d98; margin: 6px 18px 14px; }
-.registry-table-wrap { overflow: auto; max-height: 640px; }
+.registry-table-wrap { overflow: visible; }
 .task-table { width: 100%; border-collapse: collapse; min-width: 950px; text-align: left; font-size: 11px; }
 .task-table th { padding: 10px 15px; border-top: 1px solid #2a3547; border-bottom: 1px solid #2e3b50; background: #1b2535; color: #7f92b1; font-size: 9px; font-weight: 500; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
 .task-table td { padding: 12px 15px; border-bottom: 1px solid #253145; color: #a6b5cd; vertical-align: middle; }
@@ -255,7 +255,7 @@ button.kpi-card:hover { border-color: #52668d; background: #1a2332; }
 .layout-status { color: #90b7ac; font-size: 11px; }
 .layout-customizing .layout-toolbar { position: sticky; top: 0; z-index: 85; padding: 13px 15px; border: 1px solid #47618e; border-radius: 9px; background: #1d2a40f5; box-shadow: 0 8px 25px #0003; }
 body.layout-customizing:has(#demo-banner:not([hidden])) .layout-toolbar { top: 34px; }
-.dashboard-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 16px; align-items: stretch; }
+.dashboard-layout { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 12px; gap: 0 16px; align-items: start; }
 .layout-widget { position: relative; min-width: 0; min-height: var(--widget-height, 0px); display: flex; flex-direction: column; grid-column: span var(--widget-span, 12); }
 .layout-widget-body { min-width: 0; flex: 1; }
 .layout-widget-body > .activity-kpis, .layout-widget-body > .category-section, .layout-widget-body > .shift-section { margin: 0; }
@@ -278,8 +278,8 @@ body.layout-customizing:has(#demo-banner:not([hidden])) .layout-toolbar { top: 3
 .layout-gesture { user-select: none; cursor: grabbing; }
 .layout-drag-preview { position: fixed; z-index: 110; pointer-events: none; max-width: 260px; padding: 13px 18px; border: 1px solid #8aabdf; border-radius: 8px; background: #293e5a; color: #e7efff; font-size: 12px; box-shadow: 0 12px 30px #0005; }
 @media (max-width: 900px) {
-  .dashboard-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .layout-widget { grid-column: 1 / -1; }
+  .dashboard-layout { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: 18px; }
+  .layout-widget { grid-column: 1 / -1 !important; grid-row: auto !important; }
   .layout-widget[data-layout-id="calendar"] { width: 360px; max-width: 100%; }
   .layout-status { font-size: 10px; }
 }
@@ -289,3 +289,17 @@ body.layout-customizing:has(#demo-banner:not([hidden])) .layout-toolbar { top: 3
   .layout-widget-tools { gap: 3px; }.layout-drag { font-size: 10px; }.layout-width select { width: 76px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.status-edit-link {display:block;background:none;border:0;padding:5px 0;color:var(--accent,#8da8ff);cursor:pointer;text-decoration:underline;}
+.task-status-form {margin:20px 0;padding:18px;border:1px solid #34435c;border-radius:12px;display:grid;gap:12px;}
+.task-status-form h3,.task-status-form p {margin:0;}
+.task-status-form label {display:grid;gap:6px;}
+.task-status-form select,.task-status-form input {padding:10px;border:1px solid #34435c;border-radius:8px;background:#111c2b;color:#dce7f7;min-width:0;}
+.task-status-form button {justify-self:start;}
+.task-status-form .status-feedback {color:#9ddacb;}
+
+/* Panels grow with their content; the document owns dashboard scrolling. */
+.registry-section { overflow: visible; }
+.registry-table-wrap .task-table { min-width: 0; table-layout: fixed; }
+.registry-table-wrap .task-table .title-cell { min-width: 0; }
+.registry-table-wrap .task-table th,
+.registry-table-wrap .task-table td { white-space: normal; overflow-wrap: anywhere; }

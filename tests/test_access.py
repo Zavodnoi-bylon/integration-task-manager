@@ -65,6 +65,19 @@ class AccessTests(unittest.TestCase):
         self.assertEqual(self.client.put("/api/layout", json=body, headers=headers).status_code, 422)
         self.assertEqual(access.read_layout()["revision"], 1)
 
+    def test_free_positions_persist_for_all_users_and_invalid_positions_are_rejected(self):
+        layout=access.default_layout()
+        layout['widgets'][0].update(column=1,row=24)
+        headers={**self.headers('owner'),'x-activity-action':'save-layout'}
+        response=self.client.put('/api/layout',json={'layout':layout,'revision':0},headers=headers)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(self.client.get('/api/layout',headers=self.headers('viver')).json()['layout'],layout)
+        for invalid in [{'column':2,'row':24}, {'column':1,'row':-1}, {'column':True,'row':0}, {'column':1,'row':'24px'}]:
+            layout['widgets'][0].update(invalid)
+            rejected=self.client.put('/api/layout',json={'layout':layout,'revision':1},headers=headers)
+            self.assertEqual(rejected.status_code,422)
+        self.assertEqual(access.read_layout()['revision'],1)
+
     def test_partial_panels_filter_report_and_metadata_on_the_server(self):
         with patch.dict(os.environ, {"ACTIVITY_TECH_LEAD_PANELS": '["flow"]'}):
             data = self.client.get("/api/report", params=self.query, headers=self.headers("lead")).json()

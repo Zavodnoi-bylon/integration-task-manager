@@ -60,6 +60,7 @@
         "assignee": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
         "external_refs": {
           "type": "object",
+          "properties": {"tenant_id": {"enum": ["traffic-angels", "theraw"]}},
           "additionalProperties": {
             "anyOf": [
               {"type": "string"}, {"type": "null"},
