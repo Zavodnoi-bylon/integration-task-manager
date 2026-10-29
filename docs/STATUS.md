@@ -74,5 +74,6 @@ Linux-тесты/ручной запуск двух аккаунтов. Посл
 3. Настроить внешнюю резервную копию PostgreSQL с периодической restore-проверкой.
 4. После приёмки решить, отключать ли прежний collector/timer и архивировать ли его runtime.
 
-GitHub: `team-activity-explorer` — commit `1ba0a28`; `integration-task-manager` —
-commit `836bca3`. Рабочие секреты, SQLite, dumps и пользовательские данные не опубликованы.
+GitHub: production-code baseline `team-activity-explorer` — `1ba0a28` (этот status
+обновлён последующими docs-коммитами); `integration-task-manager` — `836bca3`.
+Рабочие секреты, SQLite, dumps и пользовательские данные не опубликованы.
