@@ -195,6 +195,26 @@ __pycache__ и dist — системные/генерируемые файлы, 
 Collector/timer отключать только отдельным решением после подтверждения, что архивный
 контур больше не нужен. Полный перечень — STATUS.md.
 
+## Исполняемые файлы collector
+
+Относительно `/home/teamactivity/team-activity-ingest/current`. Это отдельная рабочая копия.
+
+| Файл | Назначение |
+|---|---|
+| `README.txt` | Вход в актуальную инструкцию collector |
+| `accounts.py` | Раздельные логины, identity, проверка сессий и targets |
+| `accounts.sh` | Запуск account-команд из интерактивного терминала teamactivity |
+| `bundle.py` | Ограниченный исходный capture, resume и проверка manifest |
+| `daily.py` | Суточный checkpoint, повтор, catch-up и FloodWait двух аккаунтов |
+| `ingest.py` | Общие функции/блокировки и прежний SQLite collector |
+| `partition.py` | Публикация раздельных account inputs и разовых manual exports |
+| `requirements.txt` | Зависимости collector (Telethon) |
+| `test_accounts.py` | Тесты раздельной авторизации и источников |
+| `test_bundle.py` | Тесты неизменяемых пакетов, topics и resume |
+| `test_daily.py` | Тесты суточного checkpoint, ошибок, catch-up и повторов без сети |
+| `test_ingest.py` | Тесты импорта, ревизий и источников |
+| `test_partition.py` | Тесты разделения inputs и manual exports |
+
 ## Обновление карты исходников
 
 Ниже — фактические файлы проекта. Назначения заданы в scripts/build-file-map.py;
