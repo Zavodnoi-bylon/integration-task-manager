@@ -1,0 +1,33 @@
+Коллеги, привет!
+
+Просьба настроить следующие постбеки для передачи конверсий в нашу систему.
+
+1. REG — регистрация
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id_here}&conversion_type_uuid=registration
+
+2. FTD — первый депозит
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id_here}&conversion_type_uuid=ftd&arrived_revenue={revenue_here}&arrived_deposit={deposit_sum_here}&currency=usd
+
+3. ReDep — повторный депозит
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id_here}&conversion_type_uuid=redep&arrived_deposit={deposit_sum_here}&currency=usd
+
+4. Deposit — депозит
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id_here}&conversion_type_uuid=deposit&arrived_deposit={deposit_sum_here}&currency=usd
+
+Используемые макросы:
+
+- {click_id_here} — наш Click ID / Visit UUID.
+- {revenue_here} — партнёрское вознаграждение.
+- {deposit_sum_here} — фактическая сумма депозита.
+
+Важно:
+
+- Вместо указанных значений необходимо подставить соответствующие макросы вашей системы.
+- Валюта во всех финансовых событиях передаётся как USD.
+- Каждое событие должно отправляться отдельным постбеком в момент его возникновения.
+
+После настройки просьба сообщить, чтобы мы проверили поступление конверсий.

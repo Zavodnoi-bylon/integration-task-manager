@@ -1,0 +1,27 @@
+Коллеги, привет!
+
+Просьба настроить следующие постбеки для передачи конверсий в нашу систему.
+
+1. REG — регистрация
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={sub_id1}&conversion_type_uuid=a2d74a47-3bd9-44ae-9b92-f61fd7b4ba3b
+
+2. DEP — первый депозит (CPA Revenue)
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={sub_id1}&conversion_type_uuid=5e5fe4dc-3a16-437a-bf63-b61b4b00ec0e&arrived_revenue={revenue}
+
+3. REDEP — повторный депозит
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={ваш_макрос_click_id}&conversion_type_uuid=7ee798e9-c994-41c0-9644-e2f5c81ba2cb&redep_sum={макрос_суммы_редепа}&unique={макрос_id_транзакции}&currency={макрос_валюты}
+
+Замените параметры:
+
+- visit_uuid — наш Click ID, который вы получаете и сохраняете при переходе.
+- revenue — наша ставка по CPA.
+- redep_sum — сумма повторного депозита.
+- unique — уникальный ID транзакции.
+- currency — валюта депозита, например USD.
+
+Важно, чтобы каждый повторный депозит отправлялся отдельно, со своей суммой и уникальным ID транзакции.
+
+После настройки просьба сообщить, чтобы мы проверили поступление конверсий.

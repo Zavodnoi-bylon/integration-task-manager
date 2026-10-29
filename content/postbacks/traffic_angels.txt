@@ -1,0 +1,40 @@
+Коллеги, привет!
+
+Просьба настроить следующие постбеки для передачи конверсий в нашу систему.
+
+1. REG — регистрация
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id}&conversion_type_uuid=cdbaf527-f613-4d41-bb52-dd395229923b
+
+2. FTD / DEP — первый депозит (CPA Revenue)
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id}&conversion_type_uuid=d0f58cc5-cdaf-47de-85dc-2e398fd19fd8&arrived_revenue={revenue}
+
+3. FTD Deposit Amount — фактическая сумма первого депозита
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id}&conversion_type_uuid=2216636d-4fdd-4871-a455-904839c9c492&arrived_payout={value}&currency={value_currency}
+
+4. ReDep — повторный депозит
+
+https://app.aio.tech/api/v1/trigger/conversion-request?visit_uuid={click_id}&conversion_type_uuid=397fe2c6-9f54-45f4-8b4c-9aefce3df0c6&redep_sum={value}&unique={id}&currency={value_currency}
+
+Используемые макросы:
+
+- {click_id} — наш Click ID / Visit UUID.
+- {revenue} — партнёрское вознаграждение (CPA).
+- {value} — фактическая сумма депозита.
+- {value_currency} — валюта депозита.
+- {id} — уникальный идентификатор конверсии.
+
+Важно:
+
+На событие First Deposit необходимо отправлять два отдельных постбека:
+
+- FTD / DEP — для учёта FTD и CPA.
+- FTD Deposit Amount — для учёта фактической суммы первого депозита.
+
+Это необходимо, чтобы не смешивать партнёрское вознаграждение и сумму депозита, которые могут передаваться в разных валютах.
+
+ReDep должен отправляться на каждый повторный депозит с его индивидуальной суммой и уникальным ID.
+
+После настройки просьба сообщить, чтобы мы проверили поступление конверсий.

@@ -1,0 +1,33 @@
+[Unit]
+Description=Integration Task Manager Telegram bot (Mephisto)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=teamactivity
+Group=teamactivity
+WorkingDirectory=/home/teamactivity/integration-task-manager/current
+EnvironmentFile=/home/teamactivity/.config/integration-task-manager/mephisto.env
+EnvironmentFile=/home/teamactivity/.config/integration-task-manager/database.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/teamactivity/integration-task-manager/.venv/bin/python /home/teamactivity/integration-task-manager/current/main.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/home/teamactivity/integration-task-manager/data
+
+[Install]
+WantedBy=multi-user.target

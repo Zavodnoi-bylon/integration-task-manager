@@ -1,0 +1,54 @@
+name: integration-task-manager
+
+x-bot: &bot
+  image: integration-task-manager:${IMAGE_TAG:-local}
+  restart: unless-stopped
+  init: true
+  environment:
+    DATABASE_BACKEND: postgres
+    TICKETING_DB_HOST: postgres
+    TICKETING_DB_PORT: "5432"
+  networks:
+    - database
+    - egress
+  read_only: true
+  volumes:
+    - ./content:/app/content:ro
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 128
+  mem_limit: 256m
+  cpus: 0.50
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  kalisto:
+    <<: *bot
+    build:
+      context: .
+      target: production
+    env_file:
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/database.env
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/kalisto.env
+
+  mephisto:
+    <<: *bot
+    env_file:
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/database.env
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/mephisto.env
+
+networks:
+  database:
+    external: true
+    name: ${DATABASE_NETWORK:-team-activity-trial_backend}
+  egress:
+    driver: bridge
