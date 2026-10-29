@@ -16,7 +16,8 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 | Компонент | Адрес / путь | Роль |
 |---|---|---|
 | Проект | /home/teamactivity/team-activity-explorer | API, UI, importer, SQL, исходники collector |
-| Ticket bots | /home/teamactivity/integration-task-manager/current | Kalisto и Mephisto, текущий release symlink |
+| Ticket bots | /home/teamactivity/integration-task-manager/source | Git checkout и Compose для Kalisto/Mephisto |
+| Bot containers | integration-task-manager-kalisto-1; integration-task-manager-mephisto-1 | Один образ, два изолированных профиля |
 | Конфигурация ботов | /home/teamactivity/.config/integration-task-manager | Раздельные bot env и общий закрытый database.env |
 | Рабочий collector | /home/teamactivity/team-activity-ingest/current | Отдельный процесс сбора Telegram |
 | PostgreSQL | team-activity-trial-postgres-1; БД activity_trial | Текущий источник задач и отчёта |
@@ -33,6 +34,11 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 Не переименовывать их при уборке: они участвуют в подключениях и выборе volume.
 Docker volume БД — `team-activity-trial_activity_pgdata`. Таблицы просматриваются клиентом
 PostgreSQL, не редактированием файлов volume через SFTP.
+Боты подключены к внутренней `team-activity-trial_backend` для БД и отдельной egress-сети
+для Telegram. Порты не опубликованы. Legacy systemd units отключены, но не удалены.
+Штатное управление из checkout: `sudo bash deploy/compose.sh ps`, `logs`, `restart`
+или другой Docker Compose subcommand. Wrapper читает точный активный тег из
+`/home/teamactivity/integration-task-manager/runtime.env`; секретов в нём нет.
 
 ## Доступ и внешняя зависимость
 
@@ -113,8 +119,11 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | team-activity-explorer/.env | Административная конфигурация БД/приложения/ролей, root 0600 |
 | team-activity-explorer/.env.client | Подключение reader/writer для importer, teamactivity 0600 |
 | team-activity-explorer/.venv/ | Зависимости Python приложения |
-| integration-task-manager/current | Symlink на production release `20261029Tticketing-v7` |
-| integration-task-manager/.venv/ | Общее Python-окружение обоих ботов |
+| integration-task-manager/source | Git checkout `Zavodnoi-bylon/integration-task-manager`, production commit `836bca3` |
+| integration-task-manager/source/compose.yaml | Контейнеры Kalisto/Mephisto, ресурсы и сети |
+| integration-task-manager/runtime.env | Несекретный активный image tag и Compose network/project state |
+| integration-task-manager/current | Legacy symlink на release `20261029Tticketing-v7`, только rollback |
+| integration-task-manager/.venv/ | Legacy Python-окружение systemd, только rollback |
 | integration-task-manager/data/database.db | Прежняя SQLite; сохранена для rollback, не каноническая после cutover |
 | integration-task-manager/backups/*/database.db | Согласованные SQLite backups перед переключением |
 | .config/integration-task-manager/kalisto.env | Закрытая конфигурация Kalisto |
@@ -165,8 +174,8 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | maintenance/20261026-baseline/timer-verification.json | Контрольный пакет, период, счётчики аккаунтов и проверка повтора |
 | /etc/systemd/system/team-activity-collect.service | Запуск, ограничения и повторы |
 | /etc/systemd/system/team-activity-collect.timer | Ежедневное расписание и Persistent catch-up |
-| /etc/systemd/system/integration-task-manager-kalisto.service | Production Kalisto bot |
-| /etc/systemd/system/integration-task-manager-mephisto.service | Production Mephisto bot |
+| /etc/systemd/system/integration-task-manager-kalisto.service | Отключённый rollback для Kalisto |
+| /etc/systemd/system/integration-task-manager-mephisto.service | Отключённый rollback для Mephisto |
 | /etc/team-activity-access/Caddyfile | Рабочий HTTPS proxy |
 | /etc/team-activity-access/access.env | Hostname, auth hashes и proxy token, root-only |
 | /etc/team-activity-access/*credentials*.txt | Закрытые реквизиты доступа |
@@ -182,7 +191,6 @@ __pycache__ и dist — системные/генерируемые файлы, 
 
 ## Следующие этапы
 
-Проверить реальный публичный диалог и переоткрытие тикета после PostgreSQL cutover.
 Подключить API/UI к `reporting.*`, затем переработать раскладку и набор метрик.
 Collector/timer отключать только отдельным решением после подтверждения, что архивный
 контур больше не нужен. Полный перечень — STATUS.md.

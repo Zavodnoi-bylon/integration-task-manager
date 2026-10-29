@@ -12,12 +12,14 @@
 
 Текущий этап:
 
-1. PostgreSQL migration, перенос SQLite и переключение обоих systemd units выполнены.
+1. PostgreSQL migration и перенос SQLite выполнены; Kalisto и Mephisto переведены
+   с systemd на два ограниченных контейнера из одного образа.
 2. Реальный тикет №4 подтвердил публичный диалог, внутреннюю заметку, завершение,
    переоткрытие и отсутствие дублей.
 3. Подключить API/UI к `reporting.*`; отдельно решить редактор раскладки.
 4. После пользовательской приёмки решить судьбу прежнего Telegram collector/timer.
 
-Текущий production release: `/home/teamactivity/integration-task-manager/releases/20261029Tticketing-v7`.
+Production source: `/home/teamactivity/integration-task-manager/source`, commit `836bca3`.
+Legacy release `20261029Tticketing-v7` и отключённые systemd units сохранены для отката.
 Каноническая ticket DB: `activity_trial.ticketing`; UI-витрины: `activity_trial.reporting`.
 Точные backups, проверки и ещё не наблюдавшиеся сценарии перечислены в STATUS.
