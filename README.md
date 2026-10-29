@@ -104,14 +104,14 @@ sudo bash deploy/deploy-compose.sh
 Текущее состояние и логи:
 
 ```bash
-docker compose ps
-docker compose logs --tail 100 kalisto mephisto
+sudo bash deploy/compose.sh ps
+sudo bash deploy/compose.sh logs --tail 100 kalisto mephisto
 ```
 
 Ручной откат:
 
 ```bash
-docker compose down
+sudo bash deploy/compose.sh down
 systemctl enable --now integration-task-manager-kalisto.service
 systemctl enable --now integration-task-manager-mephisto.service
 ```

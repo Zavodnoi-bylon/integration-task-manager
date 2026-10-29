@@ -11,6 +11,7 @@ config_dir=${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}
 database_network=${DATABASE_NETWORK:-team-activity-trial_backend}
 project_name=${COMPOSE_PROJECT_NAME:-integration-task-manager}
 image_tag=${IMAGE_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}
+runtime_env=${RUNTIME_ENV_FILE:-/home/teamactivity/integration-task-manager/runtime.env}
 test_image="integration-task-manager:test-${image_tag}"
 
 export CONFIG_DIR="$config_dir"
@@ -138,6 +139,15 @@ for service in kalisto mephisto; do
 done
 
 systemctl disable "${legacy_units[@]}" >/dev/null
+runtime_tmp=$(mktemp "${runtime_env}.tmp.XXXXXX")
+{
+  printf 'CONFIG_DIR=%q\n' "$config_dir"
+  printf 'DATABASE_NETWORK=%q\n' "$database_network"
+  printf 'COMPOSE_PROJECT_NAME=%q\n' "$project_name"
+  printf 'IMAGE_TAG=%q\n' "$image_tag"
+} >"$runtime_tmp"
+install -o teamactivity -g teamactivity -m 0640 "$runtime_tmp" "$runtime_env"
+rm -f "$runtime_tmp"
 success=1
 trap - ERR INT TERM
 cleanup_test_image
