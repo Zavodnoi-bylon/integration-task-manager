@@ -127,7 +127,10 @@ if [[ $stable_checks -lt 5 ]]; then
 fi
 
 for service in kalisto mephisto; do
-  if ! "${compose[@]}" logs --no-color "$service" 2>&1 | grep -q 'Start polling'; then
+  # Do not use grep -q under pipefail: its early exit can SIGPIPE docker compose
+  # and turn a successful match into a failed pipeline.
+  if ! "${compose[@]}" logs --no-color "$service" 2>&1 | \
+       grep -F 'Start polling' >/dev/null; then
     echo "Polling did not start for $service" >&2
     "${compose[@]}" logs --no-color --tail 80 "$service" >&2
     false
