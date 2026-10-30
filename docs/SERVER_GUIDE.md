@@ -19,8 +19,8 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 | Ticket bots | /home/teamactivity/integration-task-manager/source | Git checkout и Compose для Kalisto/Mephisto |
 | Bot containers | integration-task-manager-kalisto-1; integration-task-manager-mephisto-1 | Один образ, два изолированных профиля |
 | Конфигурация ботов | /home/teamactivity/.config/integration-task-manager | Раздельные bot env и общий закрытый database.env |
-| AIO domain monitor | /home/teamactivity/aio-domain-monitor/source | Docker/Compose source, deployed commit `6f7e9ce` |
-| Domain containers | aio-domain-monitor-bot-1; aio-domain-monitor-refresh-1 | Telegram delivery и пятиминутное обновление AIO |
+| AIO domain monitor | /home/teamactivity/aio-domain-monitor/source | Docker/Compose source, deployed commit `2921669` |
+| Domain containers | aio-domain-monitor-bot-1; aio-domain-monitor-refresh-1 | Telegram delivery и почасовое обновление AIO |
 | Domain state | /var/lib/aio-domain-monitor/state.sqlite3 | Снимок доменов, дневной baseline и delivery outbox |
 | Рабочий collector | /home/teamactivity/team-activity-ingest/current | Отдельный процесс сбора Telegram |
 | PostgreSQL | team-activity-trial-postgres-1; БД activity_trial | Текущий источник задач и отчёта |
@@ -132,12 +132,14 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | .config/integration-task-manager/kalisto.env | Закрытая конфигурация Kalisto |
 | .config/integration-task-manager/mephisto.env | Закрытая конфигурация Mephisto |
 | .config/integration-task-manager/database.env | Общий закрытый доступ ботов к PostgreSQL |
-| aio-domain-monitor/source/ | Исходники и Compose AIO domain monitor; production marker `6f7e9ce` |
+| aio-domain-monitor/source/ | Исходники и Compose AIO domain monitor; production marker `2921669` |
 | aio-domain-monitor/runtime.env | Несекретный active image tag и Compose runtime state |
 | /etc/aio-domain-monitor.env | Закрытые AIO/Telegram credentials и ID приватного alert-канала |
 | /var/lib/aio-domain-monitor/state.sqlite3 | Текущий snapshot, дневной baseline и Telegram outbox |
 | /var/lib/aio-domain-monitor/domains.json | Прежний baseline, импортирован в SQLite и сохранён для отката |
 | maintenance/20261030T131900Z-aio-channel-before-6f7e9ce/ | Backup source/env/state перед channel-flow deploy |
+| maintenance/20261030T134051Z-aio-hourly-before-44bca9e/ | Backup source/env/SQLite перед переходом на почасовой polling |
+| maintenance/20261030T134405Z-aio-healthcheck-before-2921669/ | Backup source перед согласованием healthcheck с часовым polling |
 | team-activity-ingest/.venv/ | Python/Telethon действующего collector |
 | team-activity-ingest/telegram-app.json | Секретные реквизиты Telegram-приложения |
 | team-activity-ingest/accounts/account-N/config.json | Credentials, tenant, chat/topic IDs |

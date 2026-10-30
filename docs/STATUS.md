@@ -4,8 +4,8 @@
 
 ## AIO Domain Monitor — приватный канал включён 30 октября
 
-- Production развёрнут из локального commit `6f7e9ce`, image
-  `aio-domain-monitor:20261030T131900Z`. Канал `AIO · Domain Monitor` проверен через
+- Production развёрнут из локального commit `2921669`, image
+  `aio-domain-monitor:20261030T134052Z`. Канал `AIO · Domain Monitor` проверен через
   Telegram `getChat`; Bot API ID `-1004408071139`.
 - Новые проблемные и явно восстановившиеся домены отправляются сразу. Исчезнувший из
   ответа домен не считается восстановившимся, потому что он мог быть архивирован.
@@ -18,8 +18,16 @@
 - Оба контейнера running, refresh healthy, restart count 0. Проверено 13/13 тестов
   локально и в изолированном Linux image; Telegram и AIO preflight прошли до cutover.
   Старый command-chat сохранён до явной настройки списка личных Telegram ID.
+- Polling AIO изменён с пяти минут на один час: `AIO_REFRESH_INTERVAL_SECONDS=3600`,
+  запуски выравниваются по началу часа. Это же значение зафиксировано в локальном source
+  и проверено внутри production-контейнера. Healthcheck допускает интервал плюс 15 минут,
+  поэтому корректный часовой цикл не помечается как устаревший.
 - Backup до переключения:
   `/home/teamactivity/maintenance/20261030T131900Z-aio-channel-before-6f7e9ce`.
+  Backup перед часовым расписанием:
+  `/home/teamactivity/maintenance/20261030T134051Z-aio-hourly-before-44bca9e`.
+  Backup перед обновлением healthcheck:
+  `/home/teamactivity/maintenance/20261030T134405Z-aio-healthcheck-before-2921669`.
   Серверный source синхронизирован с локальной веткой `codex/channel-alert-flow`;
   отдельный GitHub remote для этого проекта пока не настроен.
 
