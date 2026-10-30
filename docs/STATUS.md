@@ -1,6 +1,27 @@
-# Проверенное состояние — 29 октября 2026
+# Проверенное состояние — 30 октября 2026
 
 Новая рабочая точка отсчёта. Карта и команды — [SERVER_GUIDE](SERVER_GUIDE.md).
+
+## AIO Domain Monitor — приватный канал включён 30 октября
+
+- Production развёрнут из локального commit `6f7e9ce`, image
+  `aio-domain-monitor:20261030T131900Z`. Канал `AIO · Domain Monitor` проверен через
+  Telegram `getChat`; Bot API ID `-1004408071139`.
+- Новые проблемные и явно восстановившиеся домены отправляются сразу. Исчезнувший из
+  ответа домен не считается восстановившимся, потому что он мог быть архивирован.
+  Общая сводка отправляется один раз в день после 10:00 Europe/Moscow; первый baseline
+  создан 30 октября без массового алерта.
+- Состояние перенесено из `domains.json` в SQLite: текущий snapshot, дневной baseline
+  и Telegram delivery outbox записываются атомарно. Старый JSON сохранён для отката.
+  После deploy: 424 current, 424 daily, pending outbox 0; тестовое сообщение прошло
+  полный путь outbox → bot → приватный канал и отмечено delivered.
+- Оба контейнера running, refresh healthy, restart count 0. Проверено 13/13 тестов
+  локально и в изолированном Linux image; Telegram и AIO preflight прошли до cutover.
+  Старый command-chat сохранён до явной настройки списка личных Telegram ID.
+- Backup до переключения:
+  `/home/teamactivity/maintenance/20261030T131900Z-aio-channel-before-6f7e9ce`.
+  Серверный source синхронизирован с локальной веткой `codex/channel-alert-flow`;
+  отдельный GitHub remote для этого проекта пока не настроен.
 
 ## Task-manager и единая БД — включено 29 октября
 
