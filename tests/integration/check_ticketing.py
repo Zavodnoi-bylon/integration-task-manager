@@ -41,6 +41,26 @@ with psycopg.connect(DSN) as conn:
         ).fetchone()[0]
         assert replay_id == ticket_id
 
+        create_typed = (
+            "SELECT ticketing.create_ticket(%s,%s,%s,%s,%s,%s,"
+            "'telegram',NULL,'{}'::jsonb,%s)"
+        )
+        destination_ticket_id = conn.execute(
+            create_typed,
+            (
+                "kalisto", 3001, 2001, "Formatted Destination", NOW,
+                "update:destination:1", "destination",
+            ),
+        ).fetchone()[0]
+        rejects(
+            conn,
+            create_typed,
+            (
+                "kalisto", 3001, 2001, "Unknown type", NOW,
+                "update:destination:invalid", "unknown",
+            ),
+        )
+
         add_message = "SELECT ticketing.add_message(%s,%s,%s,%s,%s,%s,%s)"
         public_id = conn.execute(
             add_message,
@@ -85,11 +105,17 @@ with psycopg.connect(DSN) as conn:
         ).fetchone()[0] is True
 
         fact = conn.execute(
-            "SELECT profile_key,status_code,reopen_count,public_message_count,internal_note_count "
+            "SELECT profile_key,status_code,ticket_type,reopen_count,"
+            "public_message_count,internal_note_count "
             "FROM reporting.ticket_facts WHERE ticket_id=%s",
             (ticket_id,),
         ).fetchone()
-        assert fact == ("kalisto", "open", 1, 2, 1)
+        assert fact == ("kalisto", "open", "general", 1, 2, 1)
+        assert conn.execute(
+            "SELECT ticket_type,ticket_type_name FROM reporting.ticket_facts "
+            "WHERE ticket_id=%s",
+            (destination_ticket_id,),
+        ).fetchone() == ("destination", "Destination")
         assert conn.execute(
             "SELECT count(*) FROM ticketing.memberships m "
             "JOIN ticketing.telegram_users u USING(user_id) "

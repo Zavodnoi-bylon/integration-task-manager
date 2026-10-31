@@ -40,6 +40,20 @@ ON CONFLICT (status_code) DO UPDATE SET
     is_terminal = EXCLUDED.is_terminal,
     sort_order = EXCLUDED.sort_order;
 
+CREATE TABLE IF NOT EXISTS ticketing.ticket_types (
+    type_code text PRIMARY KEY CHECK (type_code ~ '^[a-z][a-z0-9_]{1,31}$'),
+    display_name text NOT NULL CHECK (length(btrim(display_name)) > 0),
+    active boolean NOT NULL DEFAULT true,
+    sort_order smallint NOT NULL UNIQUE
+);
+INSERT INTO ticketing.ticket_types VALUES
+    ('general', 'Другая задача', true, 10),
+    ('destination', 'Destination', true, 20)
+ON CONFLICT (type_code) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    active = EXCLUDED.active,
+    sort_order = EXCLUDED.sort_order;
+
 CREATE TABLE IF NOT EXISTS ticketing.event_types (
     event_type text PRIMARY KEY CHECK (event_type ~ '^[a-z][a-z0-9_]{1,63}$'),
     display_name text NOT NULL CHECK (length(btrim(display_name)) > 0)
@@ -82,6 +96,8 @@ CREATE TABLE IF NOT EXISTS ticketing.tickets (
     assigned_user_id bigint,
     status_code text NOT NULL DEFAULT 'open'
         REFERENCES ticketing.ticket_statuses(status_code),
+    ticket_type_code text NOT NULL DEFAULT 'general'
+        REFERENCES ticketing.ticket_types(type_code),
     title text,
     description text NOT NULL CHECK (length(btrim(description)) > 0),
     request_key text NOT NULL,
@@ -103,6 +119,14 @@ CREATE TABLE IF NOT EXISTS ticketing.tickets (
     CHECK (closed_at IS NULL OR closed_at >= created_at),
     CHECK (jsonb_typeof(metadata) = 'object')
 );
+ALTER TABLE ticketing.tickets
+    ADD COLUMN IF NOT EXISTS ticket_type_code text DEFAULT 'general'
+        REFERENCES ticketing.ticket_types(type_code);
+UPDATE ticketing.tickets SET ticket_type_code = 'general'
+WHERE ticket_type_code IS NULL;
+ALTER TABLE ticketing.tickets
+    ALTER COLUMN ticket_type_code SET DEFAULT 'general',
+    ALTER COLUMN ticket_type_code SET NOT NULL;
 CREATE INDEX IF NOT EXISTS tickets_profile_status_created_idx
     ON ticketing.tickets (profile_key, status_code, created_at DESC, ticket_id DESC);
 CREATE INDEX IF NOT EXISTS tickets_requester_status_idx
@@ -110,6 +134,10 @@ CREATE INDEX IF NOT EXISTS tickets_requester_status_idx
 CREATE INDEX IF NOT EXISTS tickets_assigned_status_idx
     ON ticketing.tickets (profile_key, assigned_user_id, status_code, ticket_id DESC)
     WHERE assigned_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS tickets_profile_type_status_created_idx
+    ON ticketing.tickets (
+        profile_key, ticket_type_code, status_code, created_at DESC, ticket_id DESC
+    );
 
 CREATE TABLE IF NOT EXISTS ticketing.ticket_messages (
     message_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -308,6 +336,12 @@ END $$;
 DROP FUNCTION IF EXISTS ticketing.create_ticket(
     text, bigint, bigint, text, timestamptz, text, text, bigint
 );
+DROP FUNCTION IF EXISTS ticketing.create_ticket(
+    text, bigint, bigint, text, timestamptz, text, text, bigint, jsonb
+);
+DROP FUNCTION IF EXISTS ticketing.create_ticket(
+    text, bigint, bigint, text, timestamptz, text, text, bigint, jsonb, text
+);
 CREATE OR REPLACE FUNCTION ticketing.create_ticket(
     p_profile_key text,
     p_requester_telegram_id bigint,
@@ -317,7 +351,8 @@ CREATE OR REPLACE FUNCTION ticketing.create_ticket(
     p_request_key text,
     p_source text DEFAULT 'telegram',
     p_legacy_sqlite_id bigint DEFAULT NULL,
-    p_metadata jsonb DEFAULT '{}'::jsonb
+    p_metadata jsonb DEFAULT '{}'::jsonb,
+    p_ticket_type_code text DEFAULT 'general'
 ) RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -350,10 +385,10 @@ BEGIN
     END IF;
 
     INSERT INTO ticketing.tickets (
-        profile_key, requester_user_id, assigned_user_id, description,
+        profile_key, requester_user_id, assigned_user_id, ticket_type_code, description,
         request_key, source, legacy_sqlite_id, created_at, updated_at, metadata
     ) VALUES (
-        p_profile_key, v_requester_id, v_assigned_id, p_description,
+        p_profile_key, v_requester_id, v_assigned_id, p_ticket_type_code, p_description,
         p_request_key, p_source, p_legacy_sqlite_id, p_created_at, p_created_at,
         COALESCE(p_metadata, '{}'::jsonb)
     ) RETURNING ticket_id INTO v_ticket_id;
@@ -530,10 +565,13 @@ SELECT
     (SELECT count(*) FROM ticketing.ticket_messages m
      WHERE m.ticket_id = t.ticket_id AND m.visibility = 'public') AS public_message_count,
     (SELECT count(*) FROM ticketing.ticket_messages m
-     WHERE m.ticket_id = t.ticket_id AND m.visibility = 'internal') AS internal_note_count
+     WHERE m.ticket_id = t.ticket_id AND m.visibility = 'internal') AS internal_note_count,
+    t.ticket_type_code AS ticket_type,
+    tt.display_name AS ticket_type_name
 FROM ticketing.tickets t
 JOIN ticketing.bot_profiles p USING (profile_key)
 JOIN ticketing.ticket_statuses s USING (status_code)
+JOIN ticketing.ticket_types tt ON tt.type_code = t.ticket_type_code
 JOIN ticketing.telegram_users requester ON requester.user_id = t.requester_user_id
 LEFT JOIN ticketing.telegram_users assigned ON assigned.user_id = t.assigned_user_id;
 
@@ -585,7 +623,7 @@ GRANT EXECUTE ON FUNCTION ticketing.register_member(text,bigint,text,text,text,t
     TO ticketing_writer;
 GRANT EXECUTE ON FUNCTION ticketing.sync_configured_roles(text,bigint[],bigint[])
     TO ticketing_writer;
-GRANT EXECUTE ON FUNCTION ticketing.create_ticket(text,bigint,bigint,text,timestamptz,text,text,bigint,jsonb)
+GRANT EXECUTE ON FUNCTION ticketing.create_ticket(text,bigint,bigint,text,timestamptz,text,text,bigint,jsonb,text)
     TO ticketing_writer;
 GRANT EXECUTE ON FUNCTION ticketing.add_message(text,bigint,bigint,text,text,timestamptz,text,bigint,bigint)
     TO ticketing_writer;
@@ -596,7 +634,7 @@ GRANT SELECT ON reporting.ticket_facts, reporting.ticket_daily_flow,
     reporting.ticket_current_backlog, reporting.ticket_conversation TO ticketing_writer;
 
 GRANT USAGE ON SCHEMA ticketing, reporting TO activity_reader;
-GRANT SELECT ON ticketing.bot_profiles, ticketing.ticket_statuses,
+GRANT SELECT ON ticketing.bot_profiles, ticketing.ticket_statuses, ticketing.ticket_types,
     ticketing.telegram_users, ticketing.memberships, ticketing.tickets,
     ticketing.ticket_messages, ticketing.ticket_attachments, ticketing.ticket_events
     TO activity_reader;

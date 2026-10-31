@@ -71,6 +71,11 @@ SELECT ticketing.register_member('mephisto',990000000001,'synthetic_admin','Synt
 SELECT ticketing.create_ticket('kalisto',990000000003,990000000002,'Synthetic migration check','2026-10-29T09:01:00Z','migration-check:ticket');
 SELECT ticketing.add_message('kalisto',currval('ticketing.tickets_ticket_id_seq'),990000000003,'public','Synthetic question','2026-10-29T09:02:00Z','migration-check:message');
 SELECT ticketing.change_status('kalisto',currval('ticketing.tickets_ticket_id_seq'),990000000002,'completed','2026-10-29T09:03:00Z','migration-check:completed');
+SELECT ticketing.create_ticket(
+  'kalisto',990000000003,990000000002,'Synthetic destination check',
+  '2026-10-29T09:04:00Z','migration-check:destination','telegram',NULL,
+  '{}'::jsonb,'destination'
+);
 SELECT ticketing.sync_configured_roles('kalisto',ARRAY[990000000001]::bigint[],ARRAY[]::bigint[]);
 DO $$
 BEGIN
@@ -88,6 +93,10 @@ BEGIN
   IF (SELECT actor_role FROM ticketing.ticket_events
       WHERE profile_key='kalisto' AND idempotency_key='migration-check:completed') <> 'technician' THEN
     RAISE EXCEPTION 'historical_actor_role_check_failed';
+  END IF;
+  IF (SELECT ticket_type FROM reporting.ticket_facts
+      WHERE description='Synthetic destination check') <> 'destination' THEN
+    RAISE EXCEPTION 'destination_ticket_type_check_failed';
   END IF;
 END $$;
 ROLLBACK;
