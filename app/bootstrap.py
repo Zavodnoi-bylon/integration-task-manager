@@ -12,6 +12,7 @@ from app.handlers import (
     technician_tickets,
     ticket_actions,
 )
+from app.services.destination_service import DestinationService
 from app.services.notification_service import NotificationService
 from app.services.postback_service import PostbackService
 from app.services.ticket_service import TicketService
@@ -27,6 +28,11 @@ def build_dispatcher(
     dispatcher["ticket_service"] = ticket_service
     dispatcher["notification_service"] = NotificationService(bot, settings)
     dispatcher["postback_service"] = PostbackService(settings)
+    dispatcher["destination_service"] = DestinationService(
+        api_key=settings.openrouter_api_key,
+        model=settings.destination_model,
+        prompt_path=settings.destination_prompt_path,
+    )
     dispatcher.include_routers(
         common.router,
         postbacks.router,

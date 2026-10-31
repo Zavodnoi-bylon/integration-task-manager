@@ -158,6 +158,7 @@ def create_tables():
             _ensure_column(conn, "ticket", "updated_at", "TEXT")
             _ensure_column(conn, "ticket", "closed_at", "TEXT")
             _ensure_column(conn, "ticket", "bot_key", "TEXT NOT NULL DEFAULT 'default'")
+            _ensure_column(conn, "ticket", "ticket_type", "TEXT NOT NULL DEFAULT 'general'")
 
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS ticket_events (
@@ -284,7 +285,8 @@ def update_user_field(tg_id: int, field_name: str, value: str,
 def add_ticket(tg_id_ticket: int, organization: str, addres_ticket: str, message_ticket: str,
                time_ticket: str, state_ticket: str, ticket_comm: str,
                assigned_to: int | None = None, bot_key: str = "default",
-               request_key: str | None = None) -> int:
+               request_key: str | None = None,
+               ticket_type: str = "general") -> int:
     """Атомарно создаёт тикет и возвращает ID именно этой записи."""
     conn = _connect()
     try:
@@ -293,14 +295,15 @@ def add_ticket(tg_id_ticket: int, organization: str, addres_ticket: str, message
                 INSERT INTO ticket (
                     tg_id_ticket, organization, addres_ticket, message_ticket,
                     time_ticket, state_ticket, ticket_comm, assigned_to,
-                    updated_at, closed_at, bot_key
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    updated_at, closed_at, bot_key, ticket_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 tg_id_ticket, organization, addres_ticket, message_ticket,
                 time_ticket, state_ticket, ticket_comm, assigned_to,
                 time_ticket,
                 time_ticket if state_ticket == STATUS_COMPLETED else None,
                 bot_key,
+                ticket_type,
             ))
             ticket_id = int(cursor.lastrowid)
             conn.execute('''

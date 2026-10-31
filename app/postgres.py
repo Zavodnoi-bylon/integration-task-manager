@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 import config
@@ -168,15 +169,16 @@ def update_user_field(tg_id: int, field_name: str, value: str,
 def add_ticket(tg_id_ticket: int, organization: str, addres_ticket: str,
                message_ticket: str, time_ticket: str, state_ticket: str,
                ticket_comm: str, assigned_to: int | None = None,
-               bot_key: str = "default", request_key: str | None = None) -> int:
+               bot_key: str = "default", request_key: str | None = None,
+               ticket_type: str = "general") -> int:
     if state_ticket != STATUS_OPEN:
         raise ValueError("New PostgreSQL tickets must start open")
     request_key = request_key or f"generated:{uuid4()}"
     with _get_pool().connection() as conn:
         row = conn.execute(
-            "SELECT ticketing.create_ticket(%s,%s,%s,%s,%s,%s)",
+            "SELECT ticketing.create_ticket(%s,%s,%s,%s,%s,%s,'telegram',NULL,%s,%s)",
             (bot_key, tg_id_ticket, assigned_to, message_ticket,
-             _aware(time_ticket), request_key),
+             _aware(time_ticket), request_key, Jsonb({}), ticket_type),
         ).fetchone()
     return int(next(iter(row.values())))
 
@@ -184,6 +186,7 @@ def add_ticket(tg_id_ticket: int, organization: str, addres_ticket: str,
 _TICKET_SELECT = """
 SELECT f.ticket_id,f.requester_telegram_id,f.description,f.created_at,
        f.status_code,f.assigned_telegram_id,f.updated_at,f.closed_at,f.profile_key,
+       f.ticket_type,
        (SELECT m.body FROM ticketing.ticket_messages m
         WHERE m.ticket_id=f.ticket_id AND m.visibility='internal'
         ORDER BY m.sent_at DESC,m.message_id DESC LIMIT 1) AS latest_comment
@@ -198,7 +201,7 @@ def _legacy_ticket(row: dict) -> tuple:
         CODE_TO_STATUS.get(row["status_code"], row["status_code"]),
         row["latest_comment"] or "", row["assigned_telegram_id"],
         _format_timestamp(row["updated_at"]), _format_timestamp(row["closed_at"]),
-        row["profile_key"],
+        row["profile_key"], row["ticket_type"],
     )
 
 

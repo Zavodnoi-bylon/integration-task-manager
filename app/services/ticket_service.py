@@ -9,6 +9,9 @@ from app.domain import (
     ROLE_TECHNICIAN,
     STATUS_COMPLETED,
     STATUS_OPEN,
+    TICKET_TYPE_DESTINATION,
+    TICKET_TYPE_GENERAL,
+    TICKET_TYPES,
     TicketEventRecord,
     TicketPage,
     TicketRecord,
@@ -115,10 +118,13 @@ class TicketService:
         body: str,
         created_at: TimestampInput,
         request_key: str | None = None,
+        ticket_type: str = TICKET_TYPE_GENERAL,
     ) -> TicketRecord:
         body = body.strip()
         if not body:
             raise ValueError("Ticket body cannot be empty")
+        if ticket_type not in TICKET_TYPES:
+            raise ValueError(f"Unsupported ticket type: {ticket_type}")
 
         created_at_value = sql.moscow_timestamp(created_at)
 
@@ -133,6 +139,7 @@ class TicketService:
             assigned_to=self.settings.admin_message,
             bot_key=self.settings.bot_key,
             request_key=request_key,
+            ticket_type=ticket_type,
         )
         sql.update_user_field(
             owner_id,
@@ -147,6 +154,39 @@ class TicketService:
             self.settings.bot_key,
         )
         return self.get_ticket(ticket_id)
+
+    def create_destination_ticket(
+        self,
+        owner_id: int,
+        advertiser: str,
+        source_body: str,
+        formatted_body: str,
+        created_at: TimestampInput,
+        request_key: str,
+    ) -> TicketRecord:
+        advertiser = advertiser.strip()
+        source_body = source_body.strip()
+        if not advertiser:
+            raise ValueError("Advertiser cannot be empty")
+        if not source_body:
+            raise ValueError("Source offer cannot be empty")
+
+        ticket = self.create_ticket(
+            owner_id,
+            formatted_body,
+            created_at,
+            request_key=request_key,
+            ticket_type=TICKET_TYPE_DESTINATION,
+        )
+        source_message = f"Advertiser: {advertiser}\n\n{source_body}"
+        self.add_public_message(
+            ticket.ticket_id,
+            owner_id,
+            source_message,
+            created_at,
+            idempotency_key=f"{request_key}:source",
+        )
+        return self.get_ticket(ticket.ticket_id)
 
     def list_user_tickets(
         self,

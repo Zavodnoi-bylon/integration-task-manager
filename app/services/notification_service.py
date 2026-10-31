@@ -3,7 +3,7 @@ import logging
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.domain import TicketRecord
+from app.domain import TICKET_TYPE_DESTINATION, TicketRecord
 from app.settings import Settings
 from app.views.helpers import html
 
@@ -14,10 +14,16 @@ class NotificationService:
         self._settings = settings
 
     async def new_ticket(self, ticket: TicketRecord, author_name: str) -> None:
+        ticket_type = (
+            "Destination"
+            if ticket.ticket_type == TICKET_TYPE_DESTINATION
+            else "Другая задача"
+        )
         text = (
             f"📬 <b>Создана задача <code>#{ticket.ticket_id}</code></b>\n\n"
             f"<b>Автор:</b> <a href='tg://user?id={ticket.owner_id}'>{html(author_name)}</a>\n"
             f"<b>Telegram ID:</b> <code>{ticket.owner_id}</code>\n\n"
+            f"<b>Тип:</b> {ticket_type}\n\n"
             f"<b>Описание:</b>\n{html(ticket.body)}"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[

@@ -8,6 +8,9 @@ from .constants import (
     ROLE_TECHNICIAN,
     STATUS_COMPLETED,
     STATUS_OPEN,
+    TICKET_TYPE_DESTINATION,
+    TICKET_TYPE_GENERAL,
+    TICKET_TYPES,
 )
 from .models import TicketEventRecord, TicketPage, TicketRecord, UserRecord
 
@@ -21,6 +24,9 @@ __all__ = [
     "ROLE_TECHNICIAN",
     "STATUS_COMPLETED",
     "STATUS_OPEN",
+    "TICKET_TYPE_DESTINATION",
+    "TICKET_TYPE_GENERAL",
+    "TICKET_TYPES",
     "TicketEventRecord",
     "TicketPage",
     "TicketRecord",

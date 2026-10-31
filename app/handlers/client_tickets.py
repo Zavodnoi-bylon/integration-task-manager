@@ -1,18 +1,31 @@
+import logging
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.domain import STATUS_COMPLETED, STATUS_OPEN
+from app.services.destination_service import (
+    DestinationFormatterError,
+    DestinationService,
+)
 from app.services.notification_service import NotificationService
 from app.services.ticket_service import AccessDeniedError, TicketNotFoundError, TicketService
 from app.states import UserStates
-from app.views.menus import new_ticket_prompt, ticket_created
+from app.views.menus import (
+    destination_advertiser_prompt,
+    destination_offer_prompt,
+    new_ticket_prompt,
+    ticket_created,
+    ticket_type_prompt,
+)
 from app.views.tickets import user_ticket_list
 
 from .helpers import build_ticket_card, edit_text_if_changed, telegram_display_name
 
 
 router = Router(name="client_tickets")
+logger = logging.getLogger(__name__)
 
 
 def _open_list(service: TicketService, user_id: int, page: int = 1):
@@ -31,10 +44,36 @@ def _history(service: TicketService, user_id: int, page: int = 1):
 
 @router.callback_query(F.data == "new_ticket")
 async def new_ticket(query: CallbackQuery, state: FSMContext):
+    await state.set_state(UserStates.choosing_ticket_type)
+    await query.answer()
+    text, keyboard = ticket_type_prompt()
+    await edit_text_if_changed(query.message, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.callback_query(F.data == "ticket_type_general")
+async def choose_general_ticket(query: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.waiting_for_ticket_message)
     await query.answer()
     text, keyboard = new_ticket_prompt()
-    await edit_text_if_changed(query.message, text, reply_markup=keyboard, parse_mode="HTML")
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "ticket_type_destination")
+async def choose_destination_ticket(query: CallbackQuery, state: FSMContext):
+    await state.set_state(UserStates.waiting_for_destination_advertiser)
+    await query.answer()
+    text, keyboard = destination_advertiser_prompt()
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "my_ticket")
@@ -133,5 +172,85 @@ async def create_ticket(
     )
     text, keyboard = ticket_created(ticket.ticket_id)
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+    await notification_service.new_ticket(ticket, display_name)
+    await state.clear()
+
+
+@router.message(UserStates.waiting_for_destination_advertiser)
+async def receive_destination_advertiser(message: Message, state: FSMContext):
+    advertiser = (message.text or "").strip()
+    if not advertiser:
+        await message.reply("Advertiser не может быть пустым.")
+        return
+    if "\n" in advertiser or "\r" in advertiser:
+        await message.reply("Укажите Advertiser одной строкой.")
+        return
+    if len(advertiser) > 200:
+        await message.reply("Название Advertiser слишком длинное.")
+        return
+
+    await state.update_data(destination_advertiser=advertiser)
+    await state.set_state(UserStates.waiting_for_destination_offer)
+    text, keyboard = destination_offer_prompt(advertiser)
+    await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.message(UserStates.waiting_for_destination_offer)
+async def create_destination_ticket(
+    message: Message,
+    state: FSMContext,
+    ticket_service: TicketService,
+    notification_service: NotificationService,
+    destination_service: DestinationService,
+):
+    source_body = (message.text or "").strip()
+    if not source_body:
+        await message.reply("Тело оффера не может быть пустым.")
+        return
+
+    state_data = await state.get_data()
+    advertiser = str(state_data.get("destination_advertiser") or "").strip()
+    if not advertiser:
+        await state.set_state(UserStates.waiting_for_destination_advertiser)
+        text, keyboard = destination_advertiser_prompt()
+        await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+        return
+
+    display_name = telegram_display_name(message.from_user)
+    ticket_service.register_user(
+        message.from_user.id,
+        display_name,
+        message.date,
+    )
+    progress = await message.reply("⏳ Оформляю Destination и создаю задачу…")
+    formatting_failed = False
+    try:
+        result = await destination_service.format_offer(
+            advertiser=advertiser,
+            source_body=source_body,
+        )
+        formatted_body = result.text
+    except DestinationFormatterError:
+        formatting_failed = True
+        logger.exception("Destination formatting failed")
+        formatted_body = (
+            f"Destination | {advertiser}\n\n"
+            "Автоматическое оформление не выполнено. "
+            "Исходные данные сохранены в переписке."
+        )
+
+    ticket = ticket_service.create_destination_ticket(
+        message.from_user.id,
+        advertiser,
+        source_body,
+        formatted_body,
+        message.date,
+        request_key=f"telegram-message:{message.chat.id}:{message.message_id}",
+    )
+    text, keyboard = ticket_created(
+        ticket.ticket_id,
+        formatting_failed=formatting_failed,
+    )
+    await progress.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await notification_service.new_ticket(ticket, display_name)
     await state.clear()

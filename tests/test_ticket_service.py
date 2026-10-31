@@ -9,6 +9,7 @@ from app.domain import (
     EVENT_STATUS_CHANGED,
     STATUS_COMPLETED,
     STATUS_OPEN,
+    TICKET_TYPE_DESTINATION,
 )
 from app.services.ticket_service import (
     AccessDeniedError,
@@ -75,6 +76,28 @@ class TicketServiceTests(unittest.TestCase):
         events = self.service.get_events(ticket.ticket_id)
         public = [event.text for event in events if event.event_type == EVENT_PUBLIC_MESSAGE]
         self.assertEqual(public, ["Вопрос клиента", "Ответ поддержки"])
+
+    def test_destination_ticket_keeps_formatted_body_and_original_source(self):
+        ticket = self.service.create_destination_ticket(
+            100,
+            "V.Partners",
+            "Исходное тело оффера",
+            "V.Partners | Slotoro | FB Apps | LT | Slots | 150 USD",
+            "2026-10-28 10:01:00",
+            request_key="telegram-message:100:55",
+        )
+
+        self.assertEqual(ticket.ticket_type, TICKET_TYPE_DESTINATION)
+        self.assertTrue(ticket.body.startswith("V.Partners | Slotoro"))
+        public = [
+            event.text
+            for event in self.service.get_events(ticket.ticket_id)
+            if event.event_type == EVENT_PUBLIC_MESSAGE
+        ]
+        self.assertEqual(
+            public,
+            ["Advertiser: V.Partners\n\nИсходное тело оффера"],
+        )
 
     def test_client_cannot_access_or_reopen_another_clients_ticket(self):
         self.service.register_user(101, "@other", "2026-10-28 10:00:00")

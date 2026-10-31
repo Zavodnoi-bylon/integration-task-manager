@@ -9,6 +9,7 @@ from app.domain import (
     EVENT_STATUS_CHANGED,
     STATUS_COMPLETED,
     STATUS_OPEN,
+    TICKET_TYPE_DESTINATION,
     TicketEventRecord,
     TicketPage,
     TicketRecord,
@@ -75,8 +76,14 @@ def ticket_card(
 ):
     text = f"<b>Задача <code>#{ticket.ticket_id}</code></b>\n\n"
     if admin_view:
+        ticket_type = (
+            "Destination"
+            if ticket.ticket_type == TICKET_TYPE_DESTINATION
+            else "Другая задача"
+        )
         text += (
             f"<b>Автор:</b> <a href='tg://user?id={ticket.owner_id}'>{html(owner_name)}</a>\n"
+            f"<b>Тип:</b> {ticket_type}\n"
             f"<b>Статус:</b> {html(ticket.status)}\n"
             f"<b>Создана:</b> {ticket.created_at}\n"
             f"<b>Обновлена:</b> {ticket.updated_at}\n"

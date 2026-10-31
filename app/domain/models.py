@@ -39,6 +39,7 @@ class TicketRecord:
     updated_at: str
     closed_at: str | None
     bot_key: str
+    ticket_type: str = "general"
 
     @classmethod
     def from_row(cls, row: Sequence) -> TicketRecord:
@@ -57,6 +58,7 @@ class TicketRecord:
             updated_at=str(_value(row, 9, created_at) or created_at),
             closed_at=(str(_value(row, 10)) if _value(row, 10) else None),
             bot_key=str(_value(row, 11, "default") or "default"),
+            ticket_type=str(_value(row, 12, "general") or "general"),
         )
 
 

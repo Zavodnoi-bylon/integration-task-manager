@@ -1,6 +1,10 @@
 STATUS_OPEN = "В работе"
 STATUS_COMPLETED = "Завершена"
 
+TICKET_TYPE_GENERAL = "general"
+TICKET_TYPE_DESTINATION = "destination"
+TICKET_TYPES = frozenset({TICKET_TYPE_GENERAL, TICKET_TYPE_DESTINATION})
+
 ROLE_CLIENT = "client"
 ROLE_TECHNICIAN = "technician"
 ROLE_ADMIN = "admin"

@@ -10,6 +10,9 @@ class Settings:
     admin_message: int
     bot_key: str
     technician_users: frozenset[int] = frozenset()
+    openrouter_api_key: str = ""
+    destination_model: str = "~openai/gpt-sol-latest"
+    destination_prompt_path: str = "content/destination/system_prompt.md"
 
 
 def load_settings() -> Settings:
@@ -38,4 +41,7 @@ def load_settings() -> Settings:
         admin_message=int(legacy_config.ADMIN_MESSAGE),
         bot_key=getattr(legacy_config, "BOT_KEY", "default"),
         technician_users=technician_users,
+        openrouter_api_key=legacy_config.OPENROUTER_API_KEY,
+        destination_model=legacy_config.DESTINATION_MODEL,
+        destination_prompt_path=legacy_config.DESTINATION_PROMPT_PATH,
     )

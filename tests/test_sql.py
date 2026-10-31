@@ -34,6 +34,20 @@ class SqlRepositoryTests(unittest.TestCase):
         self.assertEqual(second_id, first_id + 1)
         self.assertEqual(sql.get_ticket_events(first_id)[0][3], "created")
 
+    def test_ticket_type_is_persisted(self):
+        ticket_id = sql.add_ticket(
+            101,
+            "",
+            "",
+            "Destination body",
+            "2026-10-27 10:01:00",
+            sql.STATUS_OPEN,
+            "",
+            ticket_type="destination",
+        )
+
+        self.assertEqual(sql.get_ticket_info(ticket_id)[12], "destination")
+
     def test_comments_are_appended_instead_of_overwritten(self):
         ticket_id = sql.add_ticket(
             101, "", "", "Задача", "2026-10-27 10:00:00",
@@ -107,6 +121,15 @@ class SqlRepositoryTests(unittest.TestCase):
         migrated_user = sql.get_user_by_id(1)
         self.assertEqual(migrated_user["user_name"], "@old")
         self.assertEqual(migrated_user["role"], "client")
+        conn = sqlite3.connect(self.db_path)
+        try:
+            columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(ticket)").fetchall()
+            }
+        finally:
+            conn.close()
+        self.assertIn("ticket_type", columns)
 
 
 if __name__ == "__main__":

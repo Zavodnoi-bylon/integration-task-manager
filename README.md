@@ -25,6 +25,10 @@ Production-источник данных — PostgreSQL `activity_trial`, схе
 - append-only журнал сообщений и переходов статуса;
 - идемпотентность Telegram update/callback на уровне PostgreSQL;
 - статичные postback-шаблоны с отдельным набором для каждого бота.
+- типы задач `Destination` и `Другая задача`;
+- автоматическое оформление Destination через OpenRouter: клиент вводит Advertiser
+  и исходный оффер, после чего тикет создаётся без предпросмотра и подтверждения;
+- исходный оффер сохраняется первым публичным сообщением внутри тикета.
 
 ## Архитектура
 
@@ -40,6 +44,7 @@ app/storage.py           выбор SQLite/PostgreSQL
 app/sql.py               SQLite-адаптер для разработки и тестов
 app/postgres.py          production-адаптер PostgreSQL
 content/postbacks/       редактируемые шаблоны postback
+content/destination/     системный промпт форматтера Destination
 tests/                   регрессионные unit-тесты
 compose.yaml             Kalisto и Mephisto в контейнерах
 deploy/                  примеры конфигурации и операции развёртывания
@@ -61,6 +66,11 @@ Copy-Item .env.example .env
 # Заполнить .env локальными тестовыми значениями
 .venv\Scripts\python main.py
 ```
+
+Для Destination-флоу необходим `OPENROUTER_API_KEY`. Модель задаётся через
+`DESTINATION_MODEL`, а путь к инструкции — через `DESTINATION_PROMPT_PATH`.
+Если форматирование недоступно, исходный оффер всё равно сохраняется и создаётся
+тикет для ручной обработки.
 
 Проверка:
 
@@ -152,6 +162,9 @@ systemctl enable --now integration-task-manager-mephisto.service
 - `ADMIN_MESSAGE` — получатель уведомлений о новых тикетах; должен входить в один
   из двух списков выше.
 - `BOT_KEY` — строго `kalisto` или `mephisto`.
+- `OPENROUTER_API_KEY` — ключ OpenRouter для автоматического оформления Destination.
+- `DESTINATION_MODEL` — модель форматтера; одинаковое значение можно использовать
+  в обоих ботах.
 
 Postback-шаблоны:
 

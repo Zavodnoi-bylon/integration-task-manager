@@ -27,3 +27,13 @@ TICKETING_DB_PORT = int(os.getenv("TICKETING_DB_PORT", "55432"))
 TICKETING_DB_NAME = os.getenv("TICKETING_DB_NAME", "activity_trial").strip()
 TICKETING_DB_USER = os.getenv("TICKETING_DB_USER", "ticket_bot").strip()
 TICKETING_DB_PASSWORD = os.getenv("TICKETING_DB_PASSWORD", "")
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+DESTINATION_MODEL = os.getenv(
+    "DESTINATION_MODEL",
+    "~openai/gpt-sol-latest",
+).strip()
+DESTINATION_PROMPT_PATH = os.getenv(
+    "DESTINATION_PROMPT_PATH",
+    "content/destination/system_prompt.md",
+).strip()
