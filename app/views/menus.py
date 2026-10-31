@@ -87,7 +87,7 @@ def destination_advertiser_prompt(
             InlineKeyboardButton(text="Все", callback_data="dest_adv_all:0"),
         ],
         [InlineKeyboardButton(
-            text="Другой advertiser",
+            text="Новый advertiser",
             callback_data="dest_adv_custom",
         )],
         [InlineKeyboardButton(text="Назад", callback_data="new_ticket")],
@@ -146,7 +146,7 @@ def destination_advertiser_results(
             rows.append(navigation)
     rows.extend([
         [InlineKeyboardButton(
-            text="Другой advertiser",
+            text="Новый advertiser",
             callback_data="dest_adv_custom",
         )],
         [InlineKeyboardButton(text="Поиск", callback_data="dest_adv_search")],

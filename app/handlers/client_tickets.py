@@ -301,9 +301,7 @@ async def receive_custom_destination_advertiser(
     await state.update_data(
         destination_advertiser=advertiser,
         destination_url_parameters="",
-        destination_technician_note=(
-            "Новый advertiser: серверные URL-параметры ещё не настроены"
-        ),
+        destination_technician_note="Новый рекл",
     )
     await state.set_state(UserStates.waiting_for_destination_offer)
     text, keyboard = destination_offer_prompt(advertiser)

@@ -112,6 +112,8 @@ class NewTicketFlowViewsTests(unittest.TestCase):
         self.assertIn("V.Partners", rendered)
         self.assertIn("Поиск", rendered)
         self.assertIn("Все", rendered)
+        self.assertIn("Новый advertiser", rendered)
+        self.assertNotIn("Другой advertiser", rendered)
         self.assertNotIn("🎯", text + rendered)
 
         _, results = destination_advertiser_results("Результаты", (entry,))
