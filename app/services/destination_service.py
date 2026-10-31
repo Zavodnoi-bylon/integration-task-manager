@@ -132,6 +132,7 @@ class DestinationService:
         *,
         advertiser: str,
         source_body: str,
+        cap: int,
         url_parameters: str = "",
     ) -> DestinationFormatResult:
         advertiser = advertiser.strip()
@@ -142,6 +143,8 @@ class DestinationService:
             raise ValueError("Advertiser must fit on one line")
         if not source_body:
             raise ValueError("Source offer cannot be empty")
+        if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
+            raise ValueError("Cap must be a positive integer")
         if not self._api_key:
             raise DestinationConfigurationError(
                 "OPENROUTER_API_KEY is not configured"
@@ -151,6 +154,7 @@ class DestinationService:
         advertiser_context = {
             "advertiser_name": advertiser,
             "advertiser_url_parameters": url_parameters.strip(),
+            "offer_cap": cap,
         }
         messages = [
             {"role": "system", "content": self._instructions},
@@ -164,6 +168,8 @@ class DestinationService:
                     "финального Destination URL: хвост может быть набором query-"
                     "параметров или продолжением уже существующего значения. "
                     "Не применяй механическое добавление и не изменяй AIO macros. "
+                    "offer_cap введён клиентом отдельно: используй это число "
+                    "дословно в нейминге и не заменяй значением из текста заявки. "
                     "Верни только блоки офферов в формате из системной инструкции: "
                     "жирная строка нейминга, затем Destination и URL в text-блоке. "
                     "Не добавляй пояснения, предупреждения или комментарии."

@@ -160,6 +160,7 @@ class TicketService:
         owner_id: int,
         advertiser: str,
         source_body: str,
+        cap: int,
         formatted_body: str,
         created_at: TimestampInput,
         request_key: str,
@@ -171,6 +172,8 @@ class TicketService:
             raise ValueError("Advertiser cannot be empty")
         if not source_body:
             raise ValueError("Source offer cannot be empty")
+        if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
+            raise ValueError("Cap must be a positive integer")
 
         ticket = self.create_ticket(
             owner_id,
@@ -179,7 +182,11 @@ class TicketService:
             request_key=request_key,
             ticket_type=TICKET_TYPE_DESTINATION,
         )
-        source_message = f"Advertiser: {advertiser}\n\n{source_body}"
+        source_message = (
+            f"Advertiser: {advertiser}\n"
+            f"Cap: {cap}\n\n"
+            f"{source_body}"
+        )
         self.add_public_message(
             ticket.ticket_id,
             owner_id,

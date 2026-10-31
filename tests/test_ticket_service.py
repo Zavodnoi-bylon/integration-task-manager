@@ -82,6 +82,7 @@ class TicketServiceTests(unittest.TestCase):
             100,
             "V.Partners",
             "Исходное тело оффера",
+            40,
             "V.Partners | Slotoro | FB Apps | LT | Slots | 150 USD",
             "2026-10-28 10:01:00",
             request_key="telegram-message:100:55",
@@ -96,7 +97,7 @@ class TicketServiceTests(unittest.TestCase):
         ]
         self.assertEqual(
             public,
-            ["Advertiser: V.Partners\n\nИсходное тело оффера"],
+            ["Advertiser: V.Partners\nCap: 40\n\nИсходное тело оффера"],
         )
 
     def test_destination_ticket_can_add_internal_technician_note(self):
@@ -104,6 +105,7 @@ class TicketServiceTests(unittest.TestCase):
             100,
             "V1VA",
             "Исходное тело оффера",
+            10,
             "V1VA | Brand | FB | PT | Slots | 100 USD | cap 10 FTD",
             "2026-10-28 10:01:00",
             request_key="telegram-message:100:56",

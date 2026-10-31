@@ -155,11 +155,11 @@ def destination_advertiser_results(
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def destination_offer_prompt(advertiser: str):
+def destination_cap_prompt(advertiser: str):
     text = (
         "<b>Destination</b>\n\n"
         f"<b>Advertiser:</b> <code>{html(advertiser)}</code>\n\n"
-        "Отправьте полное тело оффера одним сообщением."
+        "Укажите капу одним целым числом."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -170,13 +170,24 @@ def destination_offer_prompt(advertiser: str):
     return text, keyboard
 
 
-def ticket_created(ticket_id: int, *, formatting_failed: bool = False):
-    text = f"✅ Задача зарегистрирована.\n\n<b>Номер:</b> <code>#{ticket_id}</code>."
-    if formatting_failed:
-        text += (
-            "\n\n⚠️ Автоматическое оформление не сработало. "
-            "Исходный оффер сохранён, задача передана технарю."
-        )
+def destination_offer_prompt(advertiser: str, cap: int):
+    text = (
+        "<b>Destination</b>\n\n"
+        f"<b>Advertiser:</b> <code>{html(advertiser)}</code>\n"
+        f"<b>Капа:</b> <code>{cap}</code>\n\n"
+        "Отправьте полное тело оффера одним сообщением."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Назад",
+            callback_data="dest_cap_edit",
+        )]
+    ])
+    return text, keyboard
+
+
+def ticket_created(ticket_id: int):
+    text = f"Задача зарегистрирована.\n\n<b>Номер:</b> <code>#{ticket_id}</code>."
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Открыть задачу", callback_data=f"user_ticket_{ticket_id}")],
         [InlineKeyboardButton(text="🧑‍💻 Главное меню", callback_data="main_menu")],

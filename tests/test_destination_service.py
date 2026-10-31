@@ -51,6 +51,7 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await service.format_offer(
             advertiser="V.Partners",
             source_body="Slotoro - FB apps",
+            cap=40,
             url_parameters=(
                 "click_id={{aio.visit.uuid}}&"
                 "sub_id={{aio.visit.fields.buyer_utm}}"
@@ -69,6 +70,7 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(messages[0]["content"], "FULL AIO PROMPT")
         self.assertIn("V.Partners", messages[2]["content"])
         self.assertIn("advertiser_url_parameters", messages[2]["content"])
+        self.assertIn('"offer_cap": 40', messages[2]["content"])
         self.assertIn("{{aio.visit.uuid}}", messages[2]["content"])
         self.assertIn("Slotoro - FB apps", messages[3]["content"])
 
@@ -91,6 +93,7 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
             await service.format_offer(
                 advertiser="V.Partners",
                 source_body="Offer",
+                cap=20,
             )
 
     async def test_http_error_does_not_leak_api_key(self):
@@ -107,6 +110,7 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
             await service.format_offer(
                 advertiser="V.Partners",
                 source_body="Offer",
+                cap=20,
             )
         self.assertIn("401", str(caught.exception))
         self.assertNotIn("secret-key", str(caught.exception))

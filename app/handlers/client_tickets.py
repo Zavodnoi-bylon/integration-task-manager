@@ -1,4 +1,5 @@
 import logging
+import re
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -17,6 +18,7 @@ from app.views.menus import (
     destination_advertiser_results,
     destination_advertiser_search_prompt,
     destination_advertiser_prompt,
+    destination_cap_prompt,
     destination_custom_advertiser_prompt,
     destination_offer_prompt,
     new_ticket_prompt,
@@ -30,6 +32,13 @@ from .helpers import build_ticket_card, edit_text_if_changed, telegram_display_n
 
 router = Router(name="client_tickets")
 logger = logging.getLogger(__name__)
+
+
+def _parse_destination_cap(value: str) -> int | None:
+    value = value.strip()
+    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
+        return None
+    return int(value)
 
 
 def _open_list(service: TicketService, user_id: int, page: int = 1):
@@ -148,9 +157,9 @@ async def select_destination_advertiser(
         destination_url_parameters=entry.url_parameters,
         destination_technician_note=entry.technician_note,
     )
-    await state.set_state(UserStates.waiting_for_destination_offer)
+    await state.set_state(UserStates.waiting_for_destination_cap)
     await query.answer()
-    text, keyboard = destination_offer_prompt(entry.name)
+    text, keyboard = destination_cap_prompt(entry.name)
     await edit_text_if_changed(
         query.message,
         text,
@@ -303,8 +312,44 @@ async def receive_custom_destination_advertiser(
         destination_url_parameters="",
         destination_technician_note="Новый рекл",
     )
+    await state.set_state(UserStates.waiting_for_destination_cap)
+    text, keyboard = destination_cap_prompt(advertiser)
+    await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.callback_query(F.data == "dest_cap_edit")
+async def edit_destination_cap(query: CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    advertiser = str(state_data.get("destination_advertiser") or "").strip()
+    if not advertiser:
+        await query.answer("Сначала выберите advertiser.", show_alert=True)
+        return
+    await state.set_state(UserStates.waiting_for_destination_cap)
+    await query.answer()
+    text, keyboard = destination_cap_prompt(advertiser)
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.message(UserStates.waiting_for_destination_cap)
+async def receive_destination_cap(message: Message, state: FSMContext):
+    raw_cap = (message.text or "").strip()
+    cap = _parse_destination_cap(raw_cap)
+    if cap is None:
+        await message.reply("Укажите капу целым положительным числом.")
+        return
+    state_data = await state.get_data()
+    advertiser = str(state_data.get("destination_advertiser") or "").strip()
+    if not advertiser:
+        await message.reply("Сначала выберите advertiser.")
+        return
+    await state.update_data(destination_cap=cap)
     await state.set_state(UserStates.waiting_for_destination_offer)
-    text, keyboard = destination_offer_prompt(advertiser)
+    text, keyboard = destination_offer_prompt(advertiser, cap)
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
 
 
@@ -329,6 +374,12 @@ async def create_destination_ticket(
         text, keyboard = destination_advertiser_prompt(advertiser_catalog.popular())
         await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
         return
+    cap = state_data.get("destination_cap")
+    if not isinstance(cap, int) or cap < 1:
+        await state.set_state(UserStates.waiting_for_destination_cap)
+        text, keyboard = destination_cap_prompt(advertiser)
+        await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+        return
 
     display_name = telegram_display_name(message.from_user)
     ticket_service.register_user(
@@ -336,42 +387,41 @@ async def create_destination_ticket(
         display_name,
         message.date,
     )
-    progress = await message.reply("Оформляю Destination и создаю задачу…")
-    formatting_failed = False
+    progress = await message.reply("Создаю задачу…")
+    processing_note: str | None = None
     try:
         result = await destination_service.format_offer(
             advertiser=advertiser,
             source_body=source_body,
+            cap=cap,
             url_parameters=str(
                 state_data.get("destination_url_parameters") or ""
             ),
         )
         formatted_body = result.text
     except DestinationFormatterError:
-        formatting_failed = True
         logger.exception("Destination formatting failed")
+        processing_note = "Не удалось обработать Destination. Проверить заявку вручную"
         formatted_body = (
-            f"Destination | {advertiser}\n\n"
-            "Автоматическое оформление не выполнено. "
-            "Исходные данные сохранены в переписке."
+            f"Destination | {advertiser} | cap {cap}\n\n"
+            "Заявка принята в работу."
         )
 
+    technician_notes = [
+        str(state_data.get("destination_technician_note") or "").strip(),
+        processing_note or "",
+    ]
     ticket = ticket_service.create_destination_ticket(
         message.from_user.id,
         advertiser,
         source_body,
+        cap,
         formatted_body,
         message.date,
         request_key=f"telegram-message:{message.chat.id}:{message.message_id}",
-        technician_note=(
-            str(state_data.get("destination_technician_note") or "").strip()
-            or None
-        ),
+        technician_note="\n".join(note for note in technician_notes if note) or None,
     )
-    text, keyboard = ticket_created(
-        ticket.ticket_id,
-        formatting_failed=formatting_failed,
-    )
+    text, keyboard = ticket_created(ticket.ticket_id)
     await progress.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await notification_service.new_ticket(ticket, display_name)
     await state.clear()

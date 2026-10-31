@@ -8,6 +8,7 @@ from app.domain import (
 )
 from app.views.menus import (
     destination_advertiser_results,
+    destination_cap_prompt,
     destination_advertiser_prompt,
     destination_offer_prompt,
     ticket_type_prompt,
@@ -90,11 +91,18 @@ class NewTicketFlowViewsTests(unittest.TestCase):
         }
         self.assertIn("new_ticket", advertiser_callbacks)
         self.assertIn("dest_adv_search", advertiser_callbacks)
-        text, offer_keyboard = destination_offer_prompt("V.Partners")
+        cap_text, cap_keyboard = destination_cap_prompt("V.Partners")
+        self.assertIn("V.Partners", cap_text)
+        self.assertEqual(
+            cap_keyboard.inline_keyboard[0][0].callback_data,
+            "ticket_type_destination",
+        )
+        text, offer_keyboard = destination_offer_prompt("V.Partners", 40)
         self.assertIn("V.Partners", text)
+        self.assertIn("40", text)
         self.assertEqual(
             offer_keyboard.inline_keyboard[0][0].callback_data,
-            "ticket_type_destination",
+            "dest_cap_edit",
         )
         self.assertNotIn("confirm", str(offer_keyboard.inline_keyboard))
 

@@ -26,6 +26,8 @@ class NotificationService:
             f"<b>Тип:</b> {ticket_type}\n\n"
             f"<b>Описание:</b>\n{html(ticket.body)}"
         )
+        if ticket.latest_comment:
+            text += f"\n\n<b>Внутренняя пометка:</b>\n{html(ticket.latest_comment)}"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Открыть задачу", callback_data=f"ticket_{ticket.ticket_id}")],
             [InlineKeyboardButton(text="🤘 Все задачи", callback_data="admin_panel")],

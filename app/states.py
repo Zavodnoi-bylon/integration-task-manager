@@ -6,6 +6,7 @@ class UserStates(StatesGroup):
     waiting_for_ticket_message = State()
     waiting_for_destination_advertiser = State()
     waiting_for_destination_custom_advertiser = State()
+    waiting_for_destination_cap = State()
     waiting_for_destination_offer = State()
     waiting_for_ticket_comment = State()
     waiting_for_ticket_public_message = State()
