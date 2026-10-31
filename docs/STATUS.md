@@ -1,28 +1,30 @@
-# Проверенное состояние — 30 октября 2026
+# Проверенное состояние — 31 октября 2026
 
 Новая рабочая точка отсчёта. Карта и команды — [SERVER_GUIDE](SERVER_GUIDE.md).
 
-## Destination-задачи — production включён 31 октября
+## Destination-задачи — каталог и капа включены 31 октября
 
-- В task-manager commit `2493f73` добавлен короткий
-  сценарий `Новая задача → тип → Advertiser → оффер`. После второго сообщения модель
-  вызывается автоматически: предпросмотра и дополнительного подтверждения нет.
-- Готовый нейминг и Destination записываются в описание тикета; исходные Advertiser и
-  сообщение клиента сохраняются первым публичным сообщением. При ошибке OpenRouter
-  тикет всё равно создаётся для ручной обработки.
+- Production task-manager commit `260bf11`: сценарий
+  `Новая задача → тип → Advertiser → капа → оффер`. Kalisto показывает 53 advertiser,
+  Mephisto — 54; доступны популярные варианты, поиск, страницы и новый advertiser.
+- Клиент видит только форму и номер созданной задачи. Название advertiser, капа и исходная
+  заявка сохраняются первым публичным сообщением; URL-хвост остаётся backend-конфигурацией.
+  Внутренние ошибки клиенту не раскрываются: тикет сохраняется, технарь получает заметку.
+  Для нового advertiser заметка — `Новый рекл`, для `V1VA` — выбор advertiser по GEO.
 - Тип тикета сделан отдельным отчётным измерением `general` / `destination`, а не полем
   свободного JSON. PostgreSQL-миграция — commit `4d1635e`.
 - Restore-check выполнен на отдельной восстановленной PostgreSQL 16, затем схема применена
   к `activity_trial`. Все 5 прежних тикетов сохранены как `general`; добавлены справочник
   типов, внешний ключ, индекс и поля `ticket_type`/`ticket_type_name` в отчётной витрине.
-- Оба бота работают на image `integration-task-manager:20261031Tdestination-2493f73`,
-  restart count 0; Telegram `getMe` прошёл для обоих. В Linux test image прошли 36/36
-  тестов. Реальный Destination-тикет через OpenRouter должен создать пользовательский
-  smoke-test; проверка не тратила модельные токены автоматически.
+- Оба бота работают на image `integration-task-manager:20261031Tcap-260bf11`,
+  restart count 0; Telegram `getMe` прошёл для обоих. В Linux test image прошли 44/44
+  теста; каталоги внутри контейнеров проверены как 53/54 записи.
 - DB backup:
   `/home/teamactivity/migration-trial/ticketing/20261031T003453Z/activity_trial-before-ticketing.dump`.
   Source rollback:
   `/home/teamactivity/maintenance/20261031Tdestination-task-before-2493f73`.
+  Последний rollback перед каталогом/капой:
+  `/home/teamactivity/maintenance/20261031Tcap-before-260bf11`.
 
 ## AIO Domain Monitor — приватный канал включён 30 октября
 
