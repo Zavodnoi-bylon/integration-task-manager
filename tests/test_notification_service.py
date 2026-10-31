@@ -38,6 +38,8 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         sent_text = bot.send_message.await_args.args[1]
         self.assertIn("Новый рекл", sent_text)
         self.assertIn("Внутренняя пометка", sent_text)
+        self.assertNotIn("Telegram ID", sent_text)
+        self.assertNotIn("<code>100</code>", sent_text)
 
 
 if __name__ == "__main__":

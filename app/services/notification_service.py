@@ -22,7 +22,7 @@ class NotificationService:
         text = (
             f"📬 <b>Создана задача <code>#{ticket.ticket_id}</code></b>\n\n"
             f"<b>Автор:</b> <a href='tg://user?id={ticket.owner_id}'>{html(author_name)}</a>\n"
-            f"<b>Telegram ID:</b> <code>{ticket.owner_id}</code>\n\n"
+            "\n"
             f"<b>Тип:</b> {ticket_type}\n\n"
             f"<b>Описание:</b>\n{html(ticket.body)}"
         )
