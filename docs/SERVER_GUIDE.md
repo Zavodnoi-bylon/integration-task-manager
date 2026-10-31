@@ -16,7 +16,7 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 | Компонент | Адрес / путь | Роль |
 |---|---|---|
 | Проект | /home/teamactivity/team-activity-explorer | API, UI, importer, SQL, исходники collector |
-| Ticket bots | /home/teamactivity/integration-task-manager/source | Git checkout и Compose для Kalisto/Mephisto |
+| Ticket bots | /home/teamactivity/integration-task-manager/source | Compose для Kalisto/Mephisto; deployed commit `2493f73` |
 | Bot containers | integration-task-manager-kalisto-1; integration-task-manager-mephisto-1 | Один образ, два изолированных профиля |
 | Конфигурация ботов | /home/teamactivity/.config/integration-task-manager | Раздельные bot env и общий закрытый database.env |
 | AIO domain monitor | /home/teamactivity/aio-domain-monitor/source | Docker/Compose source, deployed commit `2921669` |
@@ -129,6 +129,9 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | integration-task-manager/.venv/ | Legacy Python-окружение systemd, только rollback |
 | integration-task-manager/data/database.db | Прежняя SQLite; сохранена для rollback, не каноническая после cutover |
 | integration-task-manager/backups/*/database.db | Согласованные SQLite backups перед переключением |
+| maintenance/20261031Tdestination-task-before-2493f73/ | Предыдущий source/runtime task-manager перед Destination deploy |
+| maintenance/20261031Tdestination-schema-before-4d1635e/ | Предыдущие SQL migration-файлы перед добавлением типов тикетов |
+| migration-trial/ticketing/20261031T003453Z/ | PostgreSQL dump перед Destination schema migration |
 | .config/integration-task-manager/kalisto.env | Закрытая конфигурация Kalisto |
 | .config/integration-task-manager/mephisto.env | Закрытая конфигурация Mephisto |
 | .config/integration-task-manager/database.env | Общий закрытый доступ ботов к PostgreSQL |

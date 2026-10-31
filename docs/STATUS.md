@@ -2,19 +2,27 @@
 
 Новая рабочая точка отсчёта. Карта и команды — [SERVER_GUIDE](SERVER_GUIDE.md).
 
-## Destination-задачи — локальная разработка 31 октября
+## Destination-задачи — production включён 31 октября
 
-- В локальном task-manager на ветке `codex/destination-ticket-flow` добавлен короткий
+- В task-manager commit `2493f73` добавлен короткий
   сценарий `Новая задача → тип → Advertiser → оффер`. После второго сообщения модель
   вызывается автоматически: предпросмотра и дополнительного подтверждения нет.
 - Готовый нейминг и Destination записываются в описание тикета; исходные Advertiser и
   сообщение клиента сохраняются первым публичным сообщением. При ошибке OpenRouter
   тикет всё равно создаётся для ручной обработки.
 - Тип тикета сделан отдельным отчётным измерением `general` / `destination`, а не полем
-  свободного JSON. Локальная PostgreSQL-миграция находится в ветке
-  `codex/destination-ticket-schema`.
-- Task-manager: 36/36 локальных unit-тестов прошли. Реальный restore-check PostgreSQL и
-  развёртывание на сервер ещё не выполнялись; production пока не изменён.
+  свободного JSON. PostgreSQL-миграция — commit `4d1635e`.
+- Restore-check выполнен на отдельной восстановленной PostgreSQL 16, затем схема применена
+  к `activity_trial`. Все 5 прежних тикетов сохранены как `general`; добавлены справочник
+  типов, внешний ключ, индекс и поля `ticket_type`/`ticket_type_name` в отчётной витрине.
+- Оба бота работают на image `integration-task-manager:20261031Tdestination-2493f73`,
+  restart count 0; Telegram `getMe` прошёл для обоих. В Linux test image прошли 36/36
+  тестов. Реальный Destination-тикет через OpenRouter должен создать пользовательский
+  smoke-test; проверка не тратила модельные токены автоматически.
+- DB backup:
+  `/home/teamactivity/migration-trial/ticketing/20261031T003453Z/activity_trial-before-ticketing.dump`.
+  Source rollback:
+  `/home/teamactivity/maintenance/20261031Tdestination-task-before-2493f73`.
 
 ## AIO Domain Monitor — приватный канал включён 30 октября
 
