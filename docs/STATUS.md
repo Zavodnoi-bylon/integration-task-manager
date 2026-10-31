@@ -4,7 +4,7 @@
 
 ## Destination-задачи — каталог и капа включены 31 октября
 
-- Production task-manager commit `260bf11`: сценарий
+- Production task-manager commit `e68b51f`: сценарий
   `Новая задача → тип → Advertiser → капа → оффер`. Kalisto показывает 53 advertiser,
   Mephisto — 54; доступны популярные варианты, поиск, страницы и новый advertiser.
 - Клиент видит только форму и номер созданной задачи. Название advertiser, капа и исходная
@@ -16,7 +16,9 @@
 - Restore-check выполнен на отдельной восстановленной PostgreSQL 16, затем схема применена
   к `activity_trial`. Все 5 прежних тикетов сохранены как `general`; добавлены справочник
   типов, внешний ключ, индекс и поля `ticket_type`/`ticket_type_name` в отчётной витрине.
-- Оба бота работают на image `integration-task-manager:20261031Tcap-260bf11`,
+- Уведомление технарю о новом тикете не показывает Telegram ID автора; ID сохраняется
+  только как внутренняя связь и аудит в PostgreSQL.
+- Оба бота работают на image `integration-task-manager:20261031Tno-tgid-e68b51f`,
   restart count 0; Telegram `getMe` прошёл для обоих. В Linux test image прошли 44/44
   теста; каталоги внутри контейнеров проверены как 53/54 записи.
 - DB backup:
@@ -25,6 +27,8 @@
   `/home/teamactivity/maintenance/20261031Tdestination-task-before-2493f73`.
   Последний rollback перед каталогом/капой:
   `/home/teamactivity/maintenance/20261031Tcap-before-260bf11`.
+  Rollback перед удалением Telegram ID из уведомления:
+  `/home/teamactivity/maintenance/20261031Tno-tgid-before-e68b51f`.
 
 ## AIO Domain Monitor — приватный канал включён 30 октября
 

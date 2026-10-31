@@ -16,7 +16,7 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 | Компонент | Адрес / путь | Роль |
 |---|---|---|
 | Проект | /home/teamactivity/team-activity-explorer | API, UI, importer, SQL, исходники collector |
-| Ticket bots | /home/teamactivity/integration-task-manager/source | Compose для Kalisto/Mephisto; deployed commit `260bf11` |
+| Ticket bots | /home/teamactivity/integration-task-manager/source | Compose для Kalisto/Mephisto; deployed commit `e68b51f` |
 | Bot containers | integration-task-manager-kalisto-1; integration-task-manager-mephisto-1 | Один образ, два изолированных профиля |
 | Конфигурация ботов | /home/teamactivity/.config/integration-task-manager | Раздельные bot env и общий закрытый database.env |
 | AIO domain monitor | /home/teamactivity/aio-domain-monitor/source | Docker/Compose source, deployed commit `2921669` |
@@ -122,7 +122,7 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | team-activity-explorer/.env | Административная конфигурация БД/приложения/ролей, root 0600 |
 | team-activity-explorer/.env.client | Подключение reader/writer для importer, teamactivity 0600 |
 | team-activity-explorer/.venv/ | Зависимости Python приложения |
-| integration-task-manager/source | Production source `Zavodnoi-bylon/integration-task-manager`, commit `260bf11` |
+| integration-task-manager/source | Production source `Zavodnoi-bylon/integration-task-manager`, commit `e68b51f` |
 | integration-task-manager/source/compose.yaml | Контейнеры Kalisto/Mephisto, ресурсы и сети |
 | integration-task-manager/runtime.env | Несекретный активный image tag и Compose network/project state |
 | integration-task-manager/current | Legacy symlink на release `20261029Tticketing-v7`, только rollback |
@@ -131,6 +131,7 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | integration-task-manager/backups/*/database.db | Согласованные SQLite backups перед переключением |
 | maintenance/20261031Tdestination-task-before-2493f73/ | Предыдущий source/runtime task-manager перед Destination deploy |
 | maintenance/20261031Tcap-before-260bf11/ | Source/runtime task-manager перед каталогом advertiser и вводом капы |
+| maintenance/20261031Tno-tgid-before-e68b51f/ | Source/runtime перед удалением Telegram ID из уведомлений технарю |
 | maintenance/20261031Tdestination-schema-before-4d1635e/ | Предыдущие SQL migration-файлы перед добавлением типов тикетов |
 | migration-trial/ticketing/20261031T003453Z/ | PostgreSQL dump перед Destination schema migration |
 | .config/integration-task-manager/kalisto.env | Закрытая конфигурация Kalisto |
