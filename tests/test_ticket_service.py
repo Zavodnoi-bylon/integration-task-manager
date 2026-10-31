@@ -99,6 +99,27 @@ class TicketServiceTests(unittest.TestCase):
             ["Advertiser: V.Partners\n\nИсходное тело оффера"],
         )
 
+    def test_destination_ticket_can_add_internal_technician_note(self):
+        ticket = self.service.create_destination_ticket(
+            100,
+            "V1VA",
+            "Исходное тело оффера",
+            "V1VA | Brand | FB | PT | Slots | 100 USD | cap 10 FTD",
+            "2026-10-28 10:01:00",
+            request_key="telegram-message:100:56",
+            technician_note="Выбрать advertiser для нужного GEO",
+        )
+
+        internal = [
+            event.text
+            for event in self.service.get_events(ticket.ticket_id)
+            if event.event_type == EVENT_COMMENT
+        ]
+        self.assertEqual(
+            internal,
+            ["Системная пометка: Выбрать advertiser для нужного GEO"],
+        )
+
     def test_client_cannot_access_or_reopen_another_clients_ticket(self):
         self.service.register_user(101, "@other", "2026-10-28 10:00:00")
         ticket = self.service.create_ticket(100, "Чужая задача", "2026-10-28 10:01:00")

@@ -12,6 +12,7 @@ from app.handlers import (
     technician_tickets,
     ticket_actions,
 )
+from app.services.advertiser_catalog import AdvertiserCatalog
 from app.services.destination_service import DestinationService
 from app.services.notification_service import NotificationService
 from app.services.postback_service import PostbackService
@@ -32,6 +33,10 @@ def build_dispatcher(
         api_key=settings.openrouter_api_key,
         model=settings.destination_model,
         prompt_path=settings.destination_prompt_path,
+    )
+    dispatcher["advertiser_catalog"] = AdvertiserCatalog(
+        bot_key=settings.bot_key,
+        catalog_path=settings.destination_catalog_path,
     )
     dispatcher.include_routers(
         common.router,

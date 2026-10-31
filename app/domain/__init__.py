@@ -12,13 +12,20 @@ from .constants import (
     TICKET_TYPE_GENERAL,
     TICKET_TYPES,
 )
-from .models import TicketEventRecord, TicketPage, TicketRecord, UserRecord
+from .models import (
+    AdvertiserEntry,
+    TicketEventRecord,
+    TicketPage,
+    TicketRecord,
+    UserRecord,
+)
 
 __all__ = [
     "EVENT_COMMENT",
     "EVENT_CREATED",
     "EVENT_PUBLIC_MESSAGE",
     "EVENT_STATUS_CHANGED",
+    "AdvertiserEntry",
     "ROLE_CLIENT",
     "ROLE_ADMIN",
     "ROLE_TECHNICIAN",

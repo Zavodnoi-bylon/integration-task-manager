@@ -1,4 +1,8 @@
+from collections.abc import Sequence
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app.domain import AdvertiserEntry
 
 from .helpers import html
 
@@ -42,7 +46,7 @@ def ticket_type_prompt():
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="🎯 Destination",
+            text="Destination",
             callback_data="ticket_type_destination",
         )],
         [InlineKeyboardButton(
@@ -54,27 +58,112 @@ def ticket_type_prompt():
     return text, keyboard
 
 
-def destination_advertiser_prompt():
+def _advertiser_rows(
+    entries: Sequence[AdvertiserEntry],
+) -> list[list[InlineKeyboardButton]]:
+    buttons = [
+        InlineKeyboardButton(
+            text=entry.name,
+            callback_data=f"dest_adv_select:{entry.key}",
+        )
+        for entry in entries
+    ]
+    return [buttons[index:index + 2] for index in range(0, len(buttons), 2)]
+
+
+def destination_advertiser_prompt(
+    popular: Sequence[AdvertiserEntry] = (),
+):
     text = (
-        "<b>🎯 Destination</b>\n\n"
-        "Укажите Advertiser.\n\n"
-        "Например: <code>V.Partners</code>"
+        "<b>Destination</b>\n\n"
+        "Выберите advertiser."
+    )
+    if popular:
+        text += "\n\nЧасто используемые:"
+    rows = _advertiser_rows(popular)
+    rows.extend([
+        [
+            InlineKeyboardButton(text="Поиск", callback_data="dest_adv_search"),
+            InlineKeyboardButton(text="Все", callback_data="dest_adv_all:0"),
+        ],
+        [InlineKeyboardButton(
+            text="Другой advertiser",
+            callback_data="dest_adv_custom",
+        )],
+        [InlineKeyboardButton(text="Назад", callback_data="new_ticket")],
+    ])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
+    return text, keyboard
+
+
+def destination_advertiser_search_prompt():
+    text = (
+        "<b>Поиск advertiser</b>\n\n"
+        "Отправьте часть названия одним сообщением."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="new_ticket")]
+        [InlineKeyboardButton(text="Назад", callback_data="ticket_type_destination")]
     ])
     return text, keyboard
 
 
+def destination_custom_advertiser_prompt():
+    text = (
+        "<b>Новый advertiser</b>\n\n"
+        "Отправьте точное название одним сообщением. Для него серверный URL-хвост "
+        "пока не настроен."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", callback_data="ticket_type_destination")]
+    ])
+    return text, keyboard
+
+
+def destination_advertiser_results(
+    title: str,
+    entries: Sequence[AdvertiserEntry],
+    *,
+    page: int | None = None,
+    total_pages: int | None = None,
+):
+    text = f"<b>{html(title)}</b>"
+    if page is not None and total_pages is not None:
+        text += f"\n\nСтраница {page + 1} из {total_pages}."
+    rows = _advertiser_rows(entries)
+    if page is not None and total_pages is not None:
+        navigation: list[InlineKeyboardButton] = []
+        if page > 0:
+            navigation.append(InlineKeyboardButton(
+                text="Назад",
+                callback_data=f"dest_adv_all:{page - 1}",
+            ))
+        if page + 1 < total_pages:
+            navigation.append(InlineKeyboardButton(
+                text="Дальше",
+                callback_data=f"dest_adv_all:{page + 1}",
+            ))
+        if navigation:
+            rows.append(navigation)
+    rows.extend([
+        [InlineKeyboardButton(
+            text="Другой advertiser",
+            callback_data="dest_adv_custom",
+        )],
+        [InlineKeyboardButton(text="Поиск", callback_data="dest_adv_search")],
+        [InlineKeyboardButton(text="К выбору", callback_data="ticket_type_destination")],
+    ])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def destination_offer_prompt(advertiser: str):
     text = (
-        "<b>🎯 Destination</b>\n\n"
+        "<b>Destination</b>\n\n"
         f"<b>Advertiser:</b> <code>{html(advertiser)}</code>\n\n"
         "Отправьте полное тело оффера одним сообщением."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="⬅️ Назад",
+            text="Назад",
             callback_data="ticket_type_destination",
         )]
     ])

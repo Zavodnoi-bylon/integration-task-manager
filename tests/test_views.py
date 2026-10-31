@@ -7,10 +7,12 @@ from app.domain import (
     TicketRecord,
 )
 from app.views.menus import (
+    destination_advertiser_results,
     destination_advertiser_prompt,
     destination_offer_prompt,
     ticket_type_prompt,
 )
+from app.domain import AdvertiserEntry
 from app.views.tickets import ticket_card
 
 
@@ -81,10 +83,13 @@ class NewTicketFlowViewsTests(unittest.TestCase):
         self.assertIn("ticket_type_general", type_callbacks)
 
         _, advertiser_keyboard = destination_advertiser_prompt()
-        self.assertEqual(
-            advertiser_keyboard.inline_keyboard[0][0].callback_data,
-            "new_ticket",
-        )
+        advertiser_callbacks = {
+            button.callback_data
+            for row in advertiser_keyboard.inline_keyboard
+            for button in row
+        }
+        self.assertIn("new_ticket", advertiser_callbacks)
+        self.assertIn("dest_adv_search", advertiser_callbacks)
         text, offer_keyboard = destination_offer_prompt("V.Partners")
         self.assertIn("V.Partners", text)
         self.assertEqual(
@@ -92,6 +97,25 @@ class NewTicketFlowViewsTests(unittest.TestCase):
             "ticket_type_destination",
         )
         self.assertNotIn("confirm", str(offer_keyboard.inline_keyboard))
+
+    def test_advertiser_catalog_uses_plain_text_buttons(self):
+        entry = AdvertiserEntry(
+            key="abc123",
+            name="V.Partners",
+            url_parameters="click_id={{aio.visit.uuid}}",
+            technician_note=None,
+            priority=10,
+        )
+        text, keyboard = destination_advertiser_prompt((entry,))
+        rendered = str(keyboard.inline_keyboard)
+
+        self.assertIn("V.Partners", rendered)
+        self.assertIn("Поиск", rendered)
+        self.assertIn("Все", rendered)
+        self.assertNotIn("🎯", text + rendered)
+
+        _, results = destination_advertiser_results("Результаты", (entry,))
+        self.assertIn("dest_adv_select:abc123", str(results.inline_keyboard))
 
 
 if __name__ == "__main__":

@@ -30,10 +30,14 @@ TICKETING_DB_PASSWORD = os.getenv("TICKETING_DB_PASSWORD", "")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 DESTINATION_MODEL = os.getenv(
-    "DESTINATION_MODEL",
-    "~openai/gpt-sol-latest",
+    "OPENROUTER_MODEL",
+    os.getenv("DESTINATION_MODEL", "~openai/gpt-sol-latest"),
 ).strip()
 DESTINATION_PROMPT_PATH = os.getenv(
     "DESTINATION_PROMPT_PATH",
     "content/destination/system_prompt.md",
+).strip()
+DESTINATION_CATALOG_PATH = os.getenv(
+    "DESTINATION_CATALOG_PATH",
+    "content/destination/advertisers.json",
 ).strip()

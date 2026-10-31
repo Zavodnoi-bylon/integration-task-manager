@@ -13,6 +13,7 @@ class Settings:
     openrouter_api_key: str = ""
     destination_model: str = "~openai/gpt-sol-latest"
     destination_prompt_path: str = "content/destination/system_prompt.md"
+    destination_catalog_path: str = "content/destination/advertisers.json"
 
 
 def load_settings() -> Settings:
@@ -44,4 +45,5 @@ def load_settings() -> Settings:
         openrouter_api_key=legacy_config.OPENROUTER_API_KEY,
         destination_model=legacy_config.DESTINATION_MODEL,
         destination_prompt_path=legacy_config.DESTINATION_PROMPT_PATH,
+        destination_catalog_path=legacy_config.DESTINATION_CATALOG_PATH,
     )

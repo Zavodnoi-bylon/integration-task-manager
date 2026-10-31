@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.domain import STATUS_COMPLETED, STATUS_OPEN
+from app.services.advertiser_catalog import AdvertiserCatalog
 from app.services.destination_service import (
     DestinationFormatterError,
     DestinationService,
@@ -13,7 +14,10 @@ from app.services.notification_service import NotificationService
 from app.services.ticket_service import AccessDeniedError, TicketNotFoundError, TicketService
 from app.states import UserStates
 from app.views.menus import (
+    destination_advertiser_results,
+    destination_advertiser_search_prompt,
     destination_advertiser_prompt,
+    destination_custom_advertiser_prompt,
     destination_offer_prompt,
     new_ticket_prompt,
     ticket_created,
@@ -64,10 +68,89 @@ async def choose_general_ticket(query: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "ticket_type_destination")
-async def choose_destination_ticket(query: CallbackQuery, state: FSMContext):
+async def choose_destination_ticket(
+    query: CallbackQuery,
+    state: FSMContext,
+    advertiser_catalog: AdvertiserCatalog,
+):
     await state.set_state(UserStates.waiting_for_destination_advertiser)
     await query.answer()
-    text, keyboard = destination_advertiser_prompt()
+    text, keyboard = destination_advertiser_prompt(advertiser_catalog.popular())
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "dest_adv_search")
+async def search_destination_advertiser(query: CallbackQuery, state: FSMContext):
+    await state.set_state(UserStates.waiting_for_destination_advertiser)
+    await query.answer()
+    text, keyboard = destination_advertiser_search_prompt()
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data == "dest_adv_custom")
+async def custom_destination_advertiser(query: CallbackQuery, state: FSMContext):
+    await state.set_state(UserStates.waiting_for_destination_custom_advertiser)
+    await query.answer()
+    text, keyboard = destination_custom_advertiser_prompt()
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("dest_adv_all:"))
+async def all_destination_advertisers(
+    query: CallbackQuery,
+    advertiser_catalog: AdvertiserCatalog,
+):
+    page = int(query.data.rsplit(":", 1)[1])
+    entries, total_pages = advertiser_catalog.page(page)
+    page = max(0, min(page, total_pages - 1))
+    await query.answer()
+    text, keyboard = destination_advertiser_results(
+        "Все варианты",
+        entries,
+        page=page,
+        total_pages=total_pages,
+    )
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("dest_adv_select:"))
+async def select_destination_advertiser(
+    query: CallbackQuery,
+    state: FSMContext,
+    advertiser_catalog: AdvertiserCatalog,
+):
+    entry = advertiser_catalog.get(query.data.rsplit(":", 1)[1])
+    if entry is None:
+        await query.answer("Advertiser не найден. Обновите список.", show_alert=True)
+        return
+    await state.update_data(
+        destination_advertiser=entry.name,
+        destination_url_parameters=entry.url_parameters,
+        destination_technician_note=entry.technician_note,
+    )
+    await state.set_state(UserStates.waiting_for_destination_offer)
+    await query.answer()
+    text, keyboard = destination_offer_prompt(entry.name)
     await edit_text_if_changed(
         query.message,
         text,
@@ -177,19 +260,51 @@ async def create_ticket(
 
 
 @router.message(UserStates.waiting_for_destination_advertiser)
-async def receive_destination_advertiser(message: Message, state: FSMContext):
-    advertiser = (message.text or "").strip()
-    if not advertiser:
-        await message.reply("Advertiser не может быть пустым.")
+async def receive_destination_advertiser(
+    message: Message,
+    state: FSMContext,
+    advertiser_catalog: AdvertiserCatalog,
+):
+    query = (message.text or "").strip()
+    if not query:
+        await message.reply("Поисковая строка не может быть пустой.")
         return
-    if "\n" in advertiser or "\r" in advertiser:
-        await message.reply("Укажите Advertiser одной строкой.")
+    if "\n" in query or "\r" in query:
+        await message.reply("Введите часть названия одной строкой.")
+        return
+    entries = advertiser_catalog.search(query)
+    if not entries:
+        text = "Ничего не найдено. Попробуйте другой запрос или выберите новый advertiser."
+        _, keyboard = destination_advertiser_results("Результаты поиска", ())
+        await message.reply(
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
+        return
+    text, keyboard = destination_advertiser_results("Результаты поиска", entries)
+    await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@router.message(UserStates.waiting_for_destination_custom_advertiser)
+async def receive_custom_destination_advertiser(
+    message: Message,
+    state: FSMContext,
+):
+    advertiser = (message.text or "").strip()
+    if not advertiser or "\n" in advertiser or "\r" in advertiser:
+        await message.reply("Укажите точное название одной строкой.")
         return
     if len(advertiser) > 200:
-        await message.reply("Название Advertiser слишком длинное.")
+        await message.reply("Название слишком длинное.")
         return
-
-    await state.update_data(destination_advertiser=advertiser)
+    await state.update_data(
+        destination_advertiser=advertiser,
+        destination_url_parameters="",
+        destination_technician_note=(
+            "Новый advertiser: серверные URL-параметры ещё не настроены"
+        ),
+    )
     await state.set_state(UserStates.waiting_for_destination_offer)
     text, keyboard = destination_offer_prompt(advertiser)
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
@@ -202,6 +317,7 @@ async def create_destination_ticket(
     ticket_service: TicketService,
     notification_service: NotificationService,
     destination_service: DestinationService,
+    advertiser_catalog: AdvertiserCatalog,
 ):
     source_body = (message.text or "").strip()
     if not source_body:
@@ -212,7 +328,7 @@ async def create_destination_ticket(
     advertiser = str(state_data.get("destination_advertiser") or "").strip()
     if not advertiser:
         await state.set_state(UserStates.waiting_for_destination_advertiser)
-        text, keyboard = destination_advertiser_prompt()
+        text, keyboard = destination_advertiser_prompt(advertiser_catalog.popular())
         await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
         return
 
@@ -222,12 +338,15 @@ async def create_destination_ticket(
         display_name,
         message.date,
     )
-    progress = await message.reply("⏳ Оформляю Destination и создаю задачу…")
+    progress = await message.reply("Оформляю Destination и создаю задачу…")
     formatting_failed = False
     try:
         result = await destination_service.format_offer(
             advertiser=advertiser,
             source_body=source_body,
+            url_parameters=str(
+                state_data.get("destination_url_parameters") or ""
+            ),
         )
         formatted_body = result.text
     except DestinationFormatterError:
@@ -246,6 +365,10 @@ async def create_destination_ticket(
         formatted_body,
         message.date,
         request_key=f"telegram-message:{message.chat.id}:{message.message_id}",
+        technician_note=(
+            str(state_data.get("destination_technician_note") or "").strip()
+            or None
+        ),
     )
     text, keyboard = ticket_created(
         ticket.ticket_id,

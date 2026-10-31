@@ -163,6 +163,7 @@ class TicketService:
         formatted_body: str,
         created_at: TimestampInput,
         request_key: str,
+        technician_note: str | None = None,
     ) -> TicketRecord:
         advertiser = advertiser.strip()
         source_body = source_body.strip()
@@ -186,6 +187,15 @@ class TicketService:
             created_at,
             idempotency_key=f"{request_key}:source",
         )
+        if technician_note:
+            sql.add_ticket_comment(
+                ticket.ticket_id,
+                self.settings.admin_message,
+                f"Системная пометка: {technician_note.strip()}",
+                sql.moscow_timestamp(created_at),
+                bot_key=self.settings.bot_key,
+                idempotency_key=f"{request_key}:technician-note",
+            )
         return self.get_ticket(ticket.ticket_id)
 
     def list_user_tickets(

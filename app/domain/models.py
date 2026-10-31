@@ -28,6 +28,15 @@ class UserRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class AdvertiserEntry:
+    key: str
+    name: str
+    url_parameters: str
+    technician_note: str | None
+    priority: int
+
+
+@dataclass(frozen=True, slots=True)
 class TicketRecord:
     ticket_id: int
     owner_id: int

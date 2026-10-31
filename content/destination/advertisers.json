@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "advertisers": [
+    {
+      "bot_key": "kalisto",
+      "name": "1Win",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.free_param_5}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.campaign.uuid}}&sub5={{aio.campaign.name}}",
+      "priority": 427426
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "1xBet",
+      "url_parameters": "&click_id={{aio.visit.uuid}}",
+      "priority": 383
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "1xbet Betoholic",
+      "url_parameters": "sub_id={{aio.visit.uuid}}&sub_3={{aio.visit.fields.buyer_utm}}",
+      "priority": 985
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "21stNetwork",
+      "url_parameters": "click_id={{aio.visit.uuid}}&s1={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "4RA",
+      "url_parameters": "&sub_id1={{aio.visit.fields.buyer_utm}}&sub_id2={{aio.visit.uuid}}",
+      "priority": 489584
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "A360",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}",
+      "priority": 3
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Ace",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id5={{aio.visit.fields.buyer_utm}}&sub_id3={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 23786
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Affigates",
+      "url_parameters": "&visit_uuid={{aio.visit.uuid}}",
+      "priority": 1012
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Affinturo",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id={{aio.visit.fields.buyer_utm}}&sub_id_2={{aio.visit.fields.fb_ad_name}}",
+      "priority": 27
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Aldex",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id_1={{aio.visit.fields.buyer_utm}}&adset={{aio.visit.fields.fb_ad_name}}&source=fb",
+      "priority": 17
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Bet2One",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub1={{aio.visit.fields.buyer_utm}}",
+      "priority": 1250
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "BetZO",
+      "url_parameters": "&cid= {{aio.visit.uuid}}",
+      "priority": 6
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "BlastBet",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 81
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "BlueChip",
+      "url_parameters": "&aff_click_id={{aio.visit.uuid}}&aff_param1={{aio.visit.fields.buyer_utm}}",
+      "priority": 601
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Brazino777",
+      "url_parameters": "&sub_id9={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}&sub_id3={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 906
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Casongo",
+      "url_parameters": "&aff_click_id={{aio.visit.uuid}}&aff_param1={{aio.visit.fields.buyer_utm}}",
+      "priority": 2
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "DaleWin",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}",
+      "priority": 138
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "DBBET",
+      "url_parameters": "click_id={{aio.visit.uuid}}&subid={{aio.visit.fields.buyer_utm}}",
+      "priority": 586
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Fame Asia",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 1008
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Fame Latam",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 6255
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "FONBET",
+      "url_parameters": "&partner_click_id={{aio.visit.uuid}}&web_master_id={{aio.visit.fields.buyer_utm}}",
+      "priority": 29359
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Fraga",
+      "url_parameters": "&anid={{aio.visit.uuid}}",
+      "priority": 121
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Getrush",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Godlike Partners",
+      "url_parameters": "visit_id={{aio.visit.uuid}}&webid={{aio.visit.fields.buyer_utm}}",
+      "priority": 11
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Growe Partners",
+      "url_parameters": "anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}_{{aio.visit.fields.fb_ad_name}}_{{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 11924
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Hustle Partners",
+      "url_parameters": "&afp1={{aio.visit.uuid}}&afp2={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Kheli",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub6={{aio.visit.fields.fb_ad_name}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "KULT",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}",
+      "priority": 13906
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Lucky Star",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 32772
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Lucky Star старый",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "LukyCricket",
+      "url_parameters": "&aff_click_id={{aio.visit.uuid}}&sub_id1={{aio.visit.fields.buyer_utm}}",
+      "priority": 487
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Maggiore",
+      "url_parameters": "afp1={{aio.visit.uuid}}&afp2={{aio.visit.fields.fb_ad_name}}&utm_campaign={{aio.visit.fields.buyer_utm}}&afp10=Facebook",
+      "priority": 2
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Masons",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub3={{aio.visit.fields.buyer_utm}}",
+      "priority": 120
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "MS",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}",
+      "priority": 55
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Orobet",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id3=466_{{aio.visit.fields.buyer_utm}}&sub_id50={{aio.visit.fields.pwa_id}}",
+      "priority": 245346
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "OXI Partners",
+      "url_parameters": "?visit_id={{aio.visit.uuid}}&sub5={referrer}&web_id={{aio.visit.fields.buyer_utm}}}&sub4={{aio.visit.fields.fb_ad_name}}",
+      "priority": 312
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Premio Partners",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}",
+      "priority": 8
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "PWA.Partners",
+      "url_parameters": "sub_id_1={{aio.visit.session}}&sub_id_2={{aio.visit.fields.free_param_2}}&sub_id_3={{aio.visit.fields.fb_campaign_name}}&sub_id_4={{aio.visit.fields.fb_ad_set_name}}&sub_id_6={{aio.visit.fields.fb_ad_name}}&sub_id_7={{aio.visit.fields.free_param_5}}&sub_id_8={{aio.visit.fields.free_param_1}}&pixel={{aio.visit.fields.fb_pixel}}&fbclid={{aio.visit.fields.fbclid}}&sub_id_10={{aio.visit.uuid}}",
+      "priority": 72
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "q3.network",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 682
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "R2D",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}&source_id1={{aio.visit.uuid}}",
+      "priority": 905
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Sparta",
+      "url_parameters": "afp1={{aio.visit.uuid}}&utm_campaign={{aio.visit.fields.buyer_utm}}&afp2={{aio.visit.fields.fb_ad_name}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Stalker",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}",
+      "priority": 10
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "The Limited Club",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 446
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "TopX",
+      "url_parameters": "&token1={{aio.visit.uuid}}&token2={{aio.visit.fields.buyer_utm}}",
+      "priority": 20316
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Traffizy",
+      "url_parameters": "&click_id={{aio.visit.uuid}}",
+      "priority": 4
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "V1VA",
+      "url_parameters": "",
+      "priority": 3,
+      "technician_note": "Выбрать advertiser для нужного GEO"
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "V1VA AR",
+      "url_parameters": "&anid={{aio.visit.uuid}}_{{aio.visit.fields.buyer_utm}}_15",
+      "priority": 5
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "V1VA_17 CO",
+      "url_parameters": "&anid={{aio.visit.uuid}}_SMTH={{aio.visit.fields.buyer_utm}}_17",
+      "priority": 7
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "VAVADA",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id_1={{aio.visit.fields.buyer_utm}}",
+      "priority": 118
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "W88",
+      "url_parameters": "&aff_click_id={{aio.visit.uuid}}&aff_param1={{aio.visit.fields.buyer_utm}}",
+      "priority": 584
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "WinHugo",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_source={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "Winum",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 732
+    },
+    {
+      "bot_key": "kalisto",
+      "name": "WowBet",
+      "url_parameters": "&click_id={{aio.visit.uuid}}",
+      "priority": 109
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "1win",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub5={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 12085
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "1x",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id3={{aio.visit.fields.buyer_utm}}&sub_id1={{aio.visit.fields.fb_ad_name}}&sub_id2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 3405
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "1x spend",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id3={{aio.visit.fields.buyer_utm}}&sub_id1={{aio.visit.fields.fb_ad_name}}&sub_id2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 169
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "247P",
+      "url_parameters": "clickid={{aio.visit.uuid}}&subid={{aio.visit.fields.buyer_utm}}&var5={{aio.visit.fields.fb_ad_name}}&var4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1328
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Affgang",
+      "url_parameters": "&aff_click_id={{aio.visit.uuid}}&sub_id3={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 171
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Affigates",
+      "url_parameters": "&visit_uuid={{aio.visit.uuid}}",
+      "priority": 2312
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "AffiliateChannel",
+      "url_parameters": "aff_click_id={{aio.visit.uuid}}&aff_sub={{aio.visit.fields.buyer_utm}}&aff_sub2={{aio.visit.fields.fb_ad_name}}&aff_sub3={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 41
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Aldex",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id_1={{aio.visit.fields.buyer_utm}}&adset={{aio.visit.fields.fb_ad_name}}&sub_id_2={{aio.visit.fields.fb_ad_set_name}}&source=fb",
+      "priority": 506
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "AMILeads",
+      "url_parameters": "sub5={{aio.visit.uuid}}&sub1={{aio.visit.fields.buyer_utm}}&sub2={{aio.visit.fields.fb_ad_name}}&sub3={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 38
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Amonbet",
+      "url_parameters": "sub_id1={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}&sub_id3={{aio.visit.fields.fb_ad_name}}",
+      "priority": 2
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "AP | ACE Partners",
+      "url_parameters": "&sub1={{aio.visit.uuid}}",
+      "priority": 70
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "BetmenAffiliates",
+      "url_parameters": "afp1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&afp2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 202
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Betzo",
+      "url_parameters": "cid={{aio.visit.uuid}}&sub3={{aio.visit.fields.buyer_utm}}&sub4={{aio.visit.fields.fb_ad_name}}",
+      "priority": 3
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "BigBettyPartners",
+      "url_parameters": "clickid={{aio.visit.uuid}}&web_id={{aio.visit.fields.buyer_utm}}",
+      "priority": 5
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "BlackFlag",
+      "url_parameters": "afp1={{aio.visit.uuid}}&afp10=Facebook&utm_campaign={{aio.visit.fields.buyer_utm}}&sub2={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Cake Partners",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id={{aio.visit.fields.buyer_utm}}",
+      "priority": 13
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "ClickLead",
+      "url_parameters": "sub_id_1={{aio.visit.uuid}}&sub_id_2={{aio.visit.fields.buyer_utm}}&sub_id_3={{aio.visit.fields.fb_ad_name}}&sub_id_4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 175
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Elon",
+      "url_parameters": "sub_id1={{aio.visit.uuid}}&sub_id7={{aio.visit.fields.fb_ad_name}}&sub_id8=Facebook&sub_id10={{aio.visit.fields.buyer_utm}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "ExGaming",
+      "url_parameters": "sub_id1={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}&sub_id3={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 8951
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "FAME",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 10038
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "FCP",
+      "url_parameters": "afp1={{aio.visit.uuid}}&afp2={{aio.visit.fields.buyer_utm}}&afp3={{aio.visit.fields.fb_ad_name}}&afp4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 707
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Fonbet",
+      "url_parameters": "partner_click_id={{aio.visit.uuid}}&web_master_id={{aio.visit.fields.buyer_utm}}&sub_1={{aio.visit.fields.fb_ad_name}}&sub_2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 2012
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "FragaPartners",
+      "url_parameters": "_{{aio.visit.fields.fb_ad_name}}_{{aio.visit.fields.fb_ad_set_name}}&tsrc=fb_ads",
+      "priority": 778
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Glabs",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id={{aio.visit.fields.buyer_utm}}",
+      "priority": 45
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Glory Partners",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}&sub_id3=fb&sub_id4={{aio.visit.fields.fb_ad_name}}&sub_id5={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 137
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "GMA",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1052
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "HiddenPartners",
+      "url_parameters": "visit_id={{aio.visit.uuid}}&web_id={{aio.visit.fields.buyer_utm}}&sub1={{aio.visit.fields.fb_ad_name}}&sub2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 118
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Kheli",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub6={{aio.visit.fields.fb_ad_name}}&sub7={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 7313
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "LGaming",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 65
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Lucky Star",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 3362
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Melbet",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id3={{aio.visit.fields.buyer_utm}}",
+      "priority": 26634
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Mostbet",
+      "url_parameters": "?sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}",
+      "priority": 5
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "NV Partners",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id_1={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}",
+      "priority": 817
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "OctoCPA",
+      "url_parameters": "aff_click_id={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.buyer_utm}}&sub_id3={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1039
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "OneTwoAffiliates",
+      "url_parameters": "&sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 916
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Pin-Up",
+      "url_parameters": "&subId1={{aio.visit.uuid}}&subId3={{aio.visit.fields.buyer_utm}}&subId4={{aio.visit.fields.fb_ad_name}}&subId5={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Pride bet",
+      "url_parameters": "click_id={{aio.visit.uuid}}&zoneid={{aio.visit.fields.fb_ad_name}}",
+      "priority": 2
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Profitov.Partners",
+      "url_parameters": "&sub4={{aio.visit.uuid}}&sub1={{aio.visit.fields.fb_ad_name}}&sub2={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 33
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "PVT|Aggent",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id3={{aio.visit.fields.buyer_utm}}&sub_id4={{aio.visit.fields.fb_ad_name}}&sub_id5={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1178
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "PWA.Partners",
+      "url_parameters": "sub_id_1={{aio.visit.session}}&sub_id_2={{aio.visit.uuid}}&sub_id_3={{aio.visit.fields.fb_ad_name}}&sub_id_4={{aio.visit.fields.fb_campaign_name}}&sub_id_5={{aio.visit.fields.free_param_3}}&sub_id_6={{aio.visit.fields.free_param_4}}&pixel={{aio.visit.fields.fb_pixel}}&fbclid={{aio.visit.fields.fbclid}}",
+      "priority": 19525
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Q-Affiliates",
+      "url_parameters": "&afp1={{aio.visit.uuid}}",
+      "priority": 5
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Q3",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub5={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1886
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "RavePartners",
+      "url_parameters": "afp1={{aio.visit.uuid}}&afp10=Facebook&&utm_campaign={{aio.visit.fields.buyer_utm}}&afp3={{aio.visit.fields.fb_ad_name}}&afp4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 7176
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Reconnect",
+      "url_parameters": "&sub_id1={{aio.visit.uuid}}&sub_id2={{aio.visit.fields.fb_ad_name}}&sub_id4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 16119
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Riddick’s Partners2",
+      "url_parameters": "sub_id3={{aio.visit.uuid}}&sub_id4={{aio.visit.fields.buyer_utm}}&sub_id5={{aio.visit.fields.fb_ad_name}}&sub_id6={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 2390
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "SkakApp",
+      "url_parameters": "sub1={{aio.visit.fields.free_param_1}}&sub2={{aio.visit.fields.free_param_2}}&sub3={{aio.visit.fields.free_param_3}}&sub4={{aio.visit.fields.free_param_4}}&sub5={{aio.visit.uuid}}&sub6={{aio.visit.session}}&fbp={{aio.visit.fields.fb_pixel}}",
+      "priority": 1369
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Sparta",
+      "url_parameters": "afp1={{aio.visit.uuid}}&utm_campaign={{aio.visit.fields.buyer_utm}}&afp2={{aio.visit.fields.fb_ad_name}}&afp3={{aio.visit.fields.fb_ad_set_name}}&click_id=TheRaw_{{aio.visit.uuid}}",
+      "priority": 2198
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "StormFB",
+      "url_parameters": "&afp1={{aio.visit.uuid}}&afp10=Facebook&utm_campaign={{aio.visit.fields.buyer_utm}}&afp2={{aio.visit.fields.fb_ad_name}}",
+      "priority": 6
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "TheLimitedClub",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 46
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "therawapps testsup",
+      "url_parameters": "sub1={{aio.visit.session}}&sub2={{aio.visit.uuid}}",
+      "priority": 237
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "TopX",
+      "url_parameters": "&token1={{aio.visit.uuid}}&token2={{aio.visit.fields.buyer_utm}}&token3={{aio.visit.fields.fb_ad_name}}&token4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1180
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "V.Partners",
+      "url_parameters": "click_id={{aio.visit.uuid}}&sub_id={{aio.visit.fields.buyer_utm}}&sub_id_1={{aio.visit.fields.fb_ad_name}}&sub_id_3={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 92
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "VAVADA",
+      "url_parameters": "&click_id={{aio.visit.uuid}}&sub_id_2={{aio.visit.fields.fb_ad_name}}&sub_id_3={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 2
+    },
+    {
+      "bot_key": "mephisto",
+      "name": "Winum",
+      "url_parameters": "sub1={{aio.visit.uuid}}&sub2={{aio.visit.fields.buyer_utm}}&sub3={{aio.visit.fields.fb_ad_name}}&sub4={{aio.visit.fields.fb_ad_set_name}}",
+      "priority": 1297
+    }
+  ]
+}

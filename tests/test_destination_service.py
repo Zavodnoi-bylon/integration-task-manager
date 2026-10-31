@@ -51,6 +51,10 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await service.format_offer(
             advertiser="V.Partners",
             source_body="Slotoro - FB apps",
+            url_parameters=(
+                "click_id={{aio.visit.uuid}}&"
+                "sub_id={{aio.visit.fields.buyer_utm}}"
+            ),
         )
 
         self.assertEqual(
@@ -64,6 +68,8 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
         messages = seen["payload"]["messages"]
         self.assertEqual(messages[0]["content"], "FULL AIO PROMPT")
         self.assertIn("V.Partners", messages[2]["content"])
+        self.assertIn("advertiser_url_parameters", messages[2]["content"])
+        self.assertIn("{{aio.visit.uuid}}", messages[2]["content"])
         self.assertIn("Slotoro - FB apps", messages[3]["content"])
 
     async def test_rejects_incomplete_model_output(self):
