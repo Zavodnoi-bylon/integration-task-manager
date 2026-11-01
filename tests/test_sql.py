@@ -32,7 +32,9 @@ class SqlRepositoryTests(unittest.TestCase):
         )
 
         self.assertEqual(second_id, first_id + 1)
-        self.assertEqual(sql.get_ticket_events(first_id)[0][3], "created")
+        self.assertEqual(
+            sql.get_ticket_events(first_id)[0]["event_type"], "created"
+        )
 
     def test_ticket_type_is_persisted(self):
         ticket_id = sql.add_ticket(
@@ -46,7 +48,9 @@ class SqlRepositoryTests(unittest.TestCase):
             ticket_type="destination",
         )
 
-        self.assertEqual(sql.get_ticket_info(ticket_id)[12], "destination")
+        self.assertEqual(
+            sql.get_ticket_info(ticket_id)["ticket_type"], "destination"
+        )
 
     def test_comments_are_appended_instead_of_overwritten(self):
         ticket_id = sql.add_ticket(
@@ -56,8 +60,14 @@ class SqlRepositoryTests(unittest.TestCase):
         sql.add_ticket_comment(ticket_id, 201, "Первый", "2026-10-27 10:05:00")
         sql.add_ticket_comment(ticket_id, 201, "Второй", "2026-10-27 10:06:00")
 
-        comments = [event for event in sql.get_ticket_events(ticket_id) if event[3] == "comment"]
-        self.assertEqual([event[6] for event in comments], ["Первый", "Второй"])
+        comments = [
+            event
+            for event in sql.get_ticket_events(ticket_id)
+            if event["event_type"] == "comment"
+        ]
+        self.assertEqual(
+            [event["text"] for event in comments], ["Первый", "Второй"]
+        )
         self.assertEqual(sql.read_ticket_comment(ticket_id), "Второй")
 
     def test_status_timestamps_and_reopen_history(self):
@@ -70,20 +80,20 @@ class SqlRepositoryTests(unittest.TestCase):
             ticket_id, sql.STATUS_COMPLETED, 201, "2026-10-27 11:00:00"
         ))
         completed = sql.get_ticket_info(ticket_id)
-        self.assertEqual(completed[6], sql.STATUS_COMPLETED)
-        self.assertEqual(completed[10], "2026-10-27 11:00:00")
+        self.assertEqual(completed["status"], sql.STATUS_COMPLETED)
+        self.assertEqual(completed["closed_at"], "2026-10-27 11:00:00")
 
         self.assertTrue(sql.change_ticket_status(
             ticket_id, sql.STATUS_OPEN, 101, "2026-10-27 11:05:00"
         ))
         reopened = sql.get_ticket_info(ticket_id)
-        self.assertEqual(reopened[6], sql.STATUS_OPEN)
-        self.assertIsNone(reopened[10])
+        self.assertEqual(reopened["status"], sql.STATUS_OPEN)
+        self.assertIsNone(reopened["closed_at"])
 
         transitions = [
-            (event[4], event[5])
+            (event["from_status"], event["to_status"])
             for event in sql.get_ticket_events(ticket_id)
-            if event[3] == "status_changed"
+            if event["event_type"] == "status_changed"
         ]
         self.assertEqual(transitions, [
             (sql.STATUS_OPEN, sql.STATUS_COMPLETED),

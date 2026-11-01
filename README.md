@@ -42,9 +42,10 @@ app/domain/              модели и доменные константы
 app/handlers/            Aiogram Router по сценариям
 app/services/            бизнес-операции и уведомления
 app/views/               тексты и клавиатуры
-app/storage.py           выбор SQLite/PostgreSQL
+app/repositories/        типизированная граница хранилища и выбор адаптера
 app/sql.py               SQLite-адаптер для разработки и тестов
 app/postgres.py          production-адаптер PostgreSQL
+migrations/              неизменяемые миграции PostgreSQL с контрольными суммами
 content/postbacks/       редактируемые шаблоны postback
 content/destination/     системный промпт и backend-каталог advertiser’ов
 tests/                   регрессионные unit-тесты
@@ -53,9 +54,26 @@ deploy/                  примеры конфигурации и операц
 scripts/                 миграция и проверка PostgreSQL
 ```
 
-Зависимости направлены сверху вниз: `handlers → services → storage`. Представления
-не обращаются к БД напрямую. Канонический факт — завершившаяся транзакция
-PostgreSQL, а не отправленное Telegram-уведомление.
+Зависимости направлены сверху вниз: `handlers → services → repositories`.
+Представления и бизнес-сценарии не обращаются к конкретному SQL-адаптеру напрямую.
+Канонический факт — завершившаяся транзакция PostgreSQL, а не отправленное
+Telegram-уведомление.
+
+## Миграции PostgreSQL
+
+Структура `ticketing` и её витрины `reporting` версионируются в `migrations/`.
+Runner применяет файлы по порядку внутри транзакции, сериализует миграции advisory
+lock и сохраняет SHA-256 в `ticketing.schema_migrations`. Уже применённый файл
+нельзя незаметно изменить. Для миграции требуется отдельный административный DSN;
+рабочая роль бота не имеет DDL-прав.
+
+```bash
+export DATABASE_MIGRATION_URL='postgresql://admin:password@host/database'
+python scripts/migrate_postgres.py
+```
+
+В Git хранится только DDL. DSN, дампы, Telegram ID и реальные тикеты не входят в
+репозиторий.
 
 ## Локальный запуск
 

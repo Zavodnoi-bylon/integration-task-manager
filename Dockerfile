@@ -34,6 +34,10 @@ CMD ["python", "main.py"]
 
 FROM runtime AS test
 COPY --chown=bot:bot tests ./tests
+COPY --chown=bot:bot migrations ./migrations
+COPY --chown=bot:bot scripts/migrate_postgres.py ./scripts/migrate_postgres.py
+COPY --chown=bot:bot scripts/verify_migrations.py ./scripts/verify_migrations.py
+COPY --chown=bot:bot scripts/verify_repository.py ./scripts/verify_repository.py
 CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
 
 FROM runtime AS production

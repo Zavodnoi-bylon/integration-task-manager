@@ -1,13 +1,10 @@
-"""Runtime-selected persistence adapter.
+"""Deprecated compatibility import.
 
-SQLite remains available for local tests. Production uses the canonical PostgreSQL
-ticketing schema without changing the application service contract.
+Application code must use ``app.repositories.build_repository``. This module is
+kept temporarily so third-party imports fail with a clear migration path instead
+of silently re-exporting two different persistence APIs.
 """
-import config
 
-if config.DATABASE_BACKEND == "postgres":
-    from app.postgres import *  # noqa: F403
-elif config.DATABASE_BACKEND == "sqlite":
-    from app.sql import *  # noqa: F403
-else:
-    raise RuntimeError(f"Unsupported DATABASE_BACKEND: {config.DATABASE_BACKEND}")
+from app.repositories import TicketRepository, build_repository
+
+__all__ = ["TicketRepository", "build_repository"]

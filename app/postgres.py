@@ -194,18 +194,23 @@ FROM reporting.ticket_facts f
 """
 
 
-def _legacy_ticket(row: dict) -> tuple:
-    return (
-        row["ticket_id"], row["requester_telegram_id"], "", "",
-        row["description"], _format_timestamp(row["created_at"]),
-        CODE_TO_STATUS.get(row["status_code"], row["status_code"]),
-        row["latest_comment"] or "", row["assigned_telegram_id"],
-        _format_timestamp(row["updated_at"]), _format_timestamp(row["closed_at"]),
-        row["profile_key"], row["ticket_type"],
-    )
+def _ticket_mapping(row: dict) -> dict:
+    return {
+        "ticket_id": row["ticket_id"],
+        "owner_id": row["requester_telegram_id"],
+        "body": row["description"],
+        "created_at": _format_timestamp(row["created_at"]),
+        "status": CODE_TO_STATUS.get(row["status_code"], row["status_code"]),
+        "latest_comment": row["latest_comment"] or "",
+        "assigned_to": row["assigned_telegram_id"],
+        "updated_at": _format_timestamp(row["updated_at"]),
+        "closed_at": _format_timestamp(row["closed_at"]),
+        "bot_key": row["profile_key"],
+        "ticket_type": row["ticket_type"],
+    }
 
 
-def get_ticket_info(ticket_id: int, bot_key: str | None = None) -> tuple | None:
+def get_ticket_info(ticket_id: int, bot_key: str | None = None) -> dict | None:
     query = _TICKET_SELECT + " WHERE f.ticket_id=%s"
     params: list[object] = [ticket_id]
     if bot_key is not None:
@@ -213,7 +218,7 @@ def get_ticket_info(ticket_id: int, bot_key: str | None = None) -> tuple | None:
         params.append(bot_key)
     with _get_pool().connection() as conn:
         row = conn.execute(query, params).fetchone()
-    return _legacy_ticket(row) if row else None
+    return _ticket_mapping(row) if row else None
 
 
 def get_ticket_count(tg_id: int | None, status: str,
@@ -231,15 +236,15 @@ def get_ticket_count(tg_id: int | None, status: str,
 
 
 def _list_tickets(where: str, params: list[object], limit: int,
-                  offset: int) -> list[tuple]:
+                  offset: int) -> list[dict]:
     query = _TICKET_SELECT + f" WHERE {where} ORDER BY f.ticket_id DESC LIMIT %s OFFSET %s"
     with _get_pool().connection() as conn:
         rows = conn.execute(query, (*params, limit, offset)).fetchall()
-    return [_legacy_ticket(row) for row in rows]
+    return [_ticket_mapping(row) for row in rows]
 
 
 def get_tickets_by_user(tg_id: int, status: str, limit: int = 8,
-                        offset: int = 0, bot_key: str | None = None) -> list[tuple]:
+                        offset: int = 0, bot_key: str | None = None) -> list[dict]:
     parts = ["f.requester_telegram_id=%s", "f.status_code=%s"]
     params: list[object] = [tg_id, STATUS_TO_CODE[status]]
     if bot_key is not None:
@@ -249,17 +254,17 @@ def get_tickets_by_user(tg_id: int, status: str, limit: int = 8,
 
 
 def get_all_tickets_in_progress(limit: int = 20, offset: int = 0,
-                                bot_key: str | None = None) -> list[tuple]:
+                                bot_key: str | None = None) -> list[dict]:
     return _all_by_status(STATUS_OPEN, limit, offset, bot_key)
 
 
 def get_all_completed_tickets(limit: int = 20, offset: int = 0,
-                              bot_key: str | None = None) -> list[tuple]:
+                              bot_key: str | None = None) -> list[dict]:
     return _all_by_status(STATUS_COMPLETED, limit, offset, bot_key)
 
 
 def _all_by_status(status: str, limit: int, offset: int,
-                   bot_key: str | None) -> list[tuple]:
+                   bot_key: str | None) -> list[dict]:
     parts = ["f.status_code=%s"]
     params: list[object] = [STATUS_TO_CODE[status]]
     if bot_key is not None:
@@ -268,11 +273,11 @@ def _all_by_status(status: str, limit: int, offset: int,
     return _list_tickets(" AND ".join(parts), params, limit, offset)
 
 
-def get_tickets_in_progress_by_user_id(tg_id: int) -> list[tuple]:
+def get_tickets_in_progress_by_user_id(tg_id: int) -> list[dict]:
     return get_tickets_by_user(tg_id, STATUS_OPEN, limit=100)
 
 
-def get_completed_tickets_by_user(tg_id: int) -> list[tuple]:
+def get_completed_tickets_by_user(tg_id: int) -> list[dict]:
     return get_tickets_by_user(tg_id, STATUS_COMPLETED, limit=100)
 
 
@@ -351,7 +356,7 @@ def read_ticket_comment(ticket_id: int, bot_key: str | None = None) -> str | Non
 
 
 def get_ticket_events(ticket_id: int, limit: int = 20,
-                      bot_key: str | None = None) -> list[tuple]:
+                      bot_key: str | None = None) -> list[dict]:
     query = """
         SELECT e.event_id,e.ticket_id,u.telegram_user_id AS actor_tg_id,e.event_type,
                e.from_status,e.to_status,m.body,e.occurred_at
@@ -368,14 +373,19 @@ def get_ticket_events(ticket_id: int, limit: int = 20,
     params.append(limit)
     with _get_pool().connection() as conn:
         rows = conn.execute(query, params).fetchall()
-    result = []
+    result: list[dict] = []
     for row in reversed(rows):
         event_type = "comment" if row["event_type"] == "internal_note" else row["event_type"]
-        result.append((
-            row["event_id"], row["ticket_id"], row["actor_tg_id"] or 0,
-            event_type,
-            CODE_TO_STATUS.get(row["from_status"], row["from_status"]),
-            CODE_TO_STATUS.get(row["to_status"], row["to_status"]),
-            row["body"], _format_timestamp(row["occurred_at"]),
-        ))
+        result.append({
+            "event_id": row["event_id"],
+            "ticket_id": row["ticket_id"],
+            "actor_id": row["actor_tg_id"] or 0,
+            "event_type": event_type,
+            "from_status": CODE_TO_STATUS.get(
+                row["from_status"], row["from_status"]
+            ),
+            "to_status": CODE_TO_STATUS.get(row["to_status"], row["to_status"]),
+            "text": row["body"],
+            "created_at": _format_timestamp(row["occurred_at"]),
+        })
     return result

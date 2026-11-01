@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 
-from app import storage as sql
 from app.domain import (
     ROLE_CLIENT,
     ROLE_ADMIN,
@@ -17,6 +16,7 @@ from app.domain import (
     TicketRecord,
     UserRecord,
 )
+from app.repositories import TicketRepository, build_repository
 from app.settings import Settings
 
 TimestampInput = datetime.datetime | str | None
@@ -41,8 +41,13 @@ class AccessDeniedError(TicketServiceError):
 class TicketService:
     """Use cases задач; не зависит от Telegram transport и UI."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        repository: TicketRepository | None = None,
+    ) -> None:
         self.settings = settings
+        self.repository = repository or build_repository()
         self._admin_users = frozenset(int(user_id) for user_id in settings.admin_users)
         self._technician_users = frozenset(
             int(user_id) for user_id in settings.technician_users
@@ -67,39 +72,31 @@ class TicketService:
         display_name: str,
         registered_at: TimestampInput,
     ) -> UserRecord:
-        registered_at_value = sql.moscow_timestamp(registered_at)
+        registered_at_value = self.repository.timestamp(registered_at)
         role = self.role_for(tg_id)
-        sql.ensure_user(
-            tg_id=tg_id,
-            data_reg=registered_at_value,
-            user_name=display_name,
+        return self.repository.register_user(
+            profile_key=self.settings.bot_key,
+            telegram_user_id=tg_id,
+            registered_at=registered_at_value,
+            display_name=display_name,
             role=role,
-            bot_key=self.settings.bot_key,
         )
-        user = self.get_user(tg_id)
-        if user is None:
-            raise TicketServiceError(f"Unable to register user {tg_id}")
-        return user
 
     def get_user(self, tg_id: int) -> UserRecord | None:
-        row = sql.get_user_by_id(tg_id, self.settings.bot_key)
-        return UserRecord.from_mapping(row) if row else None
+        return self.repository.get_user(self.settings.bot_key, tg_id)
 
     def get_ticket(self, ticket_id: int) -> TicketRecord:
-        row = sql.get_ticket_info(ticket_id, self.settings.bot_key)
-        if row is None:
+        ticket = self.repository.get_ticket(self.settings.bot_key, ticket_id)
+        if ticket is None:
             raise TicketNotFoundError(f"Ticket {ticket_id} does not exist")
-        return TicketRecord.from_row(row)
+        return ticket
 
     def get_events(self, ticket_id: int, limit: int = 20) -> tuple[TicketEventRecord, ...]:
         self.get_ticket(ticket_id)
-        return tuple(
-            TicketEventRecord.from_row(row)
-            for row in sql.get_ticket_events(
-                ticket_id,
-                limit=limit,
-                bot_key=self.settings.bot_key,
-            )
+        return self.repository.get_events(
+            self.settings.bot_key,
+            ticket_id,
+            limit,
         )
 
     def can_view(self, viewer_id: int, ticket: TicketRecord) -> bool:
@@ -126,34 +123,16 @@ class TicketService:
         if ticket_type not in TICKET_TYPES:
             raise ValueError(f"Unsupported ticket type: {ticket_type}")
 
-        created_at_value = sql.moscow_timestamp(created_at)
-
-        ticket_id = sql.add_ticket(
-            owner_id,
-            "",
-            "",
-            body,
-            created_at_value,
-            STATUS_OPEN,
-            "",
+        created_at_value = self.repository.timestamp(created_at)
+        return self.repository.create_ticket(
+            profile_key=self.settings.bot_key,
+            owner_id=owner_id,
             assigned_to=self.settings.admin_message,
-            bot_key=self.settings.bot_key,
+            body=body,
+            created_at=created_at_value,
             request_key=request_key,
             ticket_type=ticket_type,
         )
-        sql.update_user_field(
-            owner_id,
-            "history_ticket",
-            str(ticket_id),
-            self.settings.bot_key,
-        )
-        sql.update_user_field(
-            owner_id,
-            "data_ticket",
-            created_at_value,
-            self.settings.bot_key,
-        )
-        return self.get_ticket(ticket_id)
 
     def create_destination_ticket(
         self,
@@ -195,12 +174,12 @@ class TicketService:
             idempotency_key=f"{request_key}:source",
         )
         if technician_note:
-            sql.add_ticket_comment(
-                ticket.ticket_id,
-                self.settings.admin_message,
-                f"Системная пометка: {technician_note.strip()}",
-                sql.moscow_timestamp(created_at),
-                bot_key=self.settings.bot_key,
+            self.repository.add_internal_note(
+                profile_key=self.settings.bot_key,
+                ticket_id=ticket.ticket_id,
+                actor_id=self.settings.admin_message,
+                text=f"Системная пометка: {technician_note.strip()}",
+                created_at=self.repository.timestamp(created_at),
                 idempotency_key=f"{request_key}:technician-note",
             )
         return self.get_ticket(ticket.ticket_id)
@@ -213,16 +192,18 @@ class TicketService:
         page_size: int = 8,
     ) -> TicketPage:
         page, page_size = self._normalize_pagination(page, page_size)
-        total = sql.get_ticket_count(owner_id, status, self.settings.bot_key)
-        rows = sql.get_tickets_by_user(
+        total = self.repository.count_tickets(
+            self.settings.bot_key, owner_id, status
+        )
+        items = self.repository.list_user_tickets(
+            self.settings.bot_key,
             owner_id,
             status,
             limit=page_size,
             offset=(page - 1) * page_size,
-            bot_key=self.settings.bot_key,
         )
         return TicketPage(
-            items=tuple(TicketRecord.from_row(row) for row in rows),
+            items=items,
             total=total,
             page=page,
             page_size=page_size,
@@ -235,24 +216,15 @@ class TicketService:
         page_size: int = 10,
     ) -> TicketPage:
         page, page_size = self._normalize_pagination(page, page_size)
-        total = sql.get_ticket_count(None, status, self.settings.bot_key)
+        total = self.repository.count_tickets(
+            self.settings.bot_key, None, status
+        )
         offset = (page - 1) * page_size
-        if status == STATUS_OPEN:
-            rows = sql.get_all_tickets_in_progress(
-                page_size,
-                offset,
-                self.settings.bot_key,
-            )
-        elif status == STATUS_COMPLETED:
-            rows = sql.get_all_completed_tickets(
-                page_size,
-                offset,
-                self.settings.bot_key,
-            )
-        else:
-            raise ValueError(f"Unsupported ticket status: {status}")
+        items = self.repository.list_team_tickets(
+            self.settings.bot_key, status, page_size, offset
+        )
         return TicketPage(
-            items=tuple(TicketRecord.from_row(row) for row in rows),
+            items=items,
             total=total,
             page=page,
             page_size=page_size,
@@ -274,13 +246,13 @@ class TicketService:
         text = text.strip()
         if not text:
             raise ValueError("Comment cannot be empty")
-        sql.add_ticket_comment(
+        self.repository.add_internal_note(
+            self.settings.bot_key,
             ticket_id,
             actor_id,
             text,
-            sql.moscow_timestamp(created_at),
-            bot_key=self.settings.bot_key,
-            idempotency_key=idempotency_key,
+            self.repository.timestamp(created_at),
+            idempotency_key,
         )
         return self.get_ticket(ticket_id)
 
@@ -299,13 +271,13 @@ class TicketService:
         text = text.strip()
         if not text:
             raise ValueError("Message cannot be empty")
-        sql.add_ticket_public_message(
+        self.repository.add_public_message(
+            self.settings.bot_key,
             ticket_id,
             actor_id,
             text,
-            sql.moscow_timestamp(created_at),
-            bot_key=self.settings.bot_key,
-            idempotency_key=idempotency_key,
+            self.repository.timestamp(created_at),
+            idempotency_key,
         )
         return self.get_ticket(ticket_id)
 
@@ -321,13 +293,13 @@ class TicketService:
         ticket = self.get_ticket(ticket_id)
         if ticket.status != STATUS_OPEN:
             raise TicketStateError("Ticket is not open")
-        if not sql.change_ticket_status(
+        if not self.repository.change_status(
+            self.settings.bot_key,
             ticket_id,
             STATUS_COMPLETED,
             actor_id,
-            sql.moscow_timestamp(changed_at),
-            bot_key=self.settings.bot_key,
-            idempotency_key=idempotency_key,
+            self.repository.timestamp(changed_at),
+            idempotency_key,
         ):
             raise TicketStateError("Ticket status was not changed")
         return self.get_ticket(ticket_id)
@@ -344,20 +316,22 @@ class TicketService:
             raise AccessDeniedError("Cannot reopen another user's ticket")
         if ticket.status != STATUS_COMPLETED:
             raise TicketStateError("Ticket is not completed")
-        if not sql.change_ticket_status(
+        if not self.repository.change_status(
+            self.settings.bot_key,
             ticket_id,
             STATUS_OPEN,
             actor_id,
-            sql.moscow_timestamp(changed_at),
-            bot_key=self.settings.bot_key,
-            idempotency_key=idempotency_key,
+            self.repository.timestamp(changed_at),
+            idempotency_key,
         ):
             raise TicketStateError("Ticket status was not changed")
         return self.get_ticket(ticket_id)
 
     def latest_comment(self, ticket_id: int) -> str | None:
         self.get_ticket(ticket_id)
-        return sql.read_ticket_comment(ticket_id, self.settings.bot_key)
+        return self.repository.latest_internal_note(
+            self.settings.bot_key, ticket_id
+        )
 
     @staticmethod
     def _normalize_pagination(page: int, page_size: int) -> tuple[int, int]:

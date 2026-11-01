@@ -3,7 +3,6 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from app import storage as sql
 from app.handlers import (
     client_tickets,
     common,
@@ -12,6 +11,7 @@ from app.handlers import (
     technician_tickets,
     ticket_actions,
 )
+from app.repositories import TicketRepository, build_repository
 from app.services.advertiser_catalog import AdvertiserCatalog
 from app.services.destination_service import DestinationService
 from app.services.notification_service import NotificationService
@@ -23,8 +23,9 @@ from app.settings import Settings, load_settings
 def build_dispatcher(
     bot: Bot,
     settings: Settings,
+    repository: TicketRepository | None = None,
 ) -> Dispatcher:
-    ticket_service = TicketService(settings)
+    ticket_service = TicketService(settings, repository)
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher["ticket_service"] = ticket_service
     dispatcher["notification_service"] = NotificationService(bot, settings)
@@ -52,12 +53,13 @@ def build_dispatcher(
 async def run() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = load_settings()
-    sql.create_tables()
-    sql.sync_user_roles(
+    repository = build_repository()
+    repository.initialize()
+    repository.sync_configured_roles(
         settings.bot_key,
         settings.admin_users,
         settings.technician_users,
     )
     bot = Bot(token=settings.bot_token)
-    dispatcher = build_dispatcher(bot, settings)
+    dispatcher = build_dispatcher(bot, settings, repository)
     await dispatcher.start_polling(bot)

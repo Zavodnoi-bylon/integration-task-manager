@@ -1,5 +1,6 @@
 import unittest
 import inspect
+from pathlib import Path
 
 from aiogram import Bot
 
@@ -36,6 +37,15 @@ class ArchitectureTests(unittest.TestCase):
                 "ticket_actions",
             ],
         )
+
+    def test_business_service_uses_typed_repository_boundary(self):
+        service_source = Path("app/services/ticket_service.py").read_text(
+            encoding="utf-8"
+        )
+        storage_source = Path("app/storage.py").read_text(encoding="utf-8")
+        self.assertIn("TicketRepository", service_source)
+        self.assertNotIn("from app import storage", service_source)
+        self.assertNotIn("import *", storage_source)
 
 
 if __name__ == "__main__":

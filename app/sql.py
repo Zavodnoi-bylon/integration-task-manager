@@ -43,11 +43,16 @@ def moscow_timestamp(dt_input: datetime.datetime | str | None = None) -> str:
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 30000")
     return conn
 
-def execute_query(query: str, params: tuple | None = None, fetch_one: bool = False) -> list[tuple] | tuple | None:
+def execute_query(
+    query: str,
+    params: tuple | None = None,
+    fetch_one: bool = False,
+) -> list[sqlite3.Row] | sqlite3.Row | None:
     """
     Выполняет SQL-запрос и возвращает результаты.
     Если fetch_one=True — возвращает одну строку или None. Иначе — все строки.
@@ -251,21 +256,7 @@ def get_user_by_id(tg_id: int, bot_key: str | None = None) -> dict | None:
         query += " AND bot_key = ?"
         params = (tg_id, bot_key)
     row = execute_query(query, params, fetch_one=True)
-    if row:
-        return {
-            'tg_id': row[0],
-            'data_reg': row[1],
-            'organization': row[2],
-            'organization_adress': row[3],
-            'organization_inn': row[4],
-            'organization_phone': row[5],
-            'history_ticket': row[6],
-            'data_ticket': row[7],
-            'user_name': row[8],
-            'role': row[9],
-            'bot_key': row[10]
-        }
-    return None
+    return dict(row) if row else None
 
 def update_user_field(tg_id: int, field_name: str, value: str,
                       bot_key: str | None = None) -> None:
@@ -336,13 +327,29 @@ def get_ticket_count(tg_id: int | None, status: str,
     row = execute_query(query, params, fetch_one=True)
     return row[0] if row else 0
 
-def get_tickets_in_progress_by_user_id(tg_id: int) -> list[tuple]:
+def _ticket_mapping(row: sqlite3.Row) -> dict:
+    return {
+        "ticket_id": row["number_ticket"],
+        "owner_id": row["tg_id_ticket"],
+        "body": row["message_ticket"],
+        "created_at": row["time_ticket"],
+        "status": row["state_ticket"],
+        "latest_comment": row["ticket_comm"],
+        "assigned_to": row["assigned_to"],
+        "updated_at": row["updated_at"],
+        "closed_at": row["closed_at"],
+        "bot_key": row["bot_key"],
+        "ticket_type": row["ticket_type"],
+    }
+
+
+def get_tickets_in_progress_by_user_id(tg_id: int) -> list[dict]:
     """Возвращает список тикетов пользователя в статусе "В работе"."""
     return get_tickets_by_user(tg_id, STATUS_OPEN, limit=100)
 
 def get_tickets_by_user(tg_id: int, status: str,
                         limit: int = 8, offset: int = 0,
-                        bot_key: str | None = None) -> list[tuple]:
+                        bot_key: str | None = None) -> list[dict]:
     query = '''
         SELECT * FROM ticket
         WHERE tg_id_ticket = ? AND state_ticket = ?
@@ -353,10 +360,10 @@ def get_tickets_by_user(tg_id: int, status: str,
         params += (bot_key,)
     query += " ORDER BY number_ticket DESC LIMIT ? OFFSET ?"
     params += (limit, offset)
-    return execute_query(query, params)
+    return [_ticket_mapping(row) for row in execute_query(query, params)]
 
 def get_all_tickets_in_progress(limit: int = 20, offset: int = 0,
-                                bot_key: str | None = None) -> list[tuple]:
+                                bot_key: str | None = None) -> list[dict]:
     """Возвращает список всех тикетов в статусе "В работе"."""
     query = '''
         SELECT * FROM ticket
@@ -368,10 +375,10 @@ def get_all_tickets_in_progress(limit: int = 20, offset: int = 0,
         params += (bot_key,)
     query += " ORDER BY number_ticket DESC LIMIT ? OFFSET ?"
     params += (limit, offset)
-    return execute_query(query, params)
+    return [_ticket_mapping(row) for row in execute_query(query, params)]
 
 def get_all_completed_tickets(limit: int = 20, offset: int = 0,
-                              bot_key: str | None = None) -> list[tuple]:
+                              bot_key: str | None = None) -> list[dict]:
     """Возвращает последние завершённые тикеты для меню администратора."""
     query = '''
         SELECT *
@@ -384,16 +391,17 @@ def get_all_completed_tickets(limit: int = 20, offset: int = 0,
         params += (bot_key,)
     query += " ORDER BY number_ticket DESC LIMIT ? OFFSET ?"
     params += (limit, offset)
-    return execute_query(query, params)
+    return [_ticket_mapping(row) for row in execute_query(query, params)]
 
-def get_ticket_info(ticket_id: int, bot_key: str | None = None) -> tuple | None:
+def get_ticket_info(ticket_id: int, bot_key: str | None = None) -> dict | None:
     """Возвращает информацию о тикете по его номеру."""
     query = "SELECT * FROM ticket WHERE number_ticket = ?"
     params: tuple = (ticket_id,)
     if bot_key is not None:
         query += " AND bot_key = ?"
         params = (ticket_id, bot_key)
-    return execute_query(query, params, fetch_one=True)
+    row = execute_query(query, params, fetch_one=True)
+    return _ticket_mapping(row) if row else None
 
 def update_ticket_status(ticket_id: int, new_status: str) -> None:
     """Совместимость со старым кодом; новые обработчики передают реального автора."""
@@ -435,7 +443,7 @@ def change_ticket_status(ticket_id: int, new_status: str,
     finally:
         conn.close()
 
-def get_completed_tickets_by_user(tg_id: int) -> list[tuple]:
+def get_completed_tickets_by_user(tg_id: int) -> list[dict]:
     """Возвращает список завершенных тикетов пользователя."""
     return get_tickets_by_user(tg_id, STATUS_COMPLETED, limit=100)
 
@@ -526,7 +534,7 @@ def read_ticket_comment(ticket_id: int, bot_key: str | None = None) -> str | Non
     return legacy_row[0] if legacy_row else None
 
 def get_ticket_events(ticket_id: int, limit: int = 20,
-                      bot_key: str | None = None) -> list[tuple]:
+                      bot_key: str | None = None) -> list[dict]:
     """Возвращает хронологию последних событий задачи."""
     if bot_key is not None and get_ticket_info(ticket_id, bot_key) is None:
         return []
@@ -538,4 +546,16 @@ def get_ticket_events(ticket_id: int, limit: int = 20,
         ORDER BY event_id DESC
         LIMIT ?
     ''', (ticket_id, limit))
-    return list(reversed(rows))
+    return [
+        {
+            "event_id": row["event_id"],
+            "ticket_id": row["ticket_id"],
+            "actor_id": row["actor_tg_id"],
+            "event_type": row["event_type"],
+            "from_status": row["from_status"],
+            "to_status": row["to_status"],
+            "text": row["event_text"],
+            "created_at": row["created_at"],
+        }
+        for row in reversed(rows)
+    ]

@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence
-
-
-def _value(row: Sequence, index: int, default=None):
-    return row[index] if len(row) > index else default
+from typing import Mapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,23 +47,21 @@ class TicketRecord:
     ticket_type: str = "general"
 
     @classmethod
-    def from_row(cls, row: Sequence) -> TicketRecord:
-        if len(row) < 8:
-            raise ValueError("Ticket row does not match the expected schema")
-        created_at = str(_value(row, 5, "") or "")
-        assigned_to = _value(row, 8)
+    def from_mapping(cls, row: Mapping) -> TicketRecord:
+        created_at = str(row.get("created_at") or "")
+        assigned_to = row.get("assigned_to")
         return cls(
-            ticket_id=int(row[0]),
-            owner_id=int(row[1]),
-            body=str(_value(row, 4, "") or ""),
+            ticket_id=int(row["ticket_id"]),
+            owner_id=int(row["owner_id"]),
+            body=str(row.get("body") or ""),
             created_at=created_at,
-            status=str(_value(row, 6, "") or ""),
-            latest_comment=str(_value(row, 7, "") or ""),
+            status=str(row.get("status") or ""),
+            latest_comment=str(row.get("latest_comment") or ""),
             assigned_to=int(assigned_to) if assigned_to is not None else None,
-            updated_at=str(_value(row, 9, created_at) or created_at),
-            closed_at=(str(_value(row, 10)) if _value(row, 10) else None),
-            bot_key=str(_value(row, 11, "default") or "default"),
-            ticket_type=str(_value(row, 12, "general") or "general"),
+            updated_at=str(row.get("updated_at") or created_at),
+            closed_at=(str(row["closed_at"]) if row.get("closed_at") else None),
+            bot_key=str(row.get("bot_key") or "default"),
+            ticket_type=str(row.get("ticket_type") or "general"),
         )
 
 
@@ -83,18 +77,20 @@ class TicketEventRecord:
     created_at: str
 
     @classmethod
-    def from_row(cls, row: Sequence) -> TicketEventRecord:
-        if len(row) < 8:
-            raise ValueError("Ticket event row does not match the expected schema")
+    def from_mapping(cls, row: Mapping) -> TicketEventRecord:
         return cls(
-            event_id=int(row[0]),
-            ticket_id=int(row[1]),
-            actor_id=int(row[2]),
-            event_type=str(row[3]),
-            from_status=str(row[4]) if row[4] is not None else None,
-            to_status=str(row[5]) if row[5] is not None else None,
-            text=str(row[6]) if row[6] is not None else None,
-            created_at=str(row[7]),
+            event_id=int(row["event_id"]),
+            ticket_id=int(row["ticket_id"]),
+            actor_id=int(row.get("actor_id") or 0),
+            event_type=str(row["event_type"]),
+            from_status=(
+                str(row["from_status"]) if row.get("from_status") is not None else None
+            ),
+            to_status=(
+                str(row["to_status"]) if row.get("to_status") is not None else None
+            ),
+            text=str(row["text"]) if row.get("text") is not None else None,
+            created_at=str(row["created_at"]),
         )
 
 
