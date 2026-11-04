@@ -46,15 +46,24 @@ profile. initData одного бота не проходит HMAC другог�
 ### Авторизация
 
 1. Frontend передаёт Telegram initData в POST /api/session.
-2. Backend проверяет HMAC своим BOT_TOKEN, auth_date, TTL, структуру user и
-   отсутствие дублирующихся полей.
+2. Backend проверяет HMAC-SHA256 своим BOT_TOKEN: обязательные hash, auth_date и
+   user, constant-time compare, configurable max age (default 300 секунд), reject
+   duplicate keys, malformed query и malformed user JSON.
 3. Backend регистрирует пользователя в текущем profile, если membership ещё нет.
    Новый обычный пользователь получает client.
 4. Staff-role определяется только server configuration и membership.
-5. Backend создаёт короткую HttpOnly; Secure; SameSite=Lax session, связанную с
-   profile_key + telegram_user_id.
-6. Каждая команда повторно проходит actor-aware permission check. Для mutation
-   требуется same-origin/CSRF header.
+5. Backend создаёт opaque server-side session с absolute TTL (default 12 часов).
+   Cookie содержит только random session id: HttpOnly, Secure, SameSite=Lax,
+   Path=/, без Domain. Profile-инстансы используют разные origins либо разные
+   cookie names.
+6. Session связывает identity и profile, но не является источником роли. Active
+   membership и staff-role проверяются сервером на каждом request.
+7. При создании session absent membership вызывает register_user; inactive
+   membership получает 403 без реактивации; active membership обновляет last_seen
+   и сверяется с server staff configuration.
+8. Для каждой authenticated mutation требуется X-CSRF-Token. Wildcard CORS
+   запрещён; Origin проверяется по exact allowlist. Host, query и body не являются
+   источником profile.
 
 Клиентский JavaScript не получает bot token, DB credentials, raw membership или
 возможность выбрать роль/profile.
@@ -70,12 +79,14 @@ complete/reopen, advertiser catalog и postback templates.
 
 ### Идемпотентность и транзакции
 
-Каждая mutation принимает UUID Idempotency-Key. Server namespace:
+Create ticket, message, complete и reopen принимают UUID Idempotency-Key и
+X-CSRF-Token. DELETE session требует X-CSRF-Token, но не Idempotency-Key.
+POST session не требует ни CSRF, ни Idempotency-Key. Server namespace:
 
     miniapp:{profile}:{actor}:{operation}:{uuid}
 
-Повтор идентичной операции возвращает прежний результат. Конфликт payload даёт
-409. Concurrent/stale complete/reopen не создаёт второе событие.
+Повтор с тем же key и payload возвращает прежний response. Тот же key с другим
+payload даёт 409. Concurrent/stale complete/reopen не создаёт второе событие.
 
 Перед production Destination aggregate должен создаваться одной DB-командой:
 ticket + source public message + system/internal note + notification intents.
@@ -85,8 +96,10 @@ fallback.
 ### Уведомления
 
 Production parity требует transactional outbox. Изменение тикета и notification
-intent фиксируются одной транзакцией. Worker отправляет Telegram notification
-токеном текущего profile, повторяет временные ошибки и дедуплицирует delivery.
+intent фиксируются одной транзакцией. HTTP mutation успешна после commit обоих
+фактов. Worker асинхронно отправляет Telegram notification токеном текущего
+profile, повторяет временные ошибки и дедуплицирует delivery; доставка Telegram
+не блокирует и не меняет успешный HTTP response.
 
 HTTP handler не отправляет Bot API напрямую и не формирует отдельные тексты.
 
