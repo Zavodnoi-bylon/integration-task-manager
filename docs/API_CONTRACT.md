@@ -4,9 +4,9 @@
 Ответы не содержат Telegram ID, bot token, internal DB ID пользователя или backend
 configuration.
 
-Все authenticated POST и DELETE требуют X-CSRF-Token. Create ticket, message,
-complete и reopen дополнительно требуют UUID Idempotency-Key. POST /api/session
-не требует этих headers, но обязательно проходит exact ALLOWED_ORIGIN check.
+Все authenticated POST и DELETE требуют X-CSRF-Token. Все ticket mutations
+дополнительно требуют UUID Idempotency-Key. POST /api/session не требует этих
+headers, но обязательно проходит exact ALLOWED_ORIGIN check.
 
 ## Session
 
@@ -74,7 +74,7 @@ internal history. Internal history никогда не сериализуетс�
 ### GET /api/tickets
 
 - scope=mine|team; team только staff;
-- status=open|completed;
+- status=open|review|completed;
 - page >= 1, page_size от 1 до server maximum.
 
 Response: Page<TicketSummary>, status 200.
@@ -130,15 +130,52 @@ Headers Idempotency-Key и X-CSRF-Token.
 internal разрешён только staff.
 Успех: 201; idempotent replay: 200.
 
+### POST /api/tickets/{ticket_id}/submit-review
+
+Только staff, только general в status=open. Переводит в review и атомарно
+создаёт immediate notification автору и один reminder для текущего review-cycle.
+Body пустой объект. Успех: 200; conflict: 409.
+
+### POST /api/tickets/{ticket_id}/accept
+
+Только автор general ticket в status=review. Переводит в completed. Staff-автор
+может принять собственный ticket, не теряя staff visibility. Body пустой объект.
+
+### POST /api/tickets/{ticket_id}/return
+
+Только автор general ticket в status=review. Переводит в open. Body:
+
+    {"reason":"Что нужно исправить"}
+
+Reason обязателен, сохраняется как public message/event и входит в notification
+staff. Reminder текущего review-cycle после выхода из review не доставляется.
+
 ### POST /api/tickets/{ticket_id}/complete
 
-Только staff. Headers Idempotency-Key и X-CSRF-Token. Body пустой объект.
-Успех: 200. Status/idempotency conflict: 409.
+Только staff, только Destination в status=open. Переводит напрямую в completed.
+Клиенту создаётся нейтральное notification intent без internal note. Body пустой
+объект. Успех: 200. Status/idempotency conflict: 409.
 
 ### POST /api/tickets/{ticket_id}/reopen
 
-Client — только собственный ticket; staff — любой ticket текущего profile.
-Headers Idempotency-Key и X-CSRF-Token. Успех: 200. Conflict: 409.
+Только автор completed ticket. Headers Idempotency-Key и X-CSRF-Token. Body:
+
+    {"reason":"Проблема повторилась"}
+
+Reason обязателен и сохраняется как public message/event. Успех: 200.
+Conflict: 409.
+
+Все mutation endpoints требуют UUID Idempotency-Key и session-bound CSRF.
+Ticket/status event, public reason, idempotency record и notification intents
+фиксируются одной транзакцией canonical adapter. Telegram HTTP delivery не
+выполняется внутри request.
+
+## Review reminder
+
+При каждом переходе general open -> review создаётся новый review-cycle. Для
+него планируется ровно один push автору на следующий календарный день в 12:00
+Europe/Moscow. Dedup key содержит ticket_id и review-cycle. Перед delivery worker
+обязан атомарно подтвердить, что ticket всё ещё review и cycle совпадает.
 
 ## Profile data
 

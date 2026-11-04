@@ -17,6 +17,7 @@ from dest_miniapp.gateway import (
 from dest_miniapp.models import Actor, TelegramIdentity
 from dest_miniapp.sessions import MemorySessionStore
 from dest_miniapp.settings import Settings
+from dest_miniapp.use_cases import MutationResult
 from test_auth import TOKEN, signed_init_data
 
 
@@ -102,6 +103,33 @@ class FakeGateway:
                 "template": "https://example.invalid"}
 
 
+class StubMutations:
+    def __init__(self) -> None:
+        self.last_command = None
+
+    async def create_ticket(self, command):
+        self.last_command = command
+        return MutationResult(101, "open", command.ticket_type, 0)
+
+    async def add_message(self, command):
+        self.last_command = command
+        return MutationResult(command.ticket_id, "open", "general", 0)
+
+    async def transition(self, command):
+        self.last_command = command
+        status = {
+            "submit_review": "review",
+            "accept": "completed",
+            "return": "open",
+            "complete_destination": "completed",
+            "reopen": "open",
+        }[command.action.value]
+        ticket_type = (
+            "destination" if command.action.value == "complete_destination" else "general"
+        )
+        return MutationResult(command.ticket_id, status, ticket_type, 1)
+
+
 def ticket_detail(ticket_id: int) -> dict[str, Any]:
     now = "2026-11-04T12:00:00Z"
     return {
@@ -130,7 +158,11 @@ def make_client(*, role: str = "client", active: bool = True, clock=None):
     )
     store = MemorySessionStore(clock=clock)
     gateway.session_store = store
-    app = create_app(settings=settings, gateway=gateway, sessions=store)
+    mutations = StubMutations()
+    gateway.mutations = mutations
+    app = create_app(
+        settings=settings, gateway=gateway, sessions=store, mutations=mutations
+    )
     return TestClient(app, base_url="https://testserver"), gateway
 
 
@@ -275,6 +307,91 @@ class ApiTests(unittest.TestCase):
             204,
         )
         self.assertEqual(client.get("/api/me").status_code, 401)
+
+    def test_create_ticket_requires_csrf_and_idempotency(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        payload = {"type": "general", "body": "Need help"}
+        self.assertEqual(client.post("/api/tickets", json=payload).status_code, 422)
+        response = client.post(
+            "/api/tickets",
+            json=payload,
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["ticket_type"], "general")
+
+    def test_destination_payload_is_discriminated_and_profile_is_server_side(self) -> None:
+        client, gateway = make_client(role="technician")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets?profile=mephisto",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": 25,
+                "body": "Create destination",
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "22222222-2222-4222-8222-222222222222",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.profile_key, "kalisto")
+        self.assertEqual(gateway.mutations.last_command.advertiser.key, "adv-1")
+
+    def test_workflow_endpoint_builds_typed_command(self) -> None:
+        client, gateway = make_client(role="technician")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets/7/submit-review",
+            json={},
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "33333333-3333-4333-8333-333333333333",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "review")
+        self.assertEqual(gateway.mutations.last_command.action.value, "submit_review")
+
+    def test_message_endpoint_builds_visibility_command(self) -> None:
+        client, gateway = make_client(role="technician")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets/7/messages",
+            json={"visibility": "internal", "body": "Diagnostic detail"},
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "55555555-5555-4555-8555-555555555555",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.visibility, "internal")
+
+    def test_return_and_reopen_require_non_blank_public_reason(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        headers = {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": "44444444-4444-4444-8444-444444444444",
+        }
+        self.assertEqual(
+            client.post(
+                "/api/tickets/7/return", json={"reason": "   "}, headers=headers
+            ).status_code,
+            422,
+        )
+        self.assertEqual(
+            client.post(
+                "/api/tickets/7/reopen", json={"reason": "Problem"}, headers=headers
+            ).status_code,
+            200,
+        )
 
 
 if __name__ == "__main__":

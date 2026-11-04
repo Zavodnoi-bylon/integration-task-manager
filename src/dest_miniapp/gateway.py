@@ -34,7 +34,7 @@ class BackendUnavailable(GatewayError):
 @dataclass(frozen=True)
 class TicketQuery:
     scope: Literal["mine", "team"]
-    status: Literal["open", "completed"] | None
+    status: Literal["open", "review", "completed"] | None
     page: int
     page_size: int
 

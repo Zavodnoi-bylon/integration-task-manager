@@ -23,7 +23,10 @@ Production deployment из этого репозитория запрещён.
 - opaque server-side sessions, rotation, CSRF и повторная проверка membership;
 - actor-aware read-only gateway для профиля текущего server instance;
 - `/api/me`, списки/карточка тикетов, advertisers и postbacks;
-- никаких mutation endpoint и прямого доступа к production database.
+- domain state machine и mutation API для create/message/review/accept/return/
+  Destination complete/reopen;
+- транзакционный порт для будущего PostgreSQL adapter; прямого доступа к
+  production database в transport-слое нет.
 
 `MemorySessionStore` предназначен только для тестов и локальной разработки.
 Production composition root обязан передать общее persistent session storage и

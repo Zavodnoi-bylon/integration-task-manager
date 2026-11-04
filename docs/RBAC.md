@@ -15,9 +15,12 @@ Profile всегда определяется server instance. Все права
 | Public message в любой открытый тикет profile | нет | да | да |
 | Просмотр internal notes/events | нет | да | да |
 | Добавить internal note | нет | да | да |
-| Complete | нет | да | да |
-| Reopen собственного completed ticket | да | да | да |
-| Reopen любого completed ticket profile | нет | да | да |
+| Отправить general на review | нет | да | да |
+| Принять свой general в review | да | да | да |
+| Вернуть свой general из review с public reason | да | да | да |
+| Завершить Destination напрямую | нет | да | да |
+| Reopen собственного completed ticket с public reason | да | да | да |
+| Reopen любого completed ticket profile | нет | нет | нет |
 | Postback templates | да | да | да |
 | Cross-profile доступ | нет | нет | нет |
 
@@ -28,6 +31,8 @@ Mini App не нужно. Assign, priority, tags, SLA, delete, edit и attachmen
 ## Инварианты
 
 - client DTO не содержит internal note даже при завершении;
+- internal visibility определяется текущей ролью, а не авторством: staff-автор
+  видит internal history, client-автор не видит её никогда;
 - client не задаёт requester, actor или profile;
 - technician/admin не могут пересечь profile;
 - inactive membership не авторизует session;
