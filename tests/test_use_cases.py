@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -14,6 +15,8 @@ from dest_miniapp.use_cases import (
     DestinationFormatResult,
     DestinationFormattingError,
     IdempotencyConflict,
+    IdempotencyLease,
+    IdempotencyReplay,
     MutationResult,
     NewAdvertiser,
     ResolvedAdvertiser,
@@ -30,9 +33,11 @@ class RecordingUnitOfWork:
         self.messages = []
         self.notifications = []
         self.aggregates = []
+        self.reservations = None
 
     async def create_ticket(
-        self, context, aggregate, *, idempotency, payload_hash, event, notification
+        self, context, aggregate, *, idempotency, idempotency_lease,
+        payload_hash, event, notification
     ):
         key = idempotency.namespace
         stored = self.records.get(key)
@@ -46,6 +51,9 @@ class RecordingUnitOfWork:
         self.events.append(event)
         self.notifications.append(notification)
         self.records[key] = (payload_hash, result)
+        await self.reservations.complete(
+            scope=idempotency, lease_token=idempotency_lease, result=result
+        )
         return result
 
     async def add_message(
@@ -124,6 +132,7 @@ class StubFormatter:
 
     async def format(self, request):
         self.requests.append(request)
+        await asyncio.sleep(0)
         if self.fail:
             raise DestinationFormattingError
         return DestinationFormatResult(
@@ -139,11 +148,66 @@ class StubFormatter:
         )
 
 
-def make_workflow(uow, *, advertisers=None, formatter=None, clock=None):
+class RecordingReservations:
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._entries = {}
+        self._sequence = 0
+
+    async def acquire(self, *, scope, payload_hash):
+        while True:
+            async with self._lock:
+                entry = self._entries.get(scope.namespace)
+                if entry is None:
+                    self._sequence += 1
+                    token = f"lease-{self._sequence}"
+                    future = asyncio.get_running_loop().create_future()
+                    self._entries[scope.namespace] = {
+                        "hash": payload_hash,
+                        "token": token,
+                        "future": future,
+                        "result": None,
+                    }
+                    return IdempotencyLease(token)
+                if entry["hash"] != payload_hash:
+                    raise IdempotencyConflict
+                if entry["result"] is not None:
+                    return IdempotencyReplay(entry["result"])
+                future = entry["future"]
+            await asyncio.shield(future)
+
+    async def complete(self, *, scope, lease_token, result):
+        async with self._lock:
+            entry = self._entries[scope.namespace]
+            self.assert_token(entry, lease_token)
+            entry["result"] = result
+            if not entry["future"].done():
+                entry["future"].set_result(True)
+
+    async def fail(self, *, scope, lease_token):
+        async with self._lock:
+            entry = self._entries.get(scope.namespace)
+            if entry is None or entry["token"] != lease_token:
+                return
+            self._entries.pop(scope.namespace)
+            if not entry["future"].done():
+                entry["future"].set_result(False)
+
+    @staticmethod
+    def assert_token(entry, lease_token):
+        if entry["token"] != lease_token:
+            raise AssertionError("wrong idempotency lease")
+
+def make_workflow(
+    uow, *, advertisers=None, formatter=None, reservations=None, clock=None
+):
+    reservations = reservations or RecordingReservations()
+    uow.reservations = reservations
     return TicketWorkflow(
         uow,
         advertisers=advertisers or StubAdvertisers(),
         destination_formatter=formatter or StubFormatter(),
+        idempotency_reservations=reservations,
         clock=clock,
     )
 
@@ -167,7 +231,7 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(second.replayed)
         self.assertEqual(len(uow.notifications), 1)
         self.assertEqual(len(uow.events), 1)
-        self.assertEqual(uow.aggregates[0].source_public_message, "Need help")
+        self.assertIsNone(uow.aggregates[0].source_public_message)
 
     async def test_catalog_destination_is_resolved_and_formatted_before_uow(self) -> None:
         uow = RecordingUnitOfWork(
@@ -192,8 +256,11 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(formatter.requests[0].suffix, "catalog-suffix")
         aggregate = uow.aggregates[0]
         self.assertEqual(aggregate.formatted_ticket, "model-formatted")
-        self.assertEqual(aggregate.source_public_message, "Original client request")
-        self.assertEqual(aggregate.internal_note, "model-internal")
+        self.assertEqual(
+            aggregate.source_public_message,
+            "Advertiser: Resolved advertiser\nCap: 25\n\nOriginal client request",
+        )
+        self.assertEqual(aggregate.internal_note, "catalog-note\n\nmodel-internal")
         self.assertFalse(aggregate.used_fallback)
 
     async def test_new_advertiser_does_not_use_catalog(self) -> None:
@@ -219,6 +286,14 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(advertisers.keys, [])
         self.assertEqual(formatter.requests[0].advertiser_name, "New advertiser")
         self.assertIsNone(formatter.requests[0].suffix)
+        self.assertEqual(
+            uow.aggregates[0].source_public_message,
+            "Advertiser: New advertiser\nCap: 30\n\nOriginal",
+        )
+        self.assertEqual(
+            uow.aggregates[0].internal_note,
+            "Новый рекл\n\nmodel-internal",
+        )
 
     async def test_destination_formatter_failure_uses_prepared_fallback(self) -> None:
         uow = RecordingUnitOfWork(
@@ -241,6 +316,60 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(aggregate.used_fallback)
         self.assertEqual(aggregate.formatted_ticket, "fallback:Resolved advertiser:40")
         self.assertEqual(aggregate.internal_note, "catalog-note")
+
+    async def test_replay_and_concurrent_duplicate_call_formatter_once(self) -> None:
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+        )
+        formatter = StubFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
+        command = CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(10, "Author", "client"),
+            idempotency_key=UUID("abababab-abab-4bab-8bab-abababababab"),
+            ticket_type="destination",
+            body="Original",
+            advertiser=CatalogAdvertiser("catalog", "catalog-key"),
+            cap=25,
+        )
+        first, second = await asyncio.gather(
+            workflow.create_ticket(command), workflow.create_ticket(command)
+        )
+        third = await workflow.create_ticket(command)
+        self.assertEqual(len(formatter.requests), 1)
+        self.assertEqual(sum(result.replayed for result in (first, second, third)), 2)
+
+        with self.assertRaises(IdempotencyConflict):
+            await workflow.create_ticket(replace(command, body="Changed"))
+        self.assertEqual(len(formatter.requests), 1)
+
+    async def test_failed_preparation_releases_lease_for_retry(self) -> None:
+        class FlakyFormatter(StubFormatter):
+            async def format(self, request):
+                self.requests.append(request)
+                if len(self.requests) == 1:
+                    raise RuntimeError("temporary failure")
+                return DestinationFormatResult("recovered", None)
+
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+        )
+        formatter = FlakyFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
+        command = CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(10, "Author", "client"),
+            idempotency_key=UUID("acacacac-acac-4cac-8cac-acacacacacac"),
+            ticket_type="destination",
+            body="Original",
+            advertiser=NewAdvertiser("new", "New advertiser"),
+            cap=25,
+        )
+        with self.assertRaises(RuntimeError):
+            await workflow.create_ticket(command)
+        result = await workflow.create_ticket(command)
+        self.assertEqual(result.status, "open")
+        self.assertEqual(len(formatter.requests), 2)
 
     async def test_idempotency_namespace_isolated_by_profile_and_operation(self) -> None:
         uow = RecordingUnitOfWork(

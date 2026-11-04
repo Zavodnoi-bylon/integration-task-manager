@@ -43,6 +43,25 @@ original public source message, optional internal note, advertiser display name,
 cap and notification/event drafts. Client input never supplies suffix or
 technician note.
 
+Before catalog or model calls, create acquires a durable idempotency reservation
+for the full namespace and normalized payload hash. A completed entry returns its
+stored result immediately. Concurrent duplicates wait for the first result (or
+take over only after a finite processing lease expires), so formatter/model runs
+once. A conflicting hash fails before external calls. Normal failures release
+the lease; process crashes become retryable after lease expiry. The final ticket
+transaction stores the response and completes the lease atomically.
+
+General aggregate has no source conversation message because its body is the
+ticket itself. Destination source message is stable:
+
+    Advertiser: <display name>
+    Cap: <cap>
+
+    <original client body>
+
+New advertisers add internal note `Новый рекл`. Catalog and formatter/fallback
+notes are merged without dropping either note or duplicating identical text.
+
 ## State machines
 
 General:

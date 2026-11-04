@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal, Protocol
 from uuid import UUID
@@ -131,7 +131,7 @@ class DestinationFormatResult:
 class PreparedTicketAggregate:
     ticket_type: Literal["general", "destination"]
     formatted_ticket: str
-    source_public_message: str
+    source_public_message: str | None
     internal_note: str | None
     advertiser_name: str | None = None
     cap: int | None = None
@@ -148,6 +148,34 @@ class DestinationFormatterPort(Protocol):
     async def format(self, request: DestinationFormatRequest) -> DestinationFormatResult: ...
 
     def fallback(self, request: DestinationFormatRequest) -> DestinationFormatResult: ...
+
+
+@dataclass(frozen=True)
+class IdempotencyLease:
+    token: str
+
+
+@dataclass(frozen=True)
+class IdempotencyReplay:
+    result: MutationResult
+
+
+class IdempotencyReservationPort(Protocol):
+    """Durable single-flight gate used before external create side effects.
+
+    acquire returns a lease to one caller. A concurrent same-hash caller waits
+    for the stored result or takes over only after lease expiry. A completed
+    entry returns IdempotencyReplay; another hash raises IdempotencyConflict.
+    The final UOW transaction stores the response and completes the lease.
+    fail releases/marks a live lease retryable. A process crash is recovered by
+    finite lease expiry, so no key stays processing forever.
+    """
+
+    async def acquire(
+        self, *, scope: IdempotencyScope, payload_hash: str
+    ) -> IdempotencyLease | IdempotencyReplay: ...
+
+    async def fail(self, *, scope: IdempotencyScope, lease_token: str) -> None: ...
 
 
 class TicketMutationUnitOfWork(Protocol):
@@ -167,6 +195,7 @@ class TicketMutationUnitOfWork(Protocol):
         aggregate: PreparedTicketAggregate,
         *,
         idempotency: IdempotencyScope,
+        idempotency_lease: str,
         payload_hash: str,
         event: EventDraft,
         notification: NotificationIntentDraft,
@@ -206,43 +235,46 @@ class TicketWorkflow:
         *,
         advertisers: AdvertiserCatalogPort,
         destination_formatter: DestinationFormatterPort,
+        idempotency_reservations: IdempotencyReservationPort,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._unit_of_work = unit_of_work
         self._advertisers = advertisers
         self._destination_formatter = destination_formatter
+        self._idempotency_reservations = idempotency_reservations
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def create_ticket(self, command: CreateTicketCommand) -> MutationResult:
-        if command.ticket_type == "general":
-            if command.advertiser is not None or command.cap is not None:
-                raise ValueError("general ticket cannot contain destination fields")
-            aggregate = PreparedTicketAggregate(
-                ticket_type="general",
-                formatted_ticket=command.body,
-                source_public_message=command.body,
-                internal_note=None,
-            )
-        elif command.advertiser is None or command.cap is None:
-            raise ValueError("destination ticket requires advertiser and cap")
-        else:
-            aggregate = await self._prepare_destination(command)
         idempotency = _idempotency_scope(command, "create_ticket")
-        notification = NotificationIntentDraft(
-            kind=NotificationKind.STAFF_TICKET_OPENED,
-            dedup_key=f"{idempotency.namespace}:opened",
-            target_telegram_user_id=None,
+        payload_hash = _payload_hash(command)
+        reservation = await self._idempotency_reservations.acquire(
+            scope=idempotency, payload_hash=payload_hash
         )
-        return await self._unit_of_work.create_ticket(
-            MutationContext(command.profile_key, command.actor),
-            aggregate,
-            idempotency=idempotency,
-            payload_hash=_payload_hash(command),
-            event=EventDraft(
-                EventKind.TICKET_CREATED, command.actor.telegram_user_id
-            ),
-            notification=notification,
-        )
+        if isinstance(reservation, IdempotencyReplay):
+            return replace(reservation.result, replayed=True)
+        try:
+            aggregate = await self._prepare_create_aggregate(command)
+            notification = NotificationIntentDraft(
+                kind=NotificationKind.STAFF_TICKET_OPENED,
+                dedup_key=f"{idempotency.namespace}:opened",
+                target_telegram_user_id=None,
+            )
+            return await self._unit_of_work.create_ticket(
+                MutationContext(command.profile_key, command.actor),
+                aggregate,
+                idempotency=idempotency,
+                idempotency_lease=reservation.token,
+                payload_hash=payload_hash,
+                event=EventDraft(
+                    EventKind.TICKET_CREATED, command.actor.telegram_user_id
+                ),
+                notification=notification,
+            )
+        except Exception:
+            await self._idempotency_reservations.fail(
+                scope=idempotency, lease_token=reservation.token
+            )
+            raise
 
     async def add_message(self, command: AddMessageCommand) -> MutationResult:
         return await self._unit_of_work.add_message(
@@ -282,7 +314,10 @@ class TicketWorkflow:
                 catalog_key=command.advertiser.key,
             )
         else:
-            advertiser = ResolvedAdvertiser(name=command.advertiser.name)
+            advertiser = ResolvedAdvertiser(
+                name=command.advertiser.name,
+                technician_note="Новый рекл",
+            )
         request = DestinationFormatRequest(
             advertiser_name=advertiser.name,
             suffix=advertiser.suffix,
@@ -297,12 +332,32 @@ class TicketWorkflow:
         return PreparedTicketAggregate(
             ticket_type="destination",
             formatted_ticket=formatted.formatted_ticket,
-            source_public_message=command.body,
-            internal_note=formatted.internal_note or advertiser.technician_note,
+            source_public_message=_destination_source_message(
+                advertiser.name, command.cap, command.body
+            ),
+            internal_note=_merge_notes(
+                advertiser.technician_note, formatted.internal_note
+            ),
             advertiser_name=advertiser.name,
             cap=command.cap,
             used_fallback=formatted.used_fallback,
         )
+
+    async def _prepare_create_aggregate(
+        self, command: CreateTicketCommand
+    ) -> PreparedTicketAggregate:
+        if command.ticket_type == "general":
+            if command.advertiser is not None or command.cap is not None:
+                raise ValueError("general ticket cannot contain destination fields")
+            return PreparedTicketAggregate(
+                ticket_type="general",
+                formatted_ticket=command.body,
+                source_public_message=None,
+                internal_note=None,
+            )
+        if command.advertiser is None or command.cap is None:
+            raise ValueError("destination ticket requires advertiser and cap")
+        return await self._prepare_destination(command)
 
 
 def _payload_hash(command: object) -> str:
@@ -331,3 +386,16 @@ def _idempotency_scope(
         operation=operation,
         key=command.idempotency_key,
     )
+
+
+def _destination_source_message(advertiser_name: str, cap: int, body: str) -> str:
+    return f"Advertiser: {advertiser_name}\nCap: {cap}\n\n{body}"
+
+
+def _merge_notes(*notes: str | None) -> str | None:
+    merged: list[str] = []
+    for note in notes:
+        clean = note.strip() if note else ""
+        if clean and clean not in merged:
+            merged.append(clean)
+    return "\n\n".join(merged) or None
