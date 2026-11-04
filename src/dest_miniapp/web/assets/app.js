@@ -90,7 +90,6 @@
 
   function renderIdentity() {
     $("#profile-name").textContent = state.me.profile.name;
-    $("#role-badge").textContent = roleLabel(state.me.role);
     $("#scope-switch").classList.toggle("hidden", !state.me.capabilities.team_queue);
     $$("#scope-switch button").forEach((button) => button.classList.toggle("active", button.dataset.scope === state.scope));
   }
@@ -158,10 +157,10 @@
 
   function ticketCard(ticket) {
     return `<button class="ticket-card" data-id="${ticket.ticket_id}">
-      <div class="ticket-meta"><span>#${ticket.ticket_id} · ${escapeHtml(typeLabel(ticket.ticket_type))}</span>${statusBadge(ticket.status)}</div>
-      <h2>${escapeHtml(ticket.title)}</h2>
-      <p>${escapeHtml(ticket.description_preview)}</p>
-      <div class="ticket-footer"><span>${formatDate(ticket.updated_at)}</span><span class="chevron">›</span></div>
+      <span class="ticket-id">#${ticket.ticket_id}</span>
+      <span class="ticket-type">${escapeHtml(typeLabel(ticket.ticket_type))}</span>
+      <span class="ticket-title">${escapeHtml(ticket.title)}</span>
+      <span class="ticket-side">${statusBadge(ticket.status)}<time>${formatDate(ticket.updated_at)}</time></span>
     </button>`;
   }
 
@@ -371,7 +370,6 @@
   function statusBadge(status) { return `<span class="status status-${status}">${statusLabel(status)}</span>`; }
   function statusLabel(status) { return ({ open: "В работе", review: "На проверке", completed: "Завершена" })[status] || status; }
   function typeLabel(type) { return type === "destination" ? "Destination" : "Обычная задача"; }
-  function roleLabel(role) { return ({ client: "Клиент", technician: "Технарь", admin: "Техлид" })[role] || role; }
   function formatDate(value) { return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
   function escapeHtml(value = "") { const div = document.createElement("div"); div.textContent = String(value); return div.innerHTML; }
   function escapeAttr(value = "") { return escapeHtml(value).replaceAll('"', "&quot;"); }
