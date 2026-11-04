@@ -6,7 +6,7 @@ configuration.
 
 Все authenticated POST и DELETE требуют X-CSRF-Token. Create ticket, message,
 complete и reopen дополнительно требуют UUID Idempotency-Key. POST /api/session
-не требует этих headers.
+не требует этих headers, но обязательно проходит exact ALLOWED_ORIGIN check.
 
 ## Session
 
@@ -16,8 +16,15 @@ Request:
 
     {"init_data": "<Telegram initData>"}
 
-Проверяет подпись текущего bot token, TTL и onboarding. Устанавливает HttpOnly
-session cookie. Response:
+Проверяет подпись текущего bot token, TTL и onboarding. Проверка использует
+Telegram WebAppData: sorted decoded fields без hash формируют data_check_string;
+secret_key = HMAC-SHA256("WebAppData", BOT_TOKEN), затем calculated_hash =
+HMAC-SHA256(secret_key, data_check_string).hexdigest(), constant-time compare.
+Duplicate keys отклоняются. Direct HMAC ключом BOT_TOKEN запрещён.
+
+Устанавливает HttpOnly session cookie. Session id создаётся CSPRNG с минимум
+256 бит энтропии, server хранит его hash, а повторный login ротирует session.
+Response:
 
     {"role":"client","profile":{"key":"kalisto","name":"Kalisto"},"csrf_token":"..."}
 
@@ -25,7 +32,9 @@ session cookie. Response:
 
 ### DELETE /api/session
 
-Удаляет текущую session. Требует X-CSRF-Token. Успех: 204.
+Удаляет текущую session. Требует связанный с session непредсказуемый
+X-CSRF-Token с constant-time проверкой. Server-side record инвалидируется до
+удаления cookie. Успех: 204.
 
 ### GET /api/me
 

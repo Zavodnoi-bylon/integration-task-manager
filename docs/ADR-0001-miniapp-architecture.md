@@ -46,24 +46,34 @@ profile. initData одного бота не проходит HMAC другог�
 ### Авторизация
 
 1. Frontend передаёт Telegram initData в POST /api/session.
-2. Backend проверяет HMAC-SHA256 своим BOT_TOKEN: обязательные hash, auth_date и
-   user, constant-time compare, configurable max age (default 300 секунд), reject
-   duplicate keys, malformed query и malformed user JSON.
+2. Backend проверяет Telegram WebAppData по точному двухшаговому алгоритму:
+   duplicate keys отклоняются; data_check_string строится из всех decoded fields
+   кроме hash, отсортированных по key и соединённых LF; secret_key равен бинарному
+   HMAC-SHA256 с key="WebAppData" и message=BOT_TOKEN; calculated_hash равен
+   HMAC-SHA256 с key=secret_key и message=data_check_string, представленному
+   hexdigest. calculated_hash и hash сравниваются constant-time. Нельзя применять
+   SHA256(BOT_TOKEN) или direct HMAC ключом BOT_TOKEN. BOT_TOKEN не логируется.
+   Обязательны hash, auth_date и user; configurable max age по умолчанию 300
+   секунд; malformed query и malformed user JSON отклоняются.
 3. Backend регистрирует пользователя в текущем profile, если membership ещё нет.
    Новый обычный пользователь получает client.
 4. Staff-role определяется только server configuration и membership.
 5. Backend создаёт opaque server-side session с absolute TTL (default 12 часов).
-   Cookie содержит только random session id: HttpOnly, Secure, SameSite=Lax,
-   Path=/, без Domain. Profile-инстансы используют разные origins либо разные
-   cookie names.
+   Session id генерируется CSPRNG и содержит минимум 256 бит энтропии; server store
+   хранит только hash session id. Cookie содержит raw random id: HttpOnly, Secure,
+   SameSite=Lax, Path=/, без Domain. Profile-инстансы используют разные origins
+   либо разные cookie names. Повторный POST /api/session инвалидирует и ротирует
+   предыдущую session.
 6. Session связывает identity и profile, но не является источником роли. Active
    membership и staff-role проверяются сервером на каждом request.
 7. При создании session absent membership вызывает register_user; inactive
    membership получает 403 без реактивации; active membership обновляет last_seen
    и сверяется с server staff configuration.
-8. Для каждой authenticated mutation требуется X-CSRF-Token. Wildcard CORS
-   запрещён; Origin проверяется по exact allowlist. Host, query и body не являются
-   источником profile.
+8. Для каждой authenticated mutation требуется X-CSRF-Token. Token непредсказуем,
+   связан с session и сравнивается constant-time. Logout сначала инвалидирует
+   server-side record, затем удаляет cookie. Wildcard CORS запрещён; Origin
+   проверяется по exact allowlist, включая POST /api/session. Host, query и body
+   не являются источником profile.
 
 Клиентский JavaScript не получает bot token, DB credentials, raw membership или
 возможность выбрать роль/profile.
