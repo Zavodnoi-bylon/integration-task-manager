@@ -279,6 +279,8 @@ def create_app(
     ):
         _require_positive_ticket_id(ticket_id)
         _require_csrf(auth, csrf_token)
+        if payload.visibility == "internal" and not auth.actor.is_staff:
+            raise HTTPException(status_code=403, detail="operation forbidden")
         result = await mutations.add_message(
             AddMessageCommand(
                 profile_key=settings.profile_key,
@@ -300,6 +302,8 @@ def create_app(
         csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
         idempotency_key: UUID = Header(alias="Idempotency-Key"),
     ):
+        if not auth.actor.is_staff:
+            raise HTTPException(status_code=403, detail="operation forbidden")
         return await _transition(
             ticket_id, WorkflowAction.SUBMIT_REVIEW, auth, csrf_token,
             idempotency_key,
@@ -338,6 +342,8 @@ def create_app(
         csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
         idempotency_key: UUID = Header(alias="Idempotency-Key"),
     ):
+        if not auth.actor.is_staff:
+            raise HTTPException(status_code=403, detail="operation forbidden")
         return await _transition(
             ticket_id, WorkflowAction.COMPLETE_DESTINATION, auth, csrf_token,
             idempotency_key,
@@ -429,7 +435,6 @@ def _validate_output(model, value):  # type: ignore[no-untyped-def]
         return model.model_validate(value)
     except ValidationError as exc:
         raise BackendUnavailable("invalid canonical gateway output") from exc
-    ReasonInput,
 
 
 def _require_csrf(auth: Authenticated, candidate: str | None) -> None:

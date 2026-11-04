@@ -107,6 +107,37 @@ class WorkflowTests(unittest.TestCase):
                 now=NOW,
             )
 
+    def test_non_author_cannot_probe_type_or_status(self) -> None:
+        other_client = Actor(11, "Other", "client")
+        probes = [
+            (ticket(kind="destination", status="open"), WorkflowAction.ACCEPT),
+            (ticket(kind="general", status="completed"), WorkflowAction.RETURN),
+            (ticket(kind="destination", status="review"), WorkflowAction.REOPEN),
+        ]
+        for snapshot, action in probes:
+            with self.subTest(action=action, snapshot=snapshot):
+                with self.assertRaises(TicketHidden):
+                    plan_transition(
+                        snapshot, action=action, actor=other_client, now=NOW,
+                        reason="Probe",
+                    )
+
+    def test_client_staff_only_probe_is_forbidden_before_state_check(self) -> None:
+        with self.assertRaises(ActionForbidden):
+            plan_transition(
+                ticket(kind="destination", status="completed"),
+                action=WorkflowAction.SUBMIT_REVIEW,
+                actor=AUTHOR,
+                now=NOW,
+            )
+        with self.assertRaises(ActionForbidden):
+            plan_message(
+                ticket(status="completed"),
+                actor=AUTHOR,
+                visibility="internal",
+                body="Probe",
+            )
+
     def test_return_requires_public_reason(self) -> None:
         with self.assertRaises(ReasonRequired):
             plan_transition(

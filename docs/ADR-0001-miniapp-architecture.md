@@ -93,7 +93,7 @@ Create ticket, message, complete и reopen принимают UUID Idempotency-K
 X-CSRF-Token. DELETE session требует X-CSRF-Token, но не Idempotency-Key.
 POST session не требует ни CSRF, ни Idempotency-Key. Server namespace:
 
-    miniapp:{profile}:{actor}:{operation}:{uuid}
+    miniapp:{profile}:{actor_telegram_user_id}:{operation}:{uuid}
 
 Повтор с тем же key и payload возвращает прежний response. Тот же key с другим
 payload даёт 409. Concurrent/stale complete/reopen не создаёт второе событие.

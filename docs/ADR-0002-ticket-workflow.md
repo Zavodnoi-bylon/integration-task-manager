@@ -19,13 +19,29 @@ transaction:
 - idempotency key, request hash and stored response;
 - notification/outbox intents.
 
-Same actor/key/payload returns the stored result. Same actor/key with another
-payload is a conflict. Telegram delivery happens later in an outbox worker and
-does not change a committed HTTP result.
+Idempotency namespace is exactly
+`miniapp:{profile}:{actor_telegram_user_id}:{operation}:{uuid}`. Same scoped
+key/payload returns the stored result. Same scoped key with another payload is a
+conflict. The same UUID in another profile or operation is independent. Telegram
+delivery happens later in an outbox worker and does not change a committed HTTP
+result.
 
 Notification intent with `target_telegram_user_id=None` means the eligible staff
 audience of the same server-side profile; it never means a cross-profile or
 global broadcast.
+
+For ticket mutations the UOW first loads and locks only a ticket visible to the
+actor in the server-side profile. For clients, absent, another author's ticket
+and another profile are the same ResourceNotFound/404 before a domain planner is
+called. Client probes of staff-only operations are rejected before ticket lookup.
+
+Destination preparation is application orchestration, not persistence. The
+workflow resolves a catalog key server-side, invokes the existing formatter/
+OpenRouter adapter before the transaction, and uses its defined fallback on a
+model failure. Only a prepared aggregate reaches the UOW: formatted ticket,
+original public source message, optional internal note, advertiser display name,
+cap and notification/event drafts. Client input never supplies suffix or
+technician note.
 
 ## State machines
 

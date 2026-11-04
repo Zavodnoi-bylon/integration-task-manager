@@ -106,6 +106,7 @@ class FakeGateway:
 class StubMutations:
     def __init__(self) -> None:
         self.last_command = None
+        self.hidden_ids = {901, 902, 903}
 
     async def create_ticket(self, command):
         self.last_command = command
@@ -113,10 +114,14 @@ class StubMutations:
 
     async def add_message(self, command):
         self.last_command = command
+        if command.ticket_id in self.hidden_ids:
+            raise ResourceNotFound
         return MutationResult(command.ticket_id, "open", "general", 0)
 
     async def transition(self, command):
         self.last_command = command
+        if command.ticket_id in self.hidden_ids:
+            raise ResourceNotFound
         status = {
             "submit_review": "review",
             "accept": "completed",
@@ -392,6 +397,66 @@ class ApiTests(unittest.TestCase):
             ).status_code,
             200,
         )
+
+    def test_author_mutations_hide_absent_foreign_and_cross_profile_tickets(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        headers = {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": "66666666-6666-4666-8666-666666666666",
+        }
+        requests = []
+        for ticket_id in (901, 902, 903):
+            requests.extend(
+                [
+                    client.post(
+                        f"/api/tickets/{ticket_id}/messages",
+                        json={"visibility": "public", "body": "Probe"},
+                        headers=headers,
+                    ),
+                    client.post(
+                        f"/api/tickets/{ticket_id}/accept", json={}, headers=headers
+                    ),
+                    client.post(
+                        f"/api/tickets/{ticket_id}/return",
+                        json={"reason": "Probe"},
+                        headers=headers,
+                    ),
+                    client.post(
+                        f"/api/tickets/{ticket_id}/reopen",
+                        json={"reason": "Probe"},
+                        headers=headers,
+                    ),
+                ]
+            )
+        self.assertEqual({response.status_code for response in requests}, {404})
+        self.assertEqual(
+            {response.text for response in requests},
+            {'{"detail":"resource not found"}'},
+        )
+
+    def test_staff_only_probes_reject_client_before_ticket_lookup(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        headers = {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": "77777777-7777-4777-8777-777777777777",
+        }
+        for ticket_id in (7, 901):
+            responses = [
+                client.post(
+                    f"/api/tickets/{ticket_id}/submit-review", json={}, headers=headers
+                ),
+                client.post(
+                    f"/api/tickets/{ticket_id}/complete", json={}, headers=headers
+                ),
+                client.post(
+                    f"/api/tickets/{ticket_id}/messages",
+                    json={"visibility": "internal", "body": "Probe"},
+                    headers=headers,
+                ),
+            ]
+            self.assertEqual({response.status_code for response in responses}, {403})
 
 
 if __name__ == "__main__":

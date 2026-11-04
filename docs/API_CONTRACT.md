@@ -170,6 +170,12 @@ Ticket/status event, public reason, idempotency record и notification intents
 фиксируются одной транзакцией canonical adapter. Telegram HTTP delivery не
 выполняется внутри request.
 
+Idempotency namespace:
+
+    miniapp:{profile}:{actor_telegram_user_id}:{operation}:{uuid}
+
+Одинаковый UUID в другом profile или operation независим.
+
 ## Review reminder
 
 При каждом переходе general open -> review создаётся новый review-cycle. Для

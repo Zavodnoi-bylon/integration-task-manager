@@ -121,8 +121,8 @@ def plan_transition(
     next_sequence = ticket.event_sequence + 1
 
     if action is WorkflowAction.SUBMIT_REVIEW:
-        _require(ticket.ticket_type == "general" and ticket.status == "open")
         _require_staff(actor)
+        _require(ticket.ticket_type == "general" and ticket.status == "open")
         cycle = ticket.review_cycle + 1
         reminder_at = _next_moscow_noon(now)
         return TransitionPlan(
@@ -153,8 +153,8 @@ def plan_transition(
         )
 
     if action is WorkflowAction.ACCEPT:
-        _require(ticket.ticket_type == "general" and ticket.status == "review")
         _require_author(actor, is_author)
+        _require(ticket.ticket_type == "general" and ticket.status == "review")
         return TransitionPlan(
             new_status="completed",
             review_cycle=ticket.review_cycle,
@@ -175,8 +175,8 @@ def plan_transition(
         )
 
     if action is WorkflowAction.RETURN:
-        _require(ticket.ticket_type == "general" and ticket.status == "review")
         _require_author(actor, is_author)
+        _require(ticket.ticket_type == "general" and ticket.status == "review")
         clean_reason = _require_reason(clean_reason)
         return TransitionPlan(
             new_status="open",
@@ -200,8 +200,8 @@ def plan_transition(
         )
 
     if action is WorkflowAction.COMPLETE_DESTINATION:
-        _require(ticket.ticket_type == "destination" and ticket.status == "open")
         _require_staff(actor)
+        _require(ticket.ticket_type == "destination" and ticket.status == "open")
         return TransitionPlan(
             new_status="completed",
             review_cycle=ticket.review_cycle,
@@ -219,8 +219,8 @@ def plan_transition(
         )
 
     if action is WorkflowAction.REOPEN:
-        _require(ticket.status == "completed")
         _require_author(actor, is_author)
+        _require(ticket.status == "completed")
         clean_reason = _require_reason(clean_reason)
         return TransitionPlan(
             new_status="open",
@@ -256,14 +256,16 @@ def plan_message(
     clean_body = body.strip()
     if not clean_body:
         raise ReasonRequired("message body is required")
-    if ticket.status == "completed":
-        raise InvalidTransition("completed ticket does not accept messages")
     is_author = actor.telegram_user_id == ticket.author_telegram_user_id
     if visibility == "internal":
         _require_staff(actor)
+        if ticket.status == "completed":
+            raise InvalidTransition("completed ticket does not accept messages")
         return MessagePlan("internal", clean_body, ())
     if actor.role == "client" and not is_author:
         raise TicketHidden("ticket not found")
+    if ticket.status == "completed":
+        raise InvalidTransition("completed ticket does not accept messages")
     if actor.is_staff:
         target = ticket.author_telegram_user_id
         kind = NotificationKind.AUTHOR_PUBLIC_MESSAGE
