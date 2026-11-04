@@ -25,8 +25,16 @@ Production deployment из этого репозитория запрещён.
 - `/api/me`, списки/карточка тикетов, advertisers и postbacks;
 - domain state machine и mutation API для create/message/review/accept/return/
   Destination complete/reopen;
-- транзакционный порт для будущего PostgreSQL adapter; прямого доступа к
-  production database в transport-слое нет.
+- canonical PostgreSQL gateway/UOW, persistent sessions, durable idempotency
+  reservations и transactional outbox worker;
+- versioned migration `0002_miniapp_workflow.sql` и reporting views для review,
+  returns и reopens.
+- адаптивный Mini App интерфейс для клиента и технаря:
+  списки, создание General/Destination, переписка, статусные
+  действия, внутренние записи и postback-шаблоны.
+
+Транзакционная модель, границы PostgreSQL и ограничения outbox
+зафиксированы в `docs/ADR-0003-postgresql-runtime.md`.
 
 `MemorySessionStore` предназначен только для тестов и локальной разработки.
 Production composition root обязан передать общее persistent session storage и
@@ -37,3 +45,12 @@ Production composition root обязан передать общее persistent 
     python -m venv .venv
     .venv\Scripts\python -m pip install -e ".[test]"
     .venv\Scripts\python -m unittest discover -s tests -v
+
+PostgreSQL integration tests выполняются только на отдельной test database:
+
+    set TEST_DATABASE_URL=postgresql://...
+    .venv\Scripts\python -m unittest discover -s tests\integration -v
+
+`BOT_KEY=kalisto` соответствует `@experementa1_bot`, `BOT_KEY=mephisto` —
+`@testmaniken_bot`. `@tiketanalitic_bot` относится к отдельному аналитическому
+контуру и этим приложением не используется. Реальные `.env` не коммитятся.

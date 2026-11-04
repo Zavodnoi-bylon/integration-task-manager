@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from .auth import InitDataError, verify_init_data
@@ -73,6 +76,8 @@ def create_app(
     mutations: TicketMutationService,
 ) -> FastAPI:
     app = FastAPI(title="Destination Mini App API", docs_url=None, redoc_url=None)
+    web_root = Path(__file__).with_name("web")
+    app.mount("/assets", StaticFiles(directory=web_root / "assets"), name="assets")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.allowed_origin],
@@ -87,8 +92,16 @@ def create_app(
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self' https://telegram.org; "
+            "style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
         return response
+
+    @app.get("/", include_in_schema=False)
+    async def miniapp_index():
+        return FileResponse(web_root / "index.html")
 
     async def authenticated(
         session_id: str | None = Cookie(default=None, alias=settings.session_cookie_name),
