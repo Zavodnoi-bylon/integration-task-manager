@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -74,8 +74,14 @@ def create_app(
     gateway: MiniAppGateway,
     sessions: SessionStore,
     mutations: TicketMutationService,
+    lifespan: Any = None,
 ) -> FastAPI:
-    app = FastAPI(title="Destination Mini App API", docs_url=None, redoc_url=None)
+    app = FastAPI(
+        title="Destination Mini App API",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=lifespan,
+    )
     web_root = Path(__file__).with_name("web")
     app.mount("/assets", StaticFiles(directory=web_root / "assets"), name="assets")
     app.add_middleware(

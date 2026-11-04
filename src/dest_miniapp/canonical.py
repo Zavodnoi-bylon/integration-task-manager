@@ -259,7 +259,12 @@ class PostgresMiniAppGateway:
         summary = _summary(row, self._profile_name).model_dump()
         public = [_message(item, internal=False) for item in messages
                   if item["visibility"] == "public"]
-        base = {**summary, "description": row["description"], "conversation": public}
+        base = {
+            **summary,
+            "description": row["description"],
+            "is_author": row["requester_telegram_id"] == actor.telegram_user_id,
+            "conversation": public,
+        }
         if not actor.is_staff:
             return ClientTicketDetail.model_validate(base)
         internal = [_message(item, internal=True) for item in messages

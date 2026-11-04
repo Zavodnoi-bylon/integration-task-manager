@@ -54,3 +54,25 @@ PostgreSQL integration tests выполняются только на отдел
 `BOT_KEY=kalisto` соответствует `@experementa1_bot`, `BOT_KEY=mephisto` —
 `@testmaniken_bot`. `@tiketanalitic_bot` относится к отдельному аналитическому
 контуру и этим приложением не используется. Реальные `.env` не коммитятся.
+
+## Локальный test deployment
+
+Mini App собирается одним образом. Compose запускает два изолированных
+web-процесса и два outbox worker с разными bot token/env. Секреты
+остаются вне Git.
+
+1. Скопировать `deploy/database.env.example`, `deploy/kalisto.env.example`
+   и `deploy/mephisto.env.example` в файлы без `.example`.
+2. Указать путь к чистому checkout canonical Integration Task Manager:
+
+       set CANONICAL_SOURCE_DIR=C:\path\to\integration-task-manager
+
+3. Указать имя уже существующей PostgreSQL Docker network и запустить:
+
+       set DATABASE_NETWORK=team-activity-trial_backend
+       docker compose up --build -d
+
+`migrate` применяет только Mini App migration 0002 после canonical 0001.
+Web healthcheck проверяет HTTP и PostgreSQL, worker healthcheck — свежий heartbeat.
+Telegram-доставка имеет семантику at-least-once: после неопределённого
+сетевого исхода Telegram одно безопасное повторное уведомление возможно.

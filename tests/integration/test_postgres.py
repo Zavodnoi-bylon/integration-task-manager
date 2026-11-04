@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import unittest
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -29,6 +30,9 @@ from dest_miniapp.use_cases import (
 
 
 DSN = os.getenv("TEST_DATABASE_URL", "")
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 
@@ -78,9 +82,9 @@ class EmptyPostbacks:
 @unittest.skipUnless(DSN, "TEST_DATABASE_URL is required")
 class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.db = PostgresDatabase(DSN, min_size=1, max_size=8)
-        await self.db.open()
-        async with self.db.pool.connection() as connection:
+        admin_db = PostgresDatabase(DSN, min_size=1, max_size=1)
+        await admin_db.open()
+        async with admin_db.pool.connection() as connection:
             await connection.execute(
                 """TRUNCATE ticketing.outbox,ticketing.ticket_events,
                    ticketing.ticket_messages,ticketing.tickets,
@@ -95,6 +99,11 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     "SELECT ticketing.register_member(%s,%s,NULL,%s,%s,now())",
                     ("kalisto", telegram_id, name, role),
                 )
+        await admin_db.close()
+        self.db = PostgresDatabase(
+            DSN, min_size=1, max_size=8, role="ticketing_writer"
+        )
+        await self.db.open()
 
     async def asyncTearDown(self):
         await self.db.close()
@@ -132,6 +141,13 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                    WHERE state='completed') completed"""
             )).fetchone()
         self.assertEqual(tuple(counts.values()), (1, 2, 3, 1, 1))
+
+    async def test_runtime_uses_limited_writer_role(self):
+        async with self.db.pool.connection() as connection:
+            role = await (await connection.execute(
+                "SELECT current_role AS value"
+            )).fetchone()
+        self.assertEqual(role["value"], "ticketing_writer")
 
     async def test_persistent_session_rotation_and_membership_recheck(self):
         store = PostgresSessionStore(self.db)
@@ -273,9 +289,62 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 "UPDATE ticketing.outbox SET available_at=now()-interval '1 second'"
             )
         delivery = Delivery()
-        await PostgresOutboxWorker(self.db, delivery).run_once(limit=20)
+        await PostgresOutboxWorker(
+            self.db, delivery, profile_key="kalisto"
+        ).run_once(limit=20)
         sent_types = {item["notification_type"] for item in delivery.items}
         self.assertNotIn("author_review_reminder", sent_types)
+
+    async def test_accept_timestamp_is_cleared_and_replaced_after_reopen(self):
+        reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            destination_formatter=Formatter(),
+            idempotency_reservations=reservations,
+        )
+        created = await workflow.create_ticket(CreateTicketCommand(
+            "kalisto", Actor(100, "Client", "client"),
+            UUID("99999999-9999-4999-8999-999999999991"), "general", "body"
+        ))
+        await workflow.transition(TransitionCommand(
+            "kalisto", Actor(200, "Tech", "technician"), created.ticket_id,
+            UUID("99999999-9999-4999-8999-999999999992"),
+            WorkflowAction.SUBMIT_REVIEW,
+        ))
+        await workflow.transition(TransitionCommand(
+            "kalisto", Actor(100, "Client", "client"), created.ticket_id,
+            UUID("99999999-9999-4999-8999-999999999993"),
+            WorkflowAction.ACCEPT,
+        ))
+        first = await self._accepted_at(created.ticket_id)
+        self.assertIsNotNone(first)
+        await workflow.transition(TransitionCommand(
+            "kalisto", Actor(100, "Client", "client"), created.ticket_id,
+            UUID("99999999-9999-4999-8999-999999999994"),
+            WorkflowAction.REOPEN, "again",
+        ))
+        self.assertIsNone(await self._accepted_at(created.ticket_id))
+        await workflow.transition(TransitionCommand(
+            "kalisto", Actor(200, "Tech", "technician"), created.ticket_id,
+            UUID("99999999-9999-4999-8999-999999999995"),
+            WorkflowAction.SUBMIT_REVIEW,
+        ))
+        self.assertIsNone(await self._accepted_at(created.ticket_id))
+        await workflow.transition(TransitionCommand(
+            "kalisto", Actor(100, "Client", "client"), created.ticket_id,
+            UUID("99999999-9999-4999-8999-999999999996"),
+            WorkflowAction.ACCEPT,
+        ))
+        second = await self._accepted_at(created.ticket_id)
+        self.assertGreater(second, first)
+
+    async def _accepted_at(self, ticket_id):
+        async with self.db.pool.connection() as connection:
+            row = await (await connection.execute(
+                "SELECT accepted_at FROM ticketing.tickets WHERE ticket_id=%s",
+                (ticket_id,),
+            )).fetchone()
+        return row["accepted_at"]
 
     async def test_outbox_failure_retries_without_duplicate_delivery(self):
         reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
@@ -288,7 +357,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "kalisto", Actor(100, "Client", "client"),
             UUID("77777777-7777-4777-8777-777777777777"), "general", "body"
         ))
-        await PostgresOutboxWorker(self.db, FailingDelivery()).run_once()
+        await PostgresOutboxWorker(
+            self.db, FailingDelivery(), profile_key="kalisto"
+        ).run_once()
         async with self.db.pool.connection() as connection:
             failed = await (await connection.execute(
                 "SELECT status,attempts FROM ticketing.outbox"
@@ -299,7 +370,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 "UPDATE ticketing.outbox SET available_at=now()-interval '1 second'"
             )
         delivery = Delivery()
-        await PostgresOutboxWorker(self.db, delivery).run_once()
+        await PostgresOutboxWorker(
+            self.db, delivery, profile_key="kalisto"
+        ).run_once()
         self.assertEqual(len(delivery.items), 1)
         async with self.db.pool.connection() as connection:
             sent = await (await connection.execute(

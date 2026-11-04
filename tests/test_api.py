@@ -145,6 +145,7 @@ def ticket_detail(ticket_id: int) -> dict[str, Any]:
         "title": "Test ticket",
         "description_preview": "Preview",
         "description": "Description",
+        "is_author": True,
         "created_at": now,
         "updated_at": now,
         "closed_at": None,
@@ -213,6 +214,22 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(login(client).status_code, 201)
         old_record = asyncio.run(gateway.session_store.get(old_session))
         self.assertIsNone(old_record)
+
+    def test_live_cookie_can_rotate_session_to_restore_csrf(self) -> None:
+        client, _ = make_client()
+        self.assertEqual(login(client).status_code, 201)
+        recovered = login(client)
+        self.assertEqual(recovered.status_code, 201)
+        csrf = recovered.json()["csrf_token"]
+        response = client.post(
+            "/api/tickets",
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
+            },
+            json={"type": "general", "body": "Recovered"},
+        )
+        self.assertEqual(response.status_code, 201)
 
     def test_expired_session_is_rejected(self) -> None:
         now = [datetime(2026, 11, 4, 12, 0, tzinfo=UTC)]

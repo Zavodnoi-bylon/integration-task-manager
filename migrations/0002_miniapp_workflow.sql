@@ -186,6 +186,10 @@ GROUP BY e.ticket_id, e.profile_key, (e.metadata->>'review_cycle')::integer;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ticketing.miniapp_sessions,
     ticketing.miniapp_idempotency TO ticketing_writer;
+GRANT INSERT, UPDATE ON ticketing.telegram_users, ticketing.memberships,
+    ticketing.tickets, ticketing.ticket_messages, ticketing.ticket_events
+    TO ticketing_writer;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ticketing TO ticketing_writer;
 GRANT SELECT ON reporting.ticket_review_cycles,
     reporting.ticket_review_backlog TO ticketing_writer;
 

@@ -51,6 +51,7 @@ class TicketSummary(StrictOutput):
 
 class ClientTicketDetail(TicketSummary):
     description: str
+    is_author: bool
     conversation: list[PublicConversationMessage]
 
 

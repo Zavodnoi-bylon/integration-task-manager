@@ -207,14 +207,16 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                     )
                 closed_at = now if plan.new_status == "completed" else None
                 review_started_at = now if plan.new_status == "review" else None
-                accepted_at = now if plan.event.kind is EventKind.GENERAL_ACCEPTED else None
+                accepted_at = (
+                    now if plan.event.kind is EventKind.GENERAL_ACCEPTED else None
+                )
                 await connection.execute(
                     """
                     UPDATE ticketing.tickets SET
                         status_code=%s,review_cycle=%s,review_started_at=%s,
                         first_review_at=CASE WHEN %s='review'
                             THEN coalesce(first_review_at,%s) ELSE first_review_at END,
-                        accepted_at=coalesce(%s,accepted_at),closed_at=%s,
+                        accepted_at=%s,closed_at=%s,
                         updated_at=%s,version=version+1
                     WHERE ticket_id=%s AND profile_key=%s
                     """,

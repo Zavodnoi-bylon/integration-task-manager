@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -64,10 +65,20 @@ def build_postgres_runtime(
         ),
         idempotency_reservations=PostgresIdempotencyReservations(database),
     )
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        await database.open()
+        try:
+            yield
+        finally:
+            await database.close()
+
     app = create_app(
         settings=settings,
         gateway=gateway,
         sessions=PostgresSessionStore(database),
         mutations=workflow,
+        lifespan=lifespan,
     )
     return MiniAppRuntime(app=app, database=database)

@@ -27,10 +27,11 @@ class OutboxItem:
 class PostgresOutboxWorker:
     def __init__(
         self, database: PostgresDatabase, delivery: NotificationDelivery,
-        *, lease_seconds: int = 60, max_attempts: int = 8,
+        *, profile_key: str, lease_seconds: int = 60, max_attempts: int = 8,
     ) -> None:
         self._database = database
         self._delivery = delivery
+        self._profile_key = profile_key
         self._lease_seconds = lease_seconds
         self._max_attempts = max_attempts
 
@@ -62,13 +63,14 @@ class PostgresOutboxWorker:
                     JOIN ticketing.telegram_users u ON u.user_id=o.recipient_user_id
                     LEFT JOIN ticketing.tickets t ON t.ticket_id=o.ticket_id
                                                AND t.profile_key=o.profile_key
-                    WHERE o.available_at<=%s AND o.attempts<%s AND (
+                    WHERE o.profile_key=%s AND o.available_at<=%s
+                      AND o.attempts<%s AND (
                         o.status IN ('pending','failed') OR
                         (o.status='sending' AND o.lease_expires_at<=%s)
                     )
                     ORDER BY o.available_at,o.outbox_id
                     FOR UPDATE OF o SKIP LOCKED LIMIT %s
-                    """, (now, self._max_attempts, now, limit)
+                    """, (self._profile_key, now, self._max_attempts, now, limit)
                 )).fetchall()
                 result: list[OutboxItem] = []
                 for row in rows:

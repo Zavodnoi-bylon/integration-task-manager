@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from psycopg.rows import dict_row
+from psycopg import sql
 from psycopg_pool import AsyncConnectionPool
 
 from .gateway import AccessDenied
@@ -24,15 +25,30 @@ from .use_cases import (
 
 
 class PostgresDatabase:
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 8) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = 1,
+        max_size: int = 8,
+        role: str | None = None,
+    ) -> None:
         if not dsn.strip():
             raise ValueError("PostgreSQL DSN is required")
+        async def configure(connection) -> None:
+            if role:
+                await connection.execute(
+                    sql.SQL("SET ROLE {}").format(sql.Identifier(role))
+                )
+                await connection.commit()
+
         self.pool = AsyncConnectionPool(
             conninfo=dsn,
             min_size=min_size,
             max_size=max_size,
             open=False,
             kwargs={"row_factory": dict_row},
+            configure=configure if role else None,
         )
 
     async def open(self) -> None:

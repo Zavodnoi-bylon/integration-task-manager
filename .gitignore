@@ -8,6 +8,8 @@ venv/
 .env
 .env.*
 !.env.example
+deploy/*.env
+!deploy/*.env.example
 .runtime/
 *.db
 *.sqlite

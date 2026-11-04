@@ -34,11 +34,13 @@
   }
 
   async function authenticate() {
-    try {
-      await api("/api/me");
-      return;
-    } catch (error) {
-      if (error.status !== 401 && error.status !== 403) throw error;
+    if (state.csrf) {
+      try {
+        await api("/api/me");
+        return;
+      } catch (error) {
+        if (error.status !== 401 && error.status !== 403) throw error;
+      }
     }
     const initData = tg?.initData;
     if (!initData) {
@@ -199,8 +201,8 @@
     const staff = state.me.capabilities.team_queue;
     if (ticket.status === "open" && staff && ticket.ticket_type === "general") return '<button class="primary-button" data-action="submit-review">Отправить на проверку</button>';
     if (ticket.status === "open" && staff && ticket.ticket_type === "destination") return '<button class="primary-button" data-action="complete">Завершить Destination</button>';
-    if (ticket.status === "review" && !staff) return '<button class="primary-button" data-action="accept">Принять работу</button><button class="secondary-button" data-action="return">Вернуть на доработку</button>';
-    if (ticket.status === "completed" && !staff) return '<button class="secondary-button" data-action="reopen">Возобновить задачу</button>';
+    if (ticket.status === "review" && ticket.is_author) return '<button class="primary-button" data-action="accept">Принять работу</button><button class="secondary-button" data-action="return">Вернуть на доработку</button>';
+    if (ticket.status === "completed" && ticket.is_author) return '<button class="secondary-button" data-action="reopen">Возобновить задачу</button>';
     return "";
   }
 
