@@ -9,14 +9,14 @@ Role = Literal["client", "technician", "admin"]
 
 @dataclass(frozen=True)
 class TelegramIdentity:
-    user_id: int
+    telegram_user_id: int
     display_name: str
     username: str | None
 
 
 @dataclass(frozen=True)
 class Actor:
-    user_id: int
+    telegram_user_id: int
     display_name: str
     role: Role
     active: bool = True

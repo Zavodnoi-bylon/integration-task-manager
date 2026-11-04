@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Generic, Literal, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .models import Role
+
+
+class StrictOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ActorPublic(StrictOutput):
+    display_name: str = Field(min_length=1, max_length=128)
+    role: Role
+
+
+class PublicConversationMessage(StrictOutput):
+    message_id: int = Field(gt=0)
+    visibility: Literal["public"]
+    body: str
+    sent_at: datetime
+    actor: ActorPublic
+
+
+class InternalConversationMessage(StrictOutput):
+    message_id: int = Field(gt=0)
+    visibility: Literal["internal"]
+    body: str
+    sent_at: datetime
+    actor: ActorPublic
+
+
+class TicketSummary(StrictOutput):
+    ticket_id: int = Field(gt=0)
+    profile_name: str = Field(min_length=1, max_length=128)
+    status: Literal["open", "completed"]
+    ticket_type: Literal["general", "destination"]
+    title: str = Field(min_length=1, max_length=256)
+    description_preview: str = Field(max_length=512)
+    created_at: datetime
+    updated_at: datetime
+    closed_at: datetime | None = None
+
+
+class ClientTicketDetail(TicketSummary):
+    description: str
+    conversation: list[PublicConversationMessage]
+
+
+class StaffTicketDetail(ClientTicketDetail):
+    internal_history: list[InternalConversationMessage]
+
+
+class AdvertiserSummary(StrictOutput):
+    key: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=256)
+
+
+class PostbackSummary(StrictOutput):
+    key: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=256)
+
+
+class PostbackDetail(PostbackSummary):
+    template: str = Field(min_length=1, max_length=16_384)
+
+
+ItemT = TypeVar("ItemT")
+
+
+class Page(StrictOutput, Generic[ItemT]):
+    items: list[ItemT]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    has_next: bool

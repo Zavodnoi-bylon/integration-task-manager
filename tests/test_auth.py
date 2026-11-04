@@ -35,7 +35,7 @@ class InitDataTests(unittest.TestCase):
         result = verify_init_data(
             signed_init_data(), bot_token=TOKEN, max_age_seconds=300
         )
-        self.assertEqual(result.identity.user_id, 42)
+        self.assertEqual(result.identity.telegram_user_id, 42)
         self.assertEqual(result.identity.display_name, "Test")
 
     def test_rejects_tampered_payload(self) -> None:

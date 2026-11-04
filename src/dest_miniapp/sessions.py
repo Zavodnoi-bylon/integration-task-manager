@@ -6,14 +6,14 @@ import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 @dataclass(frozen=True)
 class SessionRecord:
     session_hash: str
     csrf_hash: str
-    user_id: int
+    telegram_user_id: int
     profile_key: str
     expires_at: datetime
 
@@ -26,7 +26,7 @@ class IssuedSession:
 
 
 class SessionStore(Protocol):
-    async def rotate(self, *, user_id: int, profile_key: str,
+    async def rotate(self, *, telegram_user_id: int, profile_key: str,
                      ttl_seconds: int) -> IssuedSession: ...
 
     async def get(self, session_id: str) -> SessionRecord | None: ...
@@ -47,26 +47,27 @@ def csrf_matches(record: SessionRecord, candidate: str | None) -> bool:
 class MemorySessionStore:
     """Test/development store. Production must inject a shared store."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
         self._records: dict[str, SessionRecord] = {}
         self._user_sessions: dict[tuple[str, int], str] = {}
         self._lock = asyncio.Lock()
+        self._clock = clock or (lambda: datetime.now(UTC))
 
-    async def rotate(self, *, user_id: int, profile_key: str,
+    async def rotate(self, *, telegram_user_id: int, profile_key: str,
                      ttl_seconds: int) -> IssuedSession:
         async with self._lock:
-            identity = (profile_key, user_id)
+            identity = (profile_key, telegram_user_id)
             previous_hash = self._user_sessions.pop(identity, None)
             if previous_hash:
                 self._records.pop(previous_hash, None)
             session_id = secrets.token_urlsafe(48)
             csrf_token = secrets.token_urlsafe(32)
             session_hash = token_hash(session_id)
-            expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+            expires_at = self._clock() + timedelta(seconds=ttl_seconds)
             self._records[session_hash] = SessionRecord(
                 session_hash=session_hash,
                 csrf_hash=token_hash(csrf_token),
-                user_id=user_id,
+                telegram_user_id=telegram_user_id,
                 profile_key=profile_key,
                 expires_at=expires_at,
             )
@@ -79,9 +80,11 @@ class MemorySessionStore:
             record = self._records.get(session_hash)
             if record is None:
                 return None
-            if record.expires_at <= datetime.now(UTC):
+            if record.expires_at <= self._clock():
                 self._records.pop(session_hash, None)
-                self._user_sessions.pop((record.profile_key, record.user_id), None)
+                self._user_sessions.pop(
+                    (record.profile_key, record.telegram_user_id), None
+                )
                 return None
             return record
 
@@ -90,4 +93,6 @@ class MemorySessionStore:
         async with self._lock:
             record = self._records.pop(session_hash, None)
             if record:
-                self._user_sessions.pop((record.profile_key, record.user_id), None)
+                self._user_sessions.pop(
+                    (record.profile_key, record.telegram_user_id), None
+                )

@@ -55,10 +55,10 @@ def verify_init_data(init_data: str, *, bot_token: str, max_age_seconds: int,
         raise InitDataError("stale initData")
     try:
         raw_user = json.loads(fields["user"])
-        user_id = int(raw_user["id"])
+        telegram_user_id = int(raw_user["id"])
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise InitDataError("invalid Telegram user") from exc
-    if user_id <= 0:
+    if telegram_user_id <= 0:
         raise InitDataError("invalid Telegram user")
     first_name = str(raw_user.get("first_name") or "").strip()
     last_name = str(raw_user.get("last_name") or "").strip()
@@ -69,7 +69,7 @@ def verify_init_data(init_data: str, *, bot_token: str, max_age_seconds: int,
         display_name = f"@{username}" if username else "Telegram user"
     return VerifiedInitData(
         identity=TelegramIdentity(
-            user_id=user_id,
+            telegram_user_id=telegram_user_id,
             display_name=display_name[:128],
             username=username[:64] if username else None,
         ),

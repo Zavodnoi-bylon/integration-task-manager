@@ -31,4 +31,6 @@ Production composition root обязан передать общее persistent 
 
 Проверка:
 
-    python -m unittest discover -s tests -v
+    python -m venv .venv
+    .venv\Scripts\python -m pip install -e ".[test]"
+    .venv\Scripts\python -m unittest discover -s tests -v

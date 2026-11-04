@@ -55,6 +55,7 @@ Page содержит:
 TicketSummary содержит ticket_id, profile display name, status, ticket type,
 title/description preview, created_at, updated_at и closed_at. Он не содержит
 requester Telegram ID, internal user ID или backend metadata.
+ticket_id — положительный bigint canonical ticket, не строковый transport ID.
 
 Actor содержит display_name и role без Telegram/internal ID.
 
@@ -82,6 +83,11 @@ Response: Page<TicketSummary>, status 200.
 
 Client получает только собственный ticket и public history. Staff получает ticket
 текущего profile с internal history.
+
+Для client существующий чужой ticket, ticket другого profile и отсутствующий
+ticket неразличимы: одинаковые status 404 и response body. Adapter обязан
+преобразовать object-level denial в ResourceNotFound; transport дополнительно
+нормализует AccessDenied на этом endpoint в 404.
 
 Response: ClientTicketDetail либо StaffTicketDetail, status 200.
 

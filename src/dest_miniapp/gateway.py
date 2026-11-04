@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
+from .dto import (
+    AdvertiserSummary,
+    ClientTicketDetail,
+    Page,
+    PostbackDetail,
+    PostbackSummary,
+    StaffTicketDetail,
+    TicketSummary,
+)
 from .models import Actor, TelegramIdentity
 
 
@@ -45,24 +54,28 @@ class MiniAppGateway(Protocol):
         self, *, profile_key: str, identity: TelegramIdentity
     ) -> Actor: ...
 
-    async def resolve_actor(self, *, profile_key: str, user_id: int) -> Actor | None: ...
+    async def resolve_actor(
+        self, *, profile_key: str, telegram_user_id: int
+    ) -> Actor | None: ...
 
     async def list_tickets(
         self, *, profile_key: str, actor: Actor, query: TicketQuery
-    ) -> dict[str, Any]: ...
+    ) -> Page[TicketSummary]: ...
 
-    async def get_ticket(
-        self, *, profile_key: str, actor: Actor, ticket_id: str
-    ) -> dict[str, Any]: ...
+    async def get_ticket_view(
+        self, *, profile_key: str, actor: Actor, ticket_id: int
+    ) -> ClientTicketDetail | StaffTicketDetail:
+        """Return a visible view; absent/foreign/cross-profile all raise ResourceNotFound."""
+        ...
 
     async def list_advertisers(
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
-    ) -> dict[str, Any]: ...
+    ) -> Page[AdvertiserSummary]: ...
 
     async def list_postbacks(
         self, *, profile_key: str, actor: Actor
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[PostbackSummary]: ...
 
     async def get_postback(
         self, *, profile_key: str, actor: Actor, key: str
-    ) -> dict[str, Any]: ...
+    ) -> PostbackDetail: ...

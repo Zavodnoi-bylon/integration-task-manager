@@ -5,9 +5,18 @@ from typing import Annotated
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from .auth import InitDataError, verify_init_data
+from .dto import (
+    AdvertiserSummary,
+    ClientTicketDetail,
+    Page,
+    PostbackDetail,
+    PostbackSummary,
+    StaffTicketDetail,
+    TicketSummary,
+)
 from .gateway import (
     AccessDenied,
     AdvertiserQuery,
@@ -63,7 +72,8 @@ def create_app(
         if record is None or record.profile_key != settings.profile_key:
             raise HTTPException(status_code=401, detail="session expired")
         actor = await gateway.resolve_actor(
-            profile_key=settings.profile_key, user_id=record.user_id
+            profile_key=settings.profile_key,
+            telegram_user_id=record.telegram_user_id,
         )
         if actor is None or not actor.active:
             await sessions.invalidate(session_id)
@@ -100,7 +110,7 @@ def create_app(
         if not actor.active:
             raise HTTPException(status_code=403, detail="membership inactive")
         issued = await sessions.rotate(
-            user_id=actor.user_id,
+            telegram_user_id=actor.telegram_user_id,
             profile_key=settings.profile_key,
             ttl_seconds=settings.session_ttl_seconds,
         )
@@ -162,19 +172,25 @@ def create_app(
     ):
         if scope == "team" and not auth.actor.is_staff:
             raise HTTPException(status_code=403, detail="team scope forbidden")
-        return await gateway.list_tickets(
+        result = await gateway.list_tickets(
             profile_key=settings.profile_key,
             actor=auth.actor,
             query=TicketQuery(scope=scope, status=status, page=page, page_size=page_size),  # type: ignore[arg-type]
         )
+        return _validate_output(Page[TicketSummary], result)
 
     @app.get("/api/tickets/{ticket_id}")
-    async def ticket(ticket_id: str, auth: Authenticated = Depends(authenticated)):
-        if not ticket_id or len(ticket_id) > 64:
+    async def ticket(ticket_id: int, auth: Authenticated = Depends(authenticated)):
+        if ticket_id <= 0:
             raise HTTPException(status_code=404, detail="resource not found")
-        return await gateway.get_ticket(
-            profile_key=settings.profile_key, actor=auth.actor, ticket_id=ticket_id
-        )
+        try:
+            result = await gateway.get_ticket_view(
+                profile_key=settings.profile_key, actor=auth.actor, ticket_id=ticket_id
+            )
+        except AccessDenied as exc:
+            raise ResourceNotFound from exc
+        detail_type = StaffTicketDetail if auth.actor.is_staff else ClientTicketDetail
+        return _validate_output(detail_type, result)
 
     @app.get("/api/advertisers")
     async def advertisers(
@@ -188,25 +204,28 @@ def create_app(
             raise HTTPException(status_code=422, detail="q is required for search")
         if mode != "search" and q is not None:
             raise HTTPException(status_code=422, detail="q is only valid for search")
-        return await gateway.list_advertisers(
+        result = await gateway.list_advertisers(
             profile_key=settings.profile_key,
             actor=auth.actor,
             query=AdvertiserQuery(mode=mode, query=q, page=page, page_size=page_size),  # type: ignore[arg-type]
         )
+        return _validate_output(Page[AdvertiserSummary], result)
 
     @app.get("/api/postbacks")
     async def postbacks(auth: Authenticated = Depends(authenticated)):
-        return await gateway.list_postbacks(
+        result = await gateway.list_postbacks(
             profile_key=settings.profile_key, actor=auth.actor
         )
+        return _validate_output(TypeAdapter(list[PostbackSummary]), result)
 
     @app.get("/api/postbacks/{key}")
     async def postback(key: str, auth: Authenticated = Depends(authenticated)):
         if not key or len(key) > 128 or "/" in key or "\\" in key or ".." in key:
             raise HTTPException(status_code=404, detail="resource not found")
-        return await gateway.get_postback(
+        result = await gateway.get_postback(
             profile_key=settings.profile_key, actor=auth.actor, key=key
         )
+        return _validate_output(PostbackDetail, result)
 
     return app
 
@@ -215,3 +234,12 @@ def _error_response(status_code: int, detail: str):
     from fastapi.responses import JSONResponse
 
     return JSONResponse(status_code=status_code, content={"detail": detail})
+
+
+def _validate_output(model, value):  # type: ignore[no-untyped-def]
+    try:
+        if isinstance(model, TypeAdapter):
+            return model.validate_python(value)
+        return model.model_validate(value)
+    except ValidationError as exc:
+        raise BackendUnavailable("invalid canonical gateway output") from exc

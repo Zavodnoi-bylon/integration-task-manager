@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi.testclient import TestClient
 
 from dest_miniapp.api import create_app
-from dest_miniapp.gateway import AdvertiserQuery, ResourceNotFound, TicketQuery
+from dest_miniapp.gateway import (
+    AccessDenied,
+    AdvertiserQuery,
+    ResourceNotFound,
+    TicketQuery,
+)
 from dest_miniapp.models import Actor, TelegramIdentity
 from dest_miniapp.sessions import MemorySessionStore
 from dest_miniapp.settings import Settings
@@ -19,6 +26,9 @@ class FakeGateway:
         self.active = active
         self.profiles_seen: list[str] = []
         self.users: dict[int, Actor] = {}
+        self.leak_ticket = False
+        self.leak_advertiser = False
+        self.leak_postback = False
 
     def _actor(self, user_id: int, display_name: str = "Test") -> Actor:
         return Actor(user_id, display_name, self.role, self.active)  # type: ignore[arg-type]
@@ -27,13 +37,15 @@ class FakeGateway:
         self, *, profile_key: str, identity: TelegramIdentity
     ) -> Actor:
         self.profiles_seen.append(profile_key)
-        actor = self._actor(identity.user_id, identity.display_name)
-        self.users[identity.user_id] = actor
+        actor = self._actor(identity.telegram_user_id, identity.display_name)
+        self.users[identity.telegram_user_id] = actor
         return actor
 
-    async def resolve_actor(self, *, profile_key: str, user_id: int) -> Actor | None:
+    async def resolve_actor(
+        self, *, profile_key: str, telegram_user_id: int
+    ) -> Actor | None:
         self.profiles_seen.append(profile_key)
-        return self.users.get(user_id)
+        return self.users.get(telegram_user_id)
 
     async def list_tickets(
         self, *, profile_key: str, actor: Actor, query: TicketQuery
@@ -42,19 +54,34 @@ class FakeGateway:
         return {"items": [], "total": 0, "page": query.page,
                 "page_size": query.page_size, "has_next": False}
 
-    async def get_ticket(
-        self, *, profile_key: str, actor: Actor, ticket_id: str
+    async def get_ticket_view(
+        self, *, profile_key: str, actor: Actor, ticket_id: int
     ) -> dict[str, Any]:
         self.profiles_seen.append(profile_key)
-        if ticket_id == "foreign":
+        if ticket_id == 404:
             raise ResourceNotFound
-        return {"ticket_id": ticket_id, "conversation": []}
+        if ticket_id == 403:
+            raise AccessDenied
+        if ticket_id == 405:
+            raise ResourceNotFound
+        result = ticket_detail(ticket_id)
+        if self.leak_ticket:
+            result["internal_note"] = "must never cross boundary"
+            result["telegram_user_id"] = 999
+            result["backend_metadata"] = {"secret": True}
+        if actor.is_staff:
+            result["internal_history"] = []
+        return result
 
     async def list_advertisers(
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
     ) -> dict[str, Any]:
         self.profiles_seen.append(profile_key)
-        return {"items": [{"key": profile_key, "name": "Profile advertiser"}],
+        item = {"key": profile_key, "name": "Profile advertiser"}
+        if self.leak_advertiser:
+            item["suffix"] = "backend-only"
+            item["technician_note"] = "backend-only"
+        return {"items": [item],
                 "total": 1, "page": 1, "page_size": query.page_size,
                 "has_next": False}
 
@@ -62,16 +89,37 @@ class FakeGateway:
         self, *, profile_key: str, actor: Actor
     ) -> list[dict[str, Any]]:
         self.profiles_seen.append(profile_key)
-        return [{"key": profile_key, "name": "Template"}]
+        item = {"key": profile_key, "name": "Template"}
+        if self.leak_postback:
+            item["file_path"] = "backend-only"
+        return [item]
 
     async def get_postback(
         self, *, profile_key: str, actor: Actor, key: str
     ) -> dict[str, Any]:
         self.profiles_seen.append(profile_key)
-        return {"key": key, "template": "https://example.invalid"}
+        return {"key": key, "name": "Template",
+                "template": "https://example.invalid"}
 
 
-def make_client(*, role: str = "client", active: bool = True):
+def ticket_detail(ticket_id: int) -> dict[str, Any]:
+    now = "2026-11-04T12:00:00Z"
+    return {
+        "ticket_id": ticket_id,
+        "profile_name": "Kalisto",
+        "status": "open",
+        "ticket_type": "general",
+        "title": "Test ticket",
+        "description_preview": "Preview",
+        "description": "Description",
+        "created_at": now,
+        "updated_at": now,
+        "closed_at": None,
+        "conversation": [],
+    }
+
+
+def make_client(*, role: str = "client", active: bool = True, clock=None):
     gateway = FakeGateway(role=role, active=active)
     settings = Settings(
         bot_token=TOKEN,
@@ -80,9 +128,9 @@ def make_client(*, role: str = "client", active: bool = True):
         allowed_origin="https://miniapp.example",
         session_cookie_name="kalisto_session",
     )
-    app = create_app(
-        settings=settings, gateway=gateway, sessions=MemorySessionStore()
-    )
+    store = MemorySessionStore(clock=clock)
+    gateway.session_store = store
+    app = create_app(settings=settings, gateway=gateway, sessions=store)
     return TestClient(app, base_url="https://testserver"), gateway
 
 
@@ -111,6 +159,31 @@ class ApiTests(unittest.TestCase):
         client, _ = make_client()
         self.assertEqual(login(client, origin="https://evil.example").status_code, 403)
 
+    def test_login_rejects_init_data_from_other_bot(self) -> None:
+        client, _ = make_client()
+        response = client.post(
+            "/api/session",
+            json={"init_data": signed_init_data(token="other-token")},
+            headers={"Origin": "https://miniapp.example"},
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_repeated_login_invalidates_previous_session(self) -> None:
+        client, gateway = make_client()
+        first = login(client)
+        old_session = first.cookies.get("kalisto_session")
+        self.assertIsNotNone(old_session)
+        self.assertEqual(login(client).status_code, 201)
+        old_record = asyncio.run(gateway.session_store.get(old_session))
+        self.assertIsNone(old_record)
+
+    def test_expired_session_is_rejected(self) -> None:
+        now = [datetime(2026, 11, 4, 12, 0, tzinfo=UTC)]
+        client, _ = make_client(clock=lambda: now[0])
+        self.assertEqual(login(client).status_code, 201)
+        now[0] += timedelta(seconds=43_201)
+        self.assertEqual(client.get("/api/me").status_code, 401)
+
     def test_session_rechecks_inactive_membership(self) -> None:
         client, gateway = make_client()
         self.assertEqual(login(client).status_code, 201)
@@ -128,12 +201,35 @@ class ApiTests(unittest.TestCase):
         login(client)
         self.assertEqual(client.get("/api/tickets?scope=team").status_code, 200)
 
+    def test_role_downgrade_is_applied_to_live_session(self) -> None:
+        client, gateway = make_client(role="technician")
+        login(client)
+        self.assertEqual(client.get("/api/tickets?scope=team").status_code, 200)
+        gateway.users[42] = Actor(42, "Test", "client", True)
+        self.assertEqual(client.get("/api/tickets?scope=team").status_code, 403)
+
     def test_foreign_ticket_is_not_disclosed(self) -> None:
         client, _ = make_client()
         login(client)
-        response = client.get("/api/tickets/foreign")
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "resource not found"})
+        responses = [
+            client.get("/api/tickets/403"),
+            client.get("/api/tickets/405"),
+            client.get("/api/tickets/404"),
+        ]
+        self.assertEqual({response.status_code for response in responses}, {404})
+        self.assertEqual(
+            {response.text for response in responses},
+            {'{"detail":"resource not found"}'},
+        )
+
+    def test_client_ticket_projection_fails_closed(self) -> None:
+        client, gateway = make_client()
+        login(client)
+        gateway.leak_ticket = True
+        response = client.get("/api/tickets/1")
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("internal_note", response.text)
+        self.assertNotIn("telegram_user_id", response.text)
 
     def test_profile_is_only_taken_from_server_settings(self) -> None:
         client, gateway = make_client()
@@ -141,7 +237,23 @@ class ApiTests(unittest.TestCase):
         response = client.get("/api/advertisers?mode=popular&profile=mephisto")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"][0]["key"], "kalisto")
+        self.assertEqual(client.get("/api/tickets").status_code, 200)
+        self.assertEqual(client.get("/api/tickets/1").status_code, 200)
+        self.assertEqual(client.get("/api/postbacks").status_code, 200)
+        self.assertEqual(client.get("/api/postbacks/kalisto").status_code, 200)
         self.assertEqual(set(gateway.profiles_seen), {"kalisto"})
+
+    def test_catalog_projections_reject_backend_only_fields(self) -> None:
+        client, gateway = make_client()
+        login(client)
+        gateway.leak_advertiser = True
+        advertiser_response = client.get("/api/advertisers?mode=popular")
+        self.assertEqual(advertiser_response.status_code, 503)
+        self.assertNotIn("suffix", advertiser_response.text)
+        gateway.leak_postback = True
+        postback_response = client.get("/api/postbacks")
+        self.assertEqual(postback_response.status_code, 503)
+        self.assertNotIn("file_path", postback_response.text)
 
     def test_postback_path_traversal_is_rejected(self) -> None:
         client, _ = make_client()
@@ -152,6 +264,12 @@ class ApiTests(unittest.TestCase):
         client, _ = make_client()
         csrf = login(client).json()["csrf_token"]
         self.assertEqual(client.delete("/api/session").status_code, 403)
+        self.assertEqual(
+            client.delete(
+                "/api/session", headers={"X-CSRF-Token": "wrong-token"}
+            ).status_code,
+            403,
+        )
         self.assertEqual(
             client.delete("/api/session", headers={"X-CSRF-Token": csrf}).status_code,
             204,
