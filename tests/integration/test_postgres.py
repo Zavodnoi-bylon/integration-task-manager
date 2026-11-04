@@ -109,12 +109,19 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         await self.db.close()
 
     async def test_concurrent_destination_create_is_single_flight_and_atomic(self):
+        async with self.db.pool.connection() as connection:
+            await connection.execute(
+                "SELECT ticketing.register_member(%s,%s,NULL,%s,%s,now())",
+                ("kalisto", 150, "Earlier admin", "admin"),
+            )
         reservations = PostgresIdempotencyReservations(
             self.db, lease_seconds=10, poll_seconds=0.01
         )
         formatter = Formatter()
         workflow = TicketWorkflow(
-            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ), advertisers=Catalog(),
             destination_formatter=formatter,
             idempotency_reservations=reservations,
         )
@@ -140,7 +147,15 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                   (SELECT count(*) FROM ticketing.miniapp_idempotency
                    WHERE state='completed') completed"""
             )).fetchone()
-        self.assertEqual(tuple(counts.values()), (1, 2, 3, 1, 1))
+            technical_note = await (await connection.execute(
+                """SELECT u.telegram_user_id,m.body
+                   FROM ticketing.ticket_messages m
+                   JOIN ticketing.telegram_users u ON u.user_id=m.author_user_id
+                   WHERE m.visibility='internal'"""
+            )).fetchone()
+        self.assertEqual(tuple(counts.values()), (1, 2, 3, 2, 1))
+        self.assertEqual(technical_note["telegram_user_id"], 200)
+        self.assertTrue(technical_note["body"].startswith("Техническая пометка:"))
 
     async def test_runtime_uses_limited_writer_role(self):
         async with self.db.pool.connection() as connection:
@@ -183,7 +198,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_gateway_hides_internal_history_and_foreign_client_ticket(self):
         reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
         workflow = TicketWorkflow(
-            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ), advertisers=Catalog(),
             destination_formatter=Formatter(),
             idempotency_reservations=reservations,
         )
@@ -233,7 +250,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         lease = await asyncio.wait_for(
             reservations.acquire(scope=scope, payload_hash="a" * 64), 5
         )
-        uow = PostgresTicketMutationUow(self.db)
+        uow = PostgresTicketMutationUow(
+            self.db, technical_actor_telegram_id=200
+        )
         result = await asyncio.wait_for(uow.create_ticket(
             MutationContext("kalisto", Actor(100, "Client", "client")),
             PreparedTicketAggregate("general", "body", None, None),
@@ -266,7 +285,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_review_reminder_is_skipped_after_return(self):
         reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
         workflow = TicketWorkflow(
-            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ), advertisers=Catalog(),
             destination_formatter=Formatter(),
             idempotency_reservations=reservations,
         )
@@ -298,7 +319,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_accept_timestamp_is_cleared_and_replaced_after_reopen(self):
         reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
         workflow = TicketWorkflow(
-            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ), advertisers=Catalog(),
             destination_formatter=Formatter(),
             idempotency_reservations=reservations,
         )
@@ -349,7 +372,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_outbox_failure_retries_without_duplicate_delivery(self):
         reservations = PostgresIdempotencyReservations(self.db, lease_seconds=10)
         workflow = TicketWorkflow(
-            PostgresTicketMutationUow(self.db), advertisers=Catalog(),
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ), advertisers=Catalog(),
             destination_formatter=Formatter(),
             idempotency_reservations=reservations,
         )

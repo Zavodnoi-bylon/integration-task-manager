@@ -43,6 +43,7 @@ def build_postgres_runtime(
     postback_service: Any,
     admin_ids: frozenset[int],
     technician_ids: frozenset[int],
+    technical_actor_telegram_id: int,
 ) -> MiniAppRuntime:
     database = PostgresDatabase(database_url)
     catalog_adapter = CanonicalAdvertiserCatalogAdapter(
@@ -58,7 +59,10 @@ def build_postgres_runtime(
         technician_ids=technician_ids,
     )
     workflow = TicketWorkflow(
-        PostgresTicketMutationUow(database),
+        PostgresTicketMutationUow(
+            database,
+            technical_actor_telegram_id=technical_actor_telegram_id,
+        ),
         advertisers=catalog_adapter,
         destination_formatter=CanonicalDestinationFormatterAdapter(
             destination_service

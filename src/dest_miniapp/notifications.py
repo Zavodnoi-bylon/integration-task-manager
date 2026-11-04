@@ -63,15 +63,15 @@ def render_notification(
     ticket_id = int(payload["ticket_id"])
     reason = str(payload.get("public_reason") or "").strip()
     base = {
-        NotificationKind.STAFF_TICKET_OPENED: f"🆕 Открыт тикет #{ticket_id}",
-        NotificationKind.AUTHOR_PUBLIC_MESSAGE: f"💬 Новое сообщение в тикете #{ticket_id}",
-        NotificationKind.STAFF_PUBLIC_MESSAGE: f"💬 Клиент ответил в тикете #{ticket_id}",
-        NotificationKind.AUTHOR_REVIEW_REQUESTED: f"🔎 Тикет #{ticket_id} ждёт вашей проверки",
-        NotificationKind.AUTHOR_REVIEW_REMINDER: f"⏰ Напоминание: проверьте тикет #{ticket_id}",
-        NotificationKind.STAFF_TICKET_ACCEPTED: f"✅ Клиент принял тикет #{ticket_id}",
-        NotificationKind.STAFF_TICKET_RETURNED: f"↩️ Тикет #{ticket_id} вернут на доработку",
-        NotificationKind.AUTHOR_DESTINATION_COMPLETED: f"✅ Destination #{ticket_id} завершён",
-        NotificationKind.STAFF_TICKET_REOPENED: f"🔄 Тикет #{ticket_id} возобновлён",
+        NotificationKind.STAFF_TICKET_OPENED: f"Открыт тикет #{ticket_id}",
+        NotificationKind.AUTHOR_PUBLIC_MESSAGE: f"Новое сообщение в тикете #{ticket_id}",
+        NotificationKind.STAFF_PUBLIC_MESSAGE: f"Клиент ответил в тикете #{ticket_id}",
+        NotificationKind.AUTHOR_REVIEW_REQUESTED: f"Тикет #{ticket_id} ждёт вашей проверки",
+        NotificationKind.AUTHOR_REVIEW_REMINDER: f"Напоминание: проверьте тикет #{ticket_id}",
+        NotificationKind.STAFF_TICKET_ACCEPTED: f"Клиент принял тикет #{ticket_id}",
+        NotificationKind.STAFF_TICKET_RETURNED: f"Тикет #{ticket_id} вернут на доработку",
+        NotificationKind.AUTHOR_DESTINATION_COMPLETED: f"Destination #{ticket_id} завершён",
+        NotificationKind.STAFF_TICKET_REOPENED: f"Тикет #{ticket_id} возобновлён",
     }[kind]
     if reason and kind in {
         NotificationKind.AUTHOR_PUBLIC_MESSAGE,

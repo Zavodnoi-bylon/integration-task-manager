@@ -30,8 +30,14 @@ from .use_cases import (
 
 
 class PostgresTicketMutationUow(TicketMutationUnitOfWork):
-    def __init__(self, database: PostgresDatabase) -> None:
+    def __init__(
+        self,
+        database: PostgresDatabase,
+        *,
+        technical_actor_telegram_id: int,
+    ) -> None:
         self._database = database
+        self._technical_actor_telegram_id = technical_actor_telegram_id
 
     async def create_ticket(
         self,
@@ -94,13 +100,15 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                         {"message_id": message_id}, message_id=message_id,
                     )
                 if aggregate.internal_note:
-                    staff_id, staff_role = await _first_staff(
-                        connection, context.profile_key
+                    staff_id, staff_role = await _technical_staff(
+                        connection,
+                        context.profile_key,
+                        self._technical_actor_telegram_id,
                     )
                     message_id = await _insert_message(
                         connection, ticket_id, context.profile_key, staff_id,
                         staff_role, "internal",
-                        f"Системная пометка: {aggregate.internal_note}",
+                        f"Техническая пометка: {aggregate.internal_note}",
                         f"{idempotency.namespace}:internal", now,
                     )
                     await _insert_event(
@@ -291,16 +299,19 @@ async def _visible_ticket(connection, profile_key, actor_id, actor, ticket_id):
     )
 
 
-async def _first_staff(connection, profile_key: str) -> tuple[int, str]:
+async def _technical_staff(
+    connection, profile_key: str, telegram_user_id: int
+) -> tuple[int, str]:
     row = await (await connection.execute(
         """SELECT m.user_id,m.role FROM ticketing.memberships m
-           WHERE m.profile_key=%s AND m.active
+           JOIN ticketing.telegram_users u USING(user_id)
+           WHERE m.profile_key=%s AND u.telegram_user_id=%s AND m.active
              AND m.role IN ('admin','technician')
-           ORDER BY CASE m.role WHEN 'admin' THEN 0 ELSE 1 END,m.user_id LIMIT 1""",
-        (profile_key,),
+           LIMIT 1""",
+        (profile_key, telegram_user_id),
     )).fetchone()
     if row is None:
-        raise AccessDenied("profile has no active staff")
+        raise AccessDenied("configured technical actor is not active staff")
     return int(row["user_id"]), row["role"]
 
 

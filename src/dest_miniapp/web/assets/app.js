@@ -9,6 +9,9 @@
     status: "",
     currentTicket: null,
     page: "tickets",
+    advertiserPage: 1,
+    advertisers: [],
+    advertiserLoading: false,
   };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -77,6 +80,11 @@
     $("#advertiser-select").addEventListener("change", () => {
       $("#new-advertiser").classList.toggle("hidden", $("#advertiser-select").value !== "__new__");
     });
+    $("#advertiser-search").addEventListener("input", () => {
+      clearTimeout(state.advertiserSearchTimer);
+      state.advertiserSearchTimer = setTimeout(() => loadAdvertisers(true), 300);
+    });
+    $("#advertiser-more").addEventListener("click", () => loadAdvertisers(false));
     $("#create-form").addEventListener("submit", createTicket);
   }
 
@@ -121,7 +129,7 @@
       $("#page-subtitle").textContent = copy[page][1];
     }
     if (page === "tickets") loadTickets();
-    if (page === "create") loadAdvertisers();
+    if (page === "create") loadAdvertisers(true);
     if (page === "tools") loadPostbacks();
   }
 
@@ -256,12 +264,35 @@
     finally { button.disabled = false; }
   }
 
-  async function loadAdvertisers() {
+  async function loadAdvertisers(reset = true) {
+    if (state.advertiserLoading) return;
+    state.advertiserLoading = true;
     const select = $("#advertiser-select");
+    const more = $("#advertiser-more");
+    const query = $("#advertiser-search").value.trim();
+    if (reset) {
+      state.advertiserPage = 1;
+      state.advertisers = [];
+      select.innerHTML = '<option value="">Загрузка…</option>';
+    }
     try {
-      const data = await api("/api/advertisers?mode=popular&page_size=100");
-      select.innerHTML = '<option value="">Выбрать…</option>' + data.items.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + '<option value="__new__">+ Новый рекламодатель</option>';
-    } catch (error) { select.innerHTML = '<option value="__new__">Новый рекламодатель</option>'; }
+      const params = new URLSearchParams(query ? {
+        mode: "search", q: query, page_size: "100",
+      } : {
+        mode: "page", page: String(state.advertiserPage), page_size: "50",
+      });
+      const data = await api(`/api/advertisers?${params}`);
+      const known = new Set(state.advertisers.map((item) => item.key));
+      state.advertisers.push(...data.items.filter((item) => !known.has(item.key)));
+      select.innerHTML = '<option value="">Выбрать…</option>' + state.advertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + '<option value="__new__">+ Новый рекламодатель</option>';
+      more.classList.toggle("hidden", Boolean(query) || !data.has_next);
+      if (!query && data.has_next) state.advertiserPage += 1;
+    } catch (error) {
+      if (!state.advertisers.length) select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
+      more.classList.add("hidden");
+    } finally {
+      state.advertiserLoading = false;
+    }
   }
 
   async function loadPostbacks() {
@@ -287,7 +318,7 @@
   function toggleCreateType() {
     const destination = $("input[name='ticket-type']:checked").value === "destination";
     $("#destination-fields").classList.toggle("hidden", !destination);
-    if (destination) loadAdvertisers();
+    if (destination) loadAdvertisers(true);
   }
 
   function askReason(title) {

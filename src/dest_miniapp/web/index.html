@@ -12,7 +12,7 @@
 <body>
   <div class="shell">
     <header class="topbar">
-      <div class="brand-mark" aria-hidden="true">⚒</div>
+      <div class="brand-mark" aria-hidden="true">TM</div>
       <div class="brand-copy">
         <strong>Ticket Manager</strong>
         <span id="profile-name">Технический отдел</span>
@@ -66,7 +66,9 @@
             </div>
             <div class="hidden form-stack compact" id="destination-fields">
               <label class="field-label" for="advertiser-select">Рекламодатель</label>
+              <input id="advertiser-search" type="search" maxlength="128" placeholder="Поиск по названию">
               <select id="advertiser-select"><option value="">Загрузка…</option></select>
+              <button class="secondary-button hidden" type="button" id="advertiser-more">Показать ещё</button>
               <input class="hidden" id="new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
               <label class="field-label" for="cap-input">Cap</label>
               <input id="cap-input" type="number" min="1" max="1000000" inputmode="numeric" placeholder="25">
@@ -91,9 +93,9 @@
     </main>
 
     <nav class="bottom-nav hidden" id="bottom-nav">
-      <button class="active" data-page="tickets"><span>▤</span>Задачи</button>
+      <button class="active" data-page="tickets"><span>З</span>Задачи</button>
       <button data-page="create"><span>+</span>Создать</button>
-      <button data-page="tools"><span>⚙</span>Инструменты</button>
+      <button data-page="tools"><span>И</span>Инструменты</button>
     </nav>
   </div>
 

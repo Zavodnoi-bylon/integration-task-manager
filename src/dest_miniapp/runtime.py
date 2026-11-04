@@ -103,6 +103,7 @@ def create_application():
         postback_service=postbacks,
         admin_ids=admins,
         technician_ids=technicians,
+        technical_actor_telegram_id=int(_required("ADMIN_MESSAGE")),
     )
     @runtime.app.get("/healthz", include_in_schema=False)
     async def healthz():
