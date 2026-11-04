@@ -112,6 +112,7 @@
   function navigate(page) {
     state.page = page;
     state.currentTicket = null;
+    $("#bottom-nav").classList.remove("hidden");
     ["tickets", "create", "tools", "detail"].forEach((name) => {
       $(`#${name}-page`).classList.toggle("hidden", name !== page);
     });
