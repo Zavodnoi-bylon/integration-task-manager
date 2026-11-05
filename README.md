@@ -32,7 +32,23 @@ Production-источник данных — PostgreSQL `activity_trial`, схе
   Kalisto и Mephisto; URL-параметры хранятся только в backend-каталоге;
 - исходный оффер сохраняется первым публичным сообщением внутри тикета.
 
-## Архитектура
+## Монорепозиторий
+
+Корпоративный GitLab-проект содержит весь рабочий контур таск-менеджера:
+
+```text
+app/                     Telegram-боты Kalisto и Mephisto
+services/task-miniapp/   рабочий интерфейс клиентов и технарей
+services/reporting/      отчётность, аналитическая Mini App и backup-инфраструктура
+migrations/              общая PostgreSQL-схема ticketing/reporting
+deploy/                  production Compose и операции основного bot runtime
+```
+
+`aio-domain-monitor` является отдельным сервисом и намеренно не входит в этот
+репозиторий. Секретные env-файлы, дампы и пользовательские данные не копируются
+между сервисами и не хранятся в Git.
+
+## Архитектура Telegram-ботов
 
 ```text
 main.py                  точка входа
