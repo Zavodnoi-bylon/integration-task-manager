@@ -16,9 +16,11 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--bg); }
+html { max-width: 100%; overflow-x: hidden; background: var(--bg); }
 body {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   min-width: 320px;
   min-height: 100vh;
   overflow-x: hidden;
@@ -32,7 +34,7 @@ button, input, textarea, select { font: inherit; }
 button { color: inherit; }
 .hidden { display: none !important; }
 
-.shell { width: min(100%, 720px); min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
+.shell { width: min(100%, 720px); min-width: 0; max-width: 100%; min-height: 100vh; margin: 0 auto; padding-bottom: 96px; }
 .topbar {
   display: flex;
   align-items: center;
@@ -58,6 +60,7 @@ button { color: inherit; }
 .brand-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; }
 .brand-copy strong { font-size: 20px; letter-spacing: -.3px; }
 .brand-copy span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+#app, #workspace-view, #create-page, .panel { min-width: 0; max-width: 100%; }
 #workspace-view { padding: 28px 20px 8px; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 25px; }
 .eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 2.1px; text-transform: uppercase; }
@@ -167,9 +170,9 @@ button:disabled { opacity: .5; cursor: wait; }
 .section-head h2 { margin: 0; font-size: 18px; }
 .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .draft-count { min-width: 28px; padding: 4px 8px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); text-align: center; font-size: 12px; font-weight: 700; }
-.draft-list { display: grid; gap: 8px; margin-top: 14px; }
-.draft-card { width: 100%; padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; color: inherit; background: #101113; text-align: left; cursor: pointer; }
-.draft-card strong, .draft-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-list { display: grid; min-width: 0; max-width: 100%; gap: 8px; margin-top: 14px; }
+.draft-card { width: 100%; min-width: 0; max-width: 100%; padding: 13px 14px; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; color: inherit; background: #101113; text-align: left; cursor: pointer; }
+.draft-card strong, .draft-card span { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-card strong { font-size: 13px; }
 .draft-card span { margin-top: 4px; color: var(--muted); font-size: 11px; }
 .draft-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
