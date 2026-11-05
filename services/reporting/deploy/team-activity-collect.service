@@ -1,0 +1,33 @@
+[Unit]
+Description=Team Activity Explorer daily Telegram collection (two accounts)
+Wants=network-online.target
+After=network-online.target time-sync.target
+StartLimitIntervalSec=6h
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=teamactivity
+Group=teamactivity
+WorkingDirectory=/home/teamactivity/team-activity-ingest/current
+Environment=ACTIVITY_COLLECTOR_HOME=/home/teamactivity/team-activity-ingest
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/teamactivity/team-activity-ingest/.venv/bin/python /home/teamactivity/team-activity-ingest/current/daily.py
+UMask=0077
+TimeoutStartSec=45min
+Restart=on-failure
+RestartSec=15min
+Nice=10
+CPUQuota=50%
+MemoryMax=512M
+TasksMax=32
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/teamactivity/team-activity-ingest
+ReadOnlyPaths=/home/teamactivity/team-activity-ingest/current /home/teamactivity/team-activity-ingest/.venv
+RestrictSUIDSGID=yes
+StandardOutput=journal
+StandardError=journal

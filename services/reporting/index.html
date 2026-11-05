@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111722" />
+    <title>Работа команды · Integration Team</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Перейти к отчёту</a>
+    <div id="demo-banner" class="demo-banner" role="status" hidden>Демонстрационные данные — не отчёт отдела</div>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Команда интеграций — начало">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 20V12M11 20V6M17 20V10M23 20V3" /></svg></span>
+        <span>Команда интеграций<small>Операционная отчётность</small></span>
+      </a>
+      <nav class="header-nav" aria-label="Разделы отчёта">
+        <a class="nav-active" href="#main">Обзор</a>
+        <a href="#schedule-section">График смен</a>
+        <a href="#registry-section">Реестр задач</a>
+        <button id="open-proposals" class="nav-link" type="button">На проверке <span id="nav-proposal-count" class="count-pill">—</span></button>
+      </nav>
+      <button id="refresh" class="utility-button" type="button" aria-label="Обновить данные">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" /></svg>
+        <span>Обновить</span>
+      </button>
+    </header>
+
+    <main id="main">
+      <section class="page-heading" aria-labelledby="page-title">
+        <div><p class="eyebrow">Обзор отдела</p><h1 id="page-title">Работа команды</h1><p class="page-description">Поступившие задачи, подтверждённые результаты и открытые случаи.</p></div>
+        <div class="freshness"><span class="status-dot" aria-hidden="true"></span><span id="freshness-text">Подключаем источники…</span><small>Часовой пояс: Москва (UTC+3)</small></div>
+      </section>
+
+      <section id="layout-toolbar" hidden class="layout-toolbar" aria-label="Настройка расположения">
+        <button type="button" class="secondary layout-edit-button" data-layout-edit>Настроить расположение</button>
+        <div class="layout-actions" data-layout-actions hidden>
+          <strong>Настройка расположения</strong>
+          <button type="button" class="primary" data-layout-save>Сохранить</button>
+          <button type="button" class="secondary" data-layout-cancel>Отмена</button>
+          <button type="button" class="text-button" data-layout-reset>Исходный вид</button>
+        </div>
+        <p data-layout-help hidden>За заголовок — перемещение, за нижний угол — размер. Сохранённую раскладку увидят все пользователи.</p>
+        <span class="layout-status" data-layout-status role="status" aria-live="polite"></span>
+      </section>
+
+      <p id="access-status" class="access-status" role="status">Проверяем доступ…</p>
+      <div id="coverage-notice" class="coverage-notice" role="note" hidden></div>
+
+      <form id="filters" class="panel activity-filters" aria-label="Фильтры отчёта">
+        <div class="filter-period-row">
+          <div class="quick-periods" aria-label="Быстрый выбор периода">
+            <button type="button" data-period="today">Сегодня</button>
+            <button type="button" data-period="yesterday">Вчера</button>
+            <button type="button" data-period="7d">7 дней</button>
+            <button type="button" data-period="month">Этот месяц</button>
+          </div>
+          <div class="date-range"><label>С<input id="date-from" name="from" type="date" required /></label><span class="date-range-divider" aria-hidden="true">—</span><label>По<input id="date-to" name="to" type="date" required /></label></div>
+          <div class="bucket-control" role="group" aria-label="Шаг графика"><button type="button" data-bucket="day" aria-pressed="true">Дни</button><button type="button" data-bucket="week" aria-pressed="false">Недели</button></div>
+        </div>
+        <div class="filter-fields-row">
+          <label>Тип работы<select id="category" name="category"><option value="">Все типы</option></select></label>
+          <label>Клиент / рекламодатель<select id="client" name="client"><option value="">Все клиенты</option></select></label>
+          <label>Ответственный<select id="assignee" name="assignee"><option value="">Вся команда</option></select></label>
+          <label class="search-field">Поиск задачи<input id="search" name="q" type="search" placeholder="Название или ID задачи" autocomplete="off" /></label>
+          <button id="apply-filters" type="submit" class="primary">Применить</button>
+          <button id="reset-filters" type="button" class="text-button" aria-label="Сбросить фильтры">Сбросить</button>
+        </div>
+        <p id="filter-dirty" class="filter-dirty" hidden>Фильтры изменены. Нажмите «Применить», чтобы обновить отчёт.</p>
+      </form>
+
+      <div class="report-heading"><h2 id="report-period">Загрузка отчёта</h2><span id="report-status" class="status" role="status" aria-live="polite"></span></div>
+      <div id="report-error" class="error-panel" role="alert" hidden></div>
+      <div id="report-empty" class="empty-panel" hidden></div>
+      <div id="dashboard-layout" hidden class="dashboard-layout">
+      <div class="layout-widget" data-layout-id="metrics"><div class="layout-widget-body"><section id="kpis" class="activity-kpis" aria-label="Основные показатели"></section></div></div>
+
+      <div class="layout-widget" data-layout-id="flow"><div class="layout-widget-body"><article class="panel chart-panel">
+          <div class="chart-heading"><div><h2>Поток задач</h2><p>Поступило и подтверждённо завершено</p></div><span id="flow-bucket-label" class="quiet-chip">По дням</span></div>
+          <div class="chart-legend"><span><i class="legend-dot incoming"></i>Поступило</span><span><i class="legend-dot completed"></i>Завершено</span></div>
+          <div id="flow-chart" class="chart-container" aria-busy="true"><div class="chart-placeholder">Загрузка данных…</div></div>
+          <p class="chart-footnote">Нажмите столбец, чтобы открыть задачи за этот период. Повторное завершение сохраняет ID задачи.</p>
+        </article></div></div>
+      <div class="layout-widget" data-layout-id="backlog"><div class="layout-widget-body"><article class="panel chart-panel">
+          <div class="chart-heading"><div><h2>Известно открытых</h2><p>Состояние на конец каждого периода</p></div><span class="quiet-chip">Остаток</span></div>
+          <div class="chart-legend"><span><i class="legend-dot backlog"></i>Открытые случаи</span></div>
+          <div id="backlog-chart" class="chart-container" aria-busy="true"><div class="chart-placeholder">Загрузка данных…</div></div>
+          <p class="chart-footnote">Включает задачи, начатые раньше выбранного периода. Охват ограничен загруженными источниками.</p>
+        </article></div></div>
+
+      <div class="layout-widget" data-layout-id="categories"><div class="layout-widget-body"><section id="category-section" class="category-section" aria-labelledby="category-title"><div class="section-heading"><h2 id="category-title">Структура работы</h2><span>Случаи в выбранном срезе</span></div><div id="category-breakdown" class="category-breakdown"></div></section></div></div>
+
+      <div class="layout-widget" data-layout-id="registry"><div class="layout-widget-body"><section id="registry-section" class="panel registry-section" aria-labelledby="registry-title">
+        <div class="registry-heading">
+          <div class="registry-tabs" role="tablist" aria-label="Рабочие записи">
+            <button id="registry-tab" class="registry-tab active" type="button" role="tab" aria-selected="true" aria-controls="registry-view"><span id="registry-title">Реестр задач</span><span id="task-count" class="count-pill">—</span></button>
+            <button id="proposals-tab" class="registry-tab" type="button" role="tab" aria-selected="false" aria-controls="proposals-view" tabindex="-1">Предложения <span id="proposal-count" class="count-pill">—</span></button>
+          </div>
+          <button id="export-tasks" class="secondary export-button" type="button" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-3-3 3 3 3-3M4 13v4h12v-4" /></svg>Скачать CSV</button>
+        </div>
+        <div id="registry-view" role="tabpanel" aria-labelledby="registry-tab">
+          <div class="registry-toolbar"><div id="drilldown-label" class="drilldown-label">Все задачи выбранного периода</div><button id="clear-drilldown" class="text-button" type="button" hidden>Убрать срез</button><label class="registry-status-label">Статус<select id="task-status"><option value="all">Все статусы</option><option value="open">Открытые</option><option value="waiting">Ожидают</option><option value="completed">Завершённые</option></select></label></div>
+          <p id="registry-note" class="registry-note">Ответственный указан только при наличии подтверждения. Задачи без имени входят в общую нагрузку отдела.</p>
+          <div id="registry-table" class="registry-table-wrap" aria-live="polite"><div class="table-empty">Загрузка задач…</div></div>
+          <div class="pagination"><span id="pagination-label">—</span><div class="pagination-actions"><label>На странице<select id="page-size"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><button id="page-prev" class="secondary" type="button" disabled aria-label="Предыдущая страница">←</button><span id="page-label">1</span><button id="page-next" class="secondary" type="button" disabled aria-label="Следующая страница">→</button></div></div>
+        </div>
+        <div id="proposals-view" role="tabpanel" aria-labelledby="proposals-tab" hidden><p class="proposal-note">Предложения ещё не включены в статистику. Откройте запись, чтобы проверить события и ссылки на исходные сообщения.</p><div id="proposals-list" class="proposals-list"></div></div>
+        <p id="export-status" class="activity-export-status" role="status" hidden></p>
+      </section></div></div>
+
+      <div class="layout-widget" data-layout-id="calendar"><div class="layout-widget-body"><section id="schedule-section" class="panel shift-section" aria-labelledby="schedule-title"></section></div></div>
+
+      </div>
+
+      <footer class="page-footer"><span>Одна задача — один устойчивый ID. Сообщения и алерты служат подтверждениями.</span><span>Integration Team · Activity Explorer</span></footer>
+    </main>
+
+    <dialog id="detail-dialog" class="activity-dialog" aria-labelledby="detail-title"><div class="detail-dialog-header"><span id="detail-kicker" class="eyebrow">Карточка задачи</span><button id="detail-close" class="icon-button" type="button" aria-label="Закрыть карточку">×</button></div><div id="detail-content" class="detail-content"><h2 id="detail-title">Загрузка…</h2></div></dialog>
+    <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

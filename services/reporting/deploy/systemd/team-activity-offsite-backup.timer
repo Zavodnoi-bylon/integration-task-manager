@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily encrypted offsite backup for Team Activity Explorer
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 Europe/Moscow
+Persistent=true
+RandomizedDelaySec=10m
+Unit=team-activity-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

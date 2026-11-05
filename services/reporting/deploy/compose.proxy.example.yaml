@@ -1,0 +1,13 @@
+# TEMPLATE ONLY. Merge with compose.yaml only after checking the actual Caddy network.
+# Keep postgres/cli confined to backend. This file is NOT enabled by default.
+services:
+  web:
+    networks:
+      backend: {}
+      proxy:
+        aliases: [activity-dashboard]
+networks:
+  proxy:
+    external: true
+    name: REPLACE_WITH_VERIFIED_CADDY_NETWORK
+

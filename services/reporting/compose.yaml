@@ -1,0 +1,81 @@
+name: team-activity-explorer
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: activity
+      POSTGRES_USER: activity_admin
+      POSTGRES_PASSWORD: ${ACTIVITY_ADMIN_PASSWORD:?Create a fresh .env first}
+      ACTIVITY_WRITER_PASSWORD: ${ACTIVITY_WRITER_PASSWORD:?Create a fresh .env first}
+      ACTIVITY_READER_PASSWORD: ${ACTIVITY_READER_PASSWORD:?Create a fresh .env first}
+    volumes:
+      - activity_pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U activity_admin -d activity']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+
+  web:
+    build: .
+    image: team-activity-explorer:local
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: activity
+      DB_USER: activity_reader
+      DB_PASSWORD: ${ACTIVITY_READER_PASSWORD:?Create a fresh .env first}
+      ACTIVITY_DEMO: '0'
+    ports: ['127.0.0.1:8480:8000']
+    networks: [backend, frontend]
+    depends_on:
+      postgres: {condition: service_healthy}
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}
+
+  cli:
+    profiles: [tools]
+    build: .
+    image: team-activity-explorer:local
+    entrypoint: [python, sync.py]
+    environment:
+      ACTIVITY_WRITER_DB_HOST: postgres
+      ACTIVITY_WRITER_DB_PORT: '5432'
+      ACTIVITY_WRITER_DB_NAME: activity
+      ACTIVITY_WRITER_DB_USER: activity_writer
+      ACTIVITY_WRITER_DB_PASSWORD: ${ACTIVITY_WRITER_PASSWORD:?Create a fresh .env first}
+    volumes: ['./data/inbox:/inbox:ro']
+    networks: [backend]
+    depends_on:
+      postgres: {condition: service_healthy}
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  activity_pgdata:
+networks:
+  backend:
+    internal: true
+  frontend:
+    driver: bridge
+

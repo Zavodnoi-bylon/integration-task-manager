@@ -1,0 +1,22 @@
+[Unit]
+Description=Verify and restore-test Team Activity Explorer offsite backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/team-activity-offsite-verify
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/team-activity-backup /run/lock /run/docker.sock
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

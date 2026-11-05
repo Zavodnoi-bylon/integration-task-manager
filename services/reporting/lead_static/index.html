@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101112">
+  <title>Ticket Analytics</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-icon" aria-hidden="true">⌁</span><div><strong>Ticket Analytics</strong><small>Сводка технического отдела</small></div></div>
+  <span class="mode">Только просмотр</span>
+</header>
+<main>
+  <section class="heading"><div><span class="eyebrow">РАБОЧЕЕ ПРОСТРАНСТВО</span><h1>Аналитика<span>.</span></h1><p>Kalisto и Mephisto в одном интерфейсе</p></div></section>
+  <div class="filters" aria-label="Фильтры">
+    <label>Период<select id="period"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option></select></label>
+    <label>Бот<select id="profile"><option value="all">Все боты</option><option value="kalisto">Kalisto</option><option value="mephisto">Mephisto</option></select></label>
+  </div>
+  <p id="notice" class="notice" role="status"></p>
+  <section id="metrics" class="metrics" aria-label="Основные показатели"></section>
+  <div class="grid">
+    <section class="panel flow-panel"><div class="panel-head"><div><span class="eyebrow">ДИНАМИКА</span><h2>Поступление и завершения</h2></div><div class="legend"><i class="created"></i>Создано <i class="completed"></i>События завершения</div></div><div id="flow" class="flow"></div></section>
+    <section class="panel"><div class="panel-head"><div><span class="eyebrow">BACKLOG</span><h2>Возраст открытых</h2></div></div><div id="age" class="age"></div></section>
+    <section class="panel"><div class="panel-head"><div><span class="eyebrow">ПРОФИЛИ</span><h2>По рабочим ботам</h2></div></div><div id="profiles"></div></section>
+    <section class="panel"><div class="panel-head"><div><span class="eyebrow">ТИПЫ</span><h2>Структура задач</h2></div></div><div id="types"></div></section>
+  </div>
+  <section class="panel tickets-panel">
+    <div class="panel-head tickets-head"><div><span class="eyebrow">ТИКЕТЫ</span><h2>История задач</h2></div><div class="status-tabs"><button class="active" data-status="open">В работе</button><button data-status="completed">Завершённые</button></div></div>
+    <div id="tickets" class="tickets"></div><div id="pagination" class="pagination"></div>
+  </section>
+  <footer>Integration Task Manager <span>Данные рабочей PostgreSQL</span></footer>
+</main>
+<dialog id="ticket-dialog"><button id="dialog-close" class="dialog-close" aria-label="Закрыть">×</button><div id="ticket-detail"></div></dialog>
+</body>
+</html>
