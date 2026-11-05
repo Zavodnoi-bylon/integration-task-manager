@@ -161,6 +161,37 @@ Telegram-сообщения. Это намеренно первый этап: р
 боевого worker нужен checkpoint с перекрывающим окном и дедупликация по паре
 `tenant_id + conversion_uuid` в БД — они не подменяются JSON-файлом.
 
+## Локальная проверка черновиков
+
+Изолированный контур запускается через `compose.local-draft.yaml`. Он использует
+отдельный PostgreSQL volume и не подключается к production database. Секреты
+хранятся только в игнорируемом Git файле `deploy/kalisto.draft-local.env`.
+
+Перед локальным polling нужно остановить другой экземпляр того же тестового
+бота. Затем запустить инфраструктуру без bot process:
+
+```powershell
+docker compose -f compose.local-draft.yaml up --build -d postgres canonical-migrate mini-migrate mini-web mini-worker tunnel
+docker compose -f compose.local-draft.yaml logs --no-log-prefix tunnel
+```
+
+Из логов взять `https://...trycloudflare.com`, записать его без завершающего `/`
+в `ALLOWED_ORIGIN`, настроить этот же URL как menu button тестового бота и
+запустить polling:
+
+```powershell
+docker compose -f compose.local-draft.yaml up -d --force-recreate mini-web mini-worker bot
+docker compose -f compose.local-draft.yaml ps
+```
+
+Quick Tunnel получает новый URL после пересоздания контейнера `tunnel`; в таком
+случае `ALLOWED_ORIGIN` и menu button требуется обновить. Остановка контура без
+удаления тестовой БД:
+
+```powershell
+docker compose -f compose.local-draft.yaml stop
+```
+
 ## Production в Docker
 
 Один неизменяемый образ запускается двумя сервисами. У каждого свой токен,

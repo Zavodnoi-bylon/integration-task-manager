@@ -151,6 +151,7 @@ app/__pycache__/sql.cpython-311.pyc
 !.env.example
 deploy/*.env
 !deploy/*.env.example
+deploy/*.draft-local.env
 data/
 backups/
 *.dump

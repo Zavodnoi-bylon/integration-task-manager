@@ -1,0 +1,103 @@
+name: integration-task-manager-draft-local
+
+x-database-environment: &database-environment
+  DATABASE_BACKEND: postgres
+  TICKETING_DB_HOST: postgres
+  TICKETING_DB_PORT: "5432"
+  TICKETING_DB_NAME: ticketing_draft_local
+  TICKETING_DB_USER: ticket_bot
+  TICKETING_DB_PASSWORD: draft-local-only
+
+x-miniapp-environment: &miniapp-environment
+  DATABASE_URL: postgresql://ticket_bot:draft-local-only@postgres:5432/ticketing_draft_local
+  DATABASE_MIGRATION_URL: postgresql://ticket_bot:draft-local-only@postgres:5432/ticketing_draft_local
+  SESSION_COOKIE_NAME: kalisto_draft_local_session
+  FORWARDED_ALLOW_IPS: "*"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ticketing_draft_local
+      POSTGRES_USER: ticket_bot
+      POSTGRES_PASSWORD: draft-local-only
+    volumes:
+      - draft-local-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticket_bot -d ticketing_draft_local"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  canonical-migrate:
+    image: integration-task-manager:draft-local
+    build:
+      context: .
+      target: test
+    environment:
+      DATABASE_MIGRATION_URL: postgresql://ticket_bot:draft-local-only@postgres:5432/ticketing_draft_local
+    command: ["python", "/app/scripts/migrate_postgres.py"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  mini-migrate:
+    image: dest-bot-miniapp:draft-local
+    build:
+      context: ./services/task-miniapp
+      target: production
+      additional_contexts:
+        canonical: .
+    environment:
+      <<: *miniapp-environment
+    command: ["python", "/app/scripts/migrate_postgres.py"]
+    depends_on:
+      canonical-migrate: {condition: service_completed_successfully}
+    restart: "no"
+
+  bot:
+    image: integration-task-manager:draft-local
+    env_file: [./deploy/kalisto.draft-local.env]
+    environment:
+      <<: *database-environment
+    command: ["python", "/app/main.py"]
+    depends_on:
+      mini-migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+
+  mini-web:
+    image: dest-bot-miniapp:draft-local
+    env_file: [./deploy/kalisto.draft-local.env]
+    environment:
+      <<: *miniapp-environment
+    command: ["python", "-m", "dest_miniapp.runtime", "web"]
+    depends_on:
+      mini-migrate: {condition: service_completed_successfully}
+    ports: ["127.0.0.1:18765:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "dest_miniapp.runtime", "health-web"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  mini-worker:
+    image: dest-bot-miniapp:draft-local
+    env_file: [./deploy/kalisto.draft-local.env]
+    environment:
+      <<: *miniapp-environment
+    command: ["python", "-m", "dest_miniapp.runtime", "worker"]
+    depends_on:
+      mini-migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.7
+    command: ["tunnel", "--no-autoupdate", "--url", "http://mini-web:8000"]
+    depends_on:
+      mini-web: {condition: service_healthy}
+    restart: unless-stopped
+
+volumes:
+  draft-local-postgres:
