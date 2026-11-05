@@ -1,0 +1,94 @@
+name: dest-bot-miniapp
+
+x-runtime: &runtime
+  image: dest-bot-miniapp:${IMAGE_TAG:-local}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [database, egress]
+  stop_grace_period: 30s
+
+services:
+  migrate:
+    image: dest-bot-miniapp:${IMAGE_TAG:-local}
+    build:
+      context: .
+      additional_contexts:
+        canonical: ${CANONICAL_SOURCE_DIR:?set CANONICAL_SOURCE_DIR to Integration Task Manager checkout}
+    env_file:
+      - ${CONFIG_DIR:-./deploy}/database.env
+    command: ["python", "/app/scripts/migrate_postgres.py"]
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [database]
+
+  kalisto-web:
+    <<: *runtime
+    env_file:
+      - ${CONFIG_DIR:-./deploy}/database.env
+      - ${CONFIG_DIR:-./deploy}/kalisto.env
+    command: ["python", "-m", "dest_miniapp.runtime", "web"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    ports: ["127.0.0.1:${KALISTO_PORT:-8765}:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "dest_miniapp.runtime", "health-web"]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+
+  kalisto-worker:
+    <<: *runtime
+    env_file:
+      - ${CONFIG_DIR:-./deploy}/database.env
+      - ${CONFIG_DIR:-./deploy}/kalisto.env
+    command: ["python", "-m", "dest_miniapp.runtime", "worker"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "dest_miniapp.runtime", "health-worker"]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+
+  mephisto-web:
+    <<: *runtime
+    env_file:
+      - ${CONFIG_DIR:-./deploy}/database.env
+      - ${CONFIG_DIR:-./deploy}/mephisto.env
+    command: ["python", "-m", "dest_miniapp.runtime", "web"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    ports: ["127.0.0.1:${MEPHISTO_PORT:-8766}:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "dest_miniapp.runtime", "health-web"]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+
+  mephisto-worker:
+    <<: *runtime
+    env_file:
+      - ${CONFIG_DIR:-./deploy}/database.env
+      - ${CONFIG_DIR:-./deploy}/mephisto.env
+    command: ["python", "-m", "dest_miniapp.runtime", "worker"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-m", "dest_miniapp.runtime", "health-worker"]
+      interval: 15s
+      timeout: 10s
+      retries: 4
+
+networks:
+  database:
+    external: true
+    name: ${DATABASE_NETWORK:-team-activity-trial_backend}
+  egress:
+    driver: bridge
