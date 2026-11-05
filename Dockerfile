@@ -25,7 +25,7 @@ RUN groupadd --gid 10001 bot && \
 
 COPY --from=dependencies /opt/venv /opt/venv
 WORKDIR /app
-COPY --chown=bot:bot main.py config.py ./
+COPY --chown=bot:bot main.py aio_ftd_main.py config.py ./
 COPY --chown=bot:bot app ./app
 COPY --chown=bot:bot content ./content
 

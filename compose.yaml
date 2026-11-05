@@ -46,6 +46,23 @@ services:
       - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/database.env
       - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/mephisto.env
 
+  aio-ftd:
+    <<: *bot
+    image: integration-task-manager:aio-ftd-mvp
+    build:
+      context: .
+      target: production
+    profiles:
+      - aio-ftd
+    command:
+      - python
+      - aio_ftd_main.py
+      - --serve
+    env_file:
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/database.env
+      - path: ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/aio-ftd.env
+        required: false
+
 networks:
   database:
     external: true

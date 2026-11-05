@@ -21,12 +21,14 @@ def row(
     revenue="0",
     type_uuid: str = DEFAULT_FTD_TYPE_UUID,
     destination=True,
+    is_correction: bool = False,
 ):
     return {
         "uuid": uuid,
         "visit_uuid": "visit-1",
         "conversion_date": "2026-10-30 11:00:00",
         "revenue": revenue,
+        "is_correction": is_correction,
         "type": {"uuid": type_uuid, "name": "FTD"},
         "destination": (
             {
@@ -73,6 +75,16 @@ class AioConversionTests(unittest.TestCase):
     def test_unknown_destination_is_rejected(self):
         with self.assertRaises(AioPayloadError):
             AioConversion.from_row(row(destination=False))
+
+    def test_correction_is_not_alerted(self):
+        conversion = AioConversion.from_row(row(is_correction=True))
+        self.assertFalse(conversion.is_zero_revenue_ftd(DEFAULT_FTD_TYPE_UUID))
+
+    def test_string_false_is_not_treated_as_correction(self):
+        payload = row()
+        payload["is_correction"] = "false"
+        conversion = AioConversion.from_row(payload)
+        self.assertTrue(conversion.is_zero_revenue_ftd(DEFAULT_FTD_TYPE_UUID))
 
 
 class AioClientTests(unittest.IsolatedAsyncioTestCase):

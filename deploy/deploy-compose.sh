@@ -37,7 +37,11 @@ rollback() {
   cleanup_test_image
   if [[ $cutover_started -eq 1 && $success -eq 0 ]]; then
     echo "Container cutover failed; restoring legacy systemd services." >&2
-    "${compose[@]}" down --remove-orphans >/dev/null 2>&1 || true
+    # Only remove the two bot containers created by this deployment. Other
+    # services in the same Compose project (for example the profiled AIO FTD
+    # worker) have their own lifecycle and must survive both deploy and rollback.
+    "${compose[@]}" stop kalisto mephisto >/dev/null 2>&1 || true
+    "${compose[@]}" rm --force kalisto mephisto >/dev/null 2>&1 || true
     for index in "${!legacy_units[@]}"; do
       if [[ ${legacy_was_active[$index]:-0} -eq 1 ]]; then
         systemctl enable --now "${legacy_units[$index]}" >/dev/null 2>&1 || true
@@ -94,7 +98,9 @@ done
 
 cutover_started=1
 systemctl stop "${legacy_units[@]}"
-"${compose[@]}" up --detach --remove-orphans
+# Start only the services owned by this cutover. Never use --remove-orphans
+# here: optional profiled workers share the project name intentionally.
+"${compose[@]}" up --detach kalisto mephisto
 
 stable_checks=0
 for _ in $(seq 1 15); do
