@@ -17,6 +17,7 @@ services:
     image: dest-bot-miniapp:${IMAGE_TAG:-local}
     build:
       context: .
+      target: production
       additional_contexts:
         canonical: ${CANONICAL_SOURCE_DIR:?set CANONICAL_SOURCE_DIR to Integration Task Manager checkout}
     env_file:

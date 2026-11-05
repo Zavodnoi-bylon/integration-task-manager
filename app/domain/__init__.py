@@ -14,6 +14,7 @@ from .constants import (
 )
 from .models import (
     AdvertiserEntry,
+    TicketDraftRecord,
     TicketEventRecord,
     TicketPage,
     TicketRecord,
@@ -26,6 +27,7 @@ __all__ = [
     "EVENT_PUBLIC_MESSAGE",
     "EVENT_STATUS_CHANGED",
     "AdvertiserEntry",
+    "TicketDraftRecord",
     "ROLE_CLIENT",
     "ROLE_ADMIN",
     "ROLE_TECHNICIAN",

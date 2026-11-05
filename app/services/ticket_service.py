@@ -11,6 +11,7 @@ from app.domain import (
     TICKET_TYPE_DESTINATION,
     TICKET_TYPE_GENERAL,
     TICKET_TYPES,
+    TicketDraftRecord,
     TicketEventRecord,
     TicketPage,
     TicketRecord,
@@ -84,6 +85,57 @@ class TicketService:
 
     def get_user(self, tg_id: int) -> UserRecord | None:
         return self.repository.get_user(self.settings.bot_key, tg_id)
+
+    def save_draft_intake(
+        self,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        body: str,
+        received_at: TimestampInput,
+    ) -> None:
+        clean = body.strip()
+        if not clean:
+            raise ValueError("Draft comment cannot be empty")
+        self.repository.save_draft_intake(
+            self.settings.bot_key,
+            author_id,
+            chat_id,
+            message_id,
+            clean,
+            self.repository.timestamp(received_at),
+        )
+
+    def create_forwarded_draft(
+        self,
+        author_id: int,
+        source_chat_id: int,
+        source_message_id: int,
+        source_body: str,
+        created_at: TimestampInput,
+        *,
+        forward_origin_type: str | None = None,
+        forward_origin_name: str | None = None,
+        forward_origin_date: TimestampInput = None,
+    ) -> TicketDraftRecord:
+        clean = source_body.strip()
+        if not clean:
+            raise ValueError("Forwarded message has no text")
+        return self.repository.create_forwarded_draft(
+            self.settings.bot_key,
+            author_id,
+            source_chat_id,
+            source_message_id,
+            clean,
+            forward_origin_type,
+            forward_origin_name,
+            (
+                self.repository.timestamp(forward_origin_date)
+                if forward_origin_date is not None
+                else None
+            ),
+            self.repository.timestamp(created_at),
+        )
 
     def get_ticket(self, ticket_id: int) -> TicketRecord:
         ticket = self.repository.get_ticket(self.settings.bot_key, ticket_id)

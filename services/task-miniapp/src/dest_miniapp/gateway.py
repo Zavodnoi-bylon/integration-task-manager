@@ -11,6 +11,9 @@ from .dto import (
     PostbackSummary,
     StaffTicketDetail,
     TicketSummary,
+    DraftSaveInput,
+    TicketDraftDetail,
+    TicketDraftSummary,
 )
 from .models import Actor, TelegramIdentity
 
@@ -79,3 +82,33 @@ class MiniAppGateway(Protocol):
     async def get_postback(
         self, *, profile_key: str, actor: Actor, key: str
     ) -> PostbackDetail: ...
+
+    async def list_drafts(
+        self, *, profile_key: str, actor: Actor
+    ) -> list[TicketDraftSummary]: ...
+
+    async def get_draft(
+        self, *, profile_key: str, actor: Actor, draft_id: int
+    ) -> TicketDraftDetail: ...
+
+    async def save_draft(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        draft_id: int,
+        payload: DraftSaveInput,
+    ) -> TicketDraftDetail: ...
+
+    async def cancel_draft(
+        self, *, profile_key: str, actor: Actor, draft_id: int
+    ) -> None: ...
+
+    async def mark_draft_submitted(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        draft_id: int,
+        ticket_id: int,
+    ) -> None: ...

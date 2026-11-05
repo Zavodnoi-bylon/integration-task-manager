@@ -16,6 +16,24 @@ class MigrationTests(unittest.TestCase):
         ):
             self.assertIn(marker, sql)
 
+    def test_draft_migration_is_isolated_from_reporting(self):
+        sql = Path("migrations/0003_ticket_drafts.sql").read_text(encoding="utf-8")
+        for marker in (
+            "ticket_drafts", "ticket_draft_intake", "create_forwarded_draft",
+            "save_draft_intake",
+        ):
+            self.assertIn(marker, sql)
+        self.assertNotIn("CREATE OR REPLACE VIEW reporting.", sql)
+
+    def test_reporting_reader_cannot_query_private_drafts(self):
+        sql = Path(
+            "migrations/0004_hide_ticket_drafts_from_reporting.sql"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "REVOKE SELECT ON ticketing.ticket_drafts FROM activity_reader",
+            sql,
+        )
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain import TicketEventRecord, TicketRecord, UserRecord
+from app.domain import TicketDraftRecord, TicketEventRecord, TicketRecord, UserRecord
 
 
 class TicketRepository(Protocol):
@@ -105,3 +105,26 @@ class TicketRepository(Protocol):
     ) -> bool: ...
 
     def latest_internal_note(self, profile_key: str, ticket_id: int) -> str | None: ...
+
+    def save_draft_intake(
+        self,
+        profile_key: str,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        body: str,
+        received_at: str,
+    ) -> None: ...
+
+    def create_forwarded_draft(
+        self,
+        profile_key: str,
+        author_id: int,
+        source_chat_id: int,
+        source_message_id: int,
+        source_body: str,
+        forward_origin_type: str | None,
+        forward_origin_name: str | None,
+        forward_origin_date: str | None,
+        created_at: str,
+    ) -> TicketDraftRecord: ...

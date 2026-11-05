@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Annotated, Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +17,9 @@ from .dto import (
     CreateTicketInput,
     ClientTicketDetail,
     DestinationTicketCreate,
+    DraftMutationResponse,
+    DraftSaveInput,
+    DraftSubmitInput,
     EmptyInput,
     MessageInput,
     MutationResponse,
@@ -26,6 +29,8 @@ from .dto import (
     ReasonInput,
     StaffTicketDetail,
     TicketSummary,
+    TicketDraftDetail,
+    TicketDraftSummary,
 )
 from .domain import (
     ActionForbidden,
@@ -242,6 +247,127 @@ def create_app(
             query=TicketQuery(scope=scope, status=status, page=page, page_size=page_size),  # type: ignore[arg-type]
         )
         return _validate_output(Page[TicketSummary], result)
+
+    @app.get("/api/drafts")
+    async def drafts(auth: Authenticated = Depends(authenticated)):
+        result = await gateway.list_drafts(
+            profile_key=settings.profile_key, actor=auth.actor
+        )
+        return _validate_output(TypeAdapter(list[TicketDraftSummary]), result)
+
+    @app.get("/api/drafts/{draft_id}")
+    async def draft(
+        draft_id: int, auth: Authenticated = Depends(authenticated)
+    ):
+        if draft_id <= 0:
+            raise ResourceNotFound
+        result = await gateway.get_draft(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            draft_id=draft_id,
+        )
+        return _validate_output(TicketDraftDetail, result)
+
+    @app.post("/api/drafts/{draft_id}/save")
+    async def save_draft(
+        draft_id: int,
+        payload: DraftSaveInput,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ):
+        if draft_id <= 0:
+            raise ResourceNotFound
+        _require_csrf(auth, csrf_token)
+        result = await gateway.save_draft(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            draft_id=draft_id,
+            payload=payload,
+        )
+        return _validate_output(TicketDraftDetail, result)
+
+    @app.delete("/api/drafts/{draft_id}", status_code=204)
+    async def cancel_draft(
+        draft_id: int,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ) -> Response:
+        if draft_id <= 0:
+            raise ResourceNotFound
+        _require_csrf(auth, csrf_token)
+        await gateway.cancel_draft(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            draft_id=draft_id,
+        )
+        return Response(status_code=204)
+
+    @app.post("/api/drafts/{draft_id}/submit", status_code=201)
+    async def submit_draft(
+        draft_id: int,
+        payload: DraftSubmitInput,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ):
+        if draft_id <= 0:
+            raise ResourceNotFound
+        _require_csrf(auth, csrf_token)
+        await gateway.get_draft(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            draft_id=draft_id,
+        )
+        saved = _validate_output(
+            TicketDraftDetail,
+            await gateway.save_draft(
+                profile_key=settings.profile_key,
+                actor=auth.actor,
+                draft_id=draft_id,
+                payload=DraftSaveInput(
+                    advertiser=payload.advertiser,
+                    cap=payload.cap,
+                    body=payload.body,
+                    client_comment=payload.client_comment,
+                ),
+            ),
+        )
+        advertiser = (
+            CatalogAdvertiser("catalog", payload.advertiser.key)
+            if payload.advertiser.kind == "catalog"
+            else NewAdvertiser("new", payload.advertiser.name)
+        )
+        source_body = saved.edited_body
+        if saved.client_comment:
+            source_body = f"{saved.client_comment}\n\n{source_body}"
+        result = await mutations.create_ticket(
+            CreateTicketCommand(
+                profile_key=settings.profile_key,
+                actor=auth.actor,
+                idempotency_key=uuid5(
+                    NAMESPACE_URL,
+                    f"ticket-draft:{settings.profile_key}:{draft_id}",
+                ),
+                ticket_type="destination",
+                body=source_body,
+                advertiser=advertiser,
+                cap=payload.cap,
+            )
+        )
+        await gateway.mark_draft_submitted(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            draft_id=draft_id,
+            ticket_id=result.ticket_id,
+        )
+        return _validate_output(
+            DraftMutationResponse,
+            {
+                "draft_id": draft_id,
+                "status": "submitted",
+                "ticket_id": result.ticket_id,
+                "replayed": result.replayed,
+            },
+        )
 
     @app.post("/api/tickets")
     async def create_ticket(

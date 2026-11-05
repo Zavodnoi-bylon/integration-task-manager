@@ -13,6 +13,9 @@ from .dto import (
     PublicConversationMessage,
     StaffTicketDetail,
     TicketSummary,
+    DraftSaveInput,
+    TicketDraftDetail,
+    TicketDraftSummary,
 )
 from .gateway import AdvertiserQuery, ResourceNotFound, TicketQuery
 from .models import Actor, TelegramIdentity
@@ -311,6 +314,153 @@ class PostgresMiniAppGateway:
             raise ResourceNotFound from None
         return PostbackDetail(key=key, name=name, template=template)
 
+    async def list_drafts(
+        self, *, profile_key: str, actor: Actor
+    ) -> list[TicketDraftSummary]:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            rows = await (
+                await connection.execute(
+                    _DRAFT_SQL
+                    + " WHERE d.profile_key=%s AND u.telegram_user_id=%s "
+                    "AND d.status='draft' ORDER BY d.updated_at DESC,d.draft_id DESC",
+                    (profile_key, actor.telegram_user_id),
+                )
+            ).fetchall()
+        return [_draft_summary(row) for row in rows]
+
+    async def get_draft(
+        self, *, profile_key: str, actor: Actor, draft_id: int
+    ) -> TicketDraftDetail:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    _DRAFT_SQL
+                    + " WHERE d.profile_key=%s AND d.draft_id=%s "
+                    "AND u.telegram_user_id=%s AND d.status='draft'",
+                    (profile_key, draft_id, actor.telegram_user_id),
+                )
+            ).fetchone()
+        if row is None:
+            raise ResourceNotFound
+        return _draft_detail(row)
+
+    async def save_draft(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        draft_id: int,
+        payload: DraftSaveInput,
+    ) -> TicketDraftDetail:
+        self._profile(profile_key)
+        advertiser_kind = payload.advertiser.kind if payload.advertiser else None
+        advertiser_key = (
+            payload.advertiser.key
+            if payload.advertiser and payload.advertiser.kind == "catalog"
+            else None
+        )
+        advertiser_name = (
+            payload.advertiser.name
+            if payload.advertiser and payload.advertiser.kind == "new"
+            else None
+        )
+        async with self._database.pool.connection() as connection:
+            async with connection.transaction():
+                row = await (
+                    await connection.execute(
+                        """
+                        UPDATE ticketing.ticket_drafts d SET
+                            edited_body=%s,client_comment=%s,advertiser_kind=%s,
+                            advertiser_key=%s,advertiser_name=%s,cap=%s,updated_at=now()
+                        FROM ticketing.telegram_users u
+                        WHERE d.author_user_id=u.user_id AND d.profile_key=%s
+                          AND d.draft_id=%s AND u.telegram_user_id=%s
+                          AND d.status='draft'
+                        RETURNING d.draft_id
+                        """,
+                        (
+                            payload.body,
+                            payload.client_comment,
+                            advertiser_kind,
+                            advertiser_key,
+                            advertiser_name,
+                            payload.cap,
+                            profile_key,
+                            draft_id,
+                            actor.telegram_user_id,
+                        ),
+                    )
+                ).fetchone()
+                if row is None:
+                    raise ResourceNotFound
+        return await self.get_draft(
+            profile_key=profile_key, actor=actor, draft_id=draft_id
+        )
+
+    async def cancel_draft(
+        self, *, profile_key: str, actor: Actor, draft_id: int
+    ) -> None:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    """
+                    UPDATE ticketing.ticket_drafts d SET
+                        status='cancelled',cancelled_at=now(),updated_at=now()
+                    FROM ticketing.telegram_users u
+                    WHERE d.author_user_id=u.user_id AND d.profile_key=%s
+                      AND d.draft_id=%s AND u.telegram_user_id=%s
+                      AND d.status='draft'
+                    RETURNING d.draft_id
+                    """,
+                    (profile_key, draft_id, actor.telegram_user_id),
+                )
+            ).fetchone()
+        if row is None:
+            raise ResourceNotFound
+
+    async def mark_draft_submitted(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        draft_id: int,
+        ticket_id: int,
+    ) -> None:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    """
+                    UPDATE ticketing.ticket_drafts d SET
+                        status='submitted',ticket_id=%s,submitted_at=now(),updated_at=now()
+                    FROM ticketing.telegram_users u
+                    WHERE d.author_user_id=u.user_id AND d.profile_key=%s
+                      AND d.draft_id=%s AND u.telegram_user_id=%s
+                      AND (d.status='draft' OR
+                           (d.status='submitted' AND d.ticket_id=%s))
+                      AND EXISTS (
+                          SELECT 1 FROM ticketing.tickets t
+                          WHERE t.ticket_id=%s AND t.profile_key=d.profile_key
+                            AND t.requester_user_id=d.author_user_id
+                      )
+                    RETURNING d.draft_id
+                    """,
+                    (
+                        ticket_id,
+                        profile_key,
+                        draft_id,
+                        actor.telegram_user_id,
+                        ticket_id,
+                        ticket_id,
+                    ),
+                )
+            ).fetchone()
+        if row is None:
+            raise ResourceNotFound
+
 
 _SUMMARY_SQL = """
 SELECT t.ticket_id,t.status_code,t.ticket_type_code,t.title,t.description,
@@ -318,6 +468,14 @@ SELECT t.ticket_id,t.status_code,t.ticket_type_code,t.title,t.description,
        AS requester_telegram_id
 FROM ticketing.tickets t
 JOIN ticketing.telegram_users requester ON requester.user_id=t.requester_user_id
+"""
+
+_DRAFT_SQL = """
+SELECT d.draft_id,d.source_body,d.client_comment,d.edited_body,
+       d.advertiser_kind,d.advertiser_key,d.advertiser_name,d.cap,
+       d.forward_origin_name,d.created_at,d.updated_at
+FROM ticketing.ticket_drafts d
+JOIN ticketing.telegram_users u ON u.user_id=d.author_user_id
 """
 
 
@@ -344,4 +502,27 @@ def _message(row: dict[str, Any], *, internal: bool):
     return cls(
         message_id=row["message_id"], visibility=row["visibility"],
         body=row["body"], sent_at=row["sent_at"], actor=actor,
+    )
+
+
+def _draft_summary(row: dict[str, Any]) -> TicketDraftSummary:
+    return TicketDraftSummary(
+        draft_id=row["draft_id"],
+        source_preview=row["edited_body"][:512],
+        client_comment=row["client_comment"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+
+def _draft_detail(row: dict[str, Any]) -> TicketDraftDetail:
+    return TicketDraftDetail(
+        **_draft_summary(row).model_dump(),
+        source_body=row["source_body"],
+        edited_body=row["edited_body"],
+        advertiser_kind=row["advertiser_kind"],
+        advertiser_key=row["advertiser_key"],
+        advertiser_name=row["advertiser_name"],
+        cap=row["cap"],
+        forward_origin_name=row["forward_origin_name"],
     )

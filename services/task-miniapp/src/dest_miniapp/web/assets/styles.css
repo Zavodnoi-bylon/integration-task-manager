@@ -108,6 +108,7 @@ button { color: inherit; }
 
 .panel, .ticket-detail { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .panel { padding: 18px; }
+.create-page, #create-page { display: grid; gap: 14px; }
 .form-stack { display: grid; gap: 14px; }
 .form-stack.compact { gap: 9px; }
 .field-label { color: #d2d4d8; font-size: 13px; font-weight: 700; }
@@ -161,6 +162,18 @@ button:disabled { opacity: .5; cursor: wait; }
 .tool-item { padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: #101113; }
 .tool-item button { width: 100%; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; }
 .template { margin: 10px 0 0; color: #c9ccd1; white-space: pre-wrap; word-break: break-word; }
+
+.section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.section-head h2 { margin: 0; font-size: 18px; }
+.section-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.draft-count { min-width: 28px; padding: 4px 8px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); text-align: center; font-size: 12px; font-weight: 700; }
+.draft-list { display: grid; gap: 8px; margin-top: 14px; }
+.draft-card { width: 100%; padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; color: inherit; background: #101113; text-align: left; cursor: pointer; }
+.draft-card strong, .draft-card span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-card strong { font-size: 13px; }
+.draft-card span { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.draft-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+#draft-dialog { max-height: calc(100vh - 24px); overflow-y: auto; }
 
 .bottom-nav {
   position: fixed;

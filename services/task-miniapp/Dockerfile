@@ -24,3 +24,9 @@ RUN groupadd --gid 10001 miniapp && \
 USER 10001:10001
 
 CMD ["python", "-m", "dest_miniapp.runtime", "web"]
+
+FROM runtime AS test
+COPY --chown=miniapp:miniapp tests /app/tests
+CMD ["python", "-m", "unittest", "discover", "-s", "/app/tests", "-v"]
+
+FROM runtime AS production

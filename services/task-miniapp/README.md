@@ -32,6 +32,9 @@ Production deployment из этого репозитория запрещён.
 - адаптивный Mini App интерфейс для клиента и технаря:
   списки, создание General/Destination, переписка, статусные
   действия, внутренние записи и postback-шаблоны.
+- необязательные приватные черновики Destination из пересланных Telegram-
+  сообщений: клиент проверяет текст, выбирает advertiser и cap и только затем
+  передаёт тикет в работу; до отправки черновик не виден staff и аналитике.
 
 Транзакционная модель, границы PostgreSQL и ограничения outbox
 зафиксированы в `docs/ADR-0003-postgresql-runtime.md`.
@@ -72,7 +75,7 @@ web-процесса и два outbox worker с разными bot token/env. С
        set DATABASE_NETWORK=team-activity-trial_backend
        docker compose up --build -d
 
-`migrate` применяет только Mini App migration 0002 после canonical 0001.
+`migrate` применяет Mini App migrations 0002–0004 после canonical 0001.
 Web healthcheck проверяет HTTP и PostgreSQL, worker healthcheck — свежий heartbeat.
 Telegram-доставка имеет семантику at-least-once: после неопределённого
 сетевого исхода Telegram одно безопасное повторное уведомление возможно.

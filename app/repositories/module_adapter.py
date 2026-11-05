@@ -5,6 +5,7 @@ from types import ModuleType
 from app.domain import (
     STATUS_COMPLETED,
     STATUS_OPEN,
+    TicketDraftRecord,
     TicketEventRecord,
     TicketRecord,
     UserRecord,
@@ -215,3 +216,41 @@ class ModuleTicketRepository:
 
     def latest_internal_note(self, profile_key: str, ticket_id: int) -> str | None:
         return self._backend.read_ticket_comment(ticket_id, profile_key)
+
+    def save_draft_intake(
+        self,
+        profile_key: str,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        body: str,
+        received_at: str,
+    ) -> None:
+        self._backend.save_draft_intake(
+            profile_key, author_id, chat_id, message_id, body, received_at
+        )
+
+    def create_forwarded_draft(
+        self,
+        profile_key: str,
+        author_id: int,
+        source_chat_id: int,
+        source_message_id: int,
+        source_body: str,
+        forward_origin_type: str | None,
+        forward_origin_name: str | None,
+        forward_origin_date: str | None,
+        created_at: str,
+    ) -> TicketDraftRecord:
+        row = self._backend.create_forwarded_draft(
+            profile_key,
+            author_id,
+            source_chat_id,
+            source_message_id,
+            source_body,
+            forward_origin_type,
+            forward_origin_name,
+            forward_origin_date,
+            created_at,
+        )
+        return TicketDraftRecord.from_mapping(row)

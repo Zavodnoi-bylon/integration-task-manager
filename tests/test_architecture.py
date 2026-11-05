@@ -35,6 +35,7 @@ class ArchitectureTests(unittest.TestCase):
                 "ticket_messages",
                 "technician_tickets",
                 "ticket_actions",
+                "drafts",
             ],
         )
 

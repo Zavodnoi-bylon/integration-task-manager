@@ -52,6 +52,25 @@ class SqlRepositoryTests(unittest.TestCase):
             sql.get_ticket_info(ticket_id)["ticket_type"], "destination"
         )
 
+    def test_forwarded_draft_consumes_recent_comment_and_is_idempotent(self):
+        sql.ensure_user(101, "2026-10-27 10:00:00", "@client", "client", "kalisto")
+        sql.save_draft_intake(
+            "kalisto", 101, 500, 10, "Комментарий клиента", "2026-10-27 10:01:00"
+        )
+
+        first = sql.create_forwarded_draft(
+            "kalisto", 101, 500, 11, "Тело оффера", "user", "Advertiser",
+            "2026-10-27 09:59:00", "2026-10-27 10:02:00",
+        )
+        second = sql.create_forwarded_draft(
+            "kalisto", 101, 500, 11, "Тело оффера", "user", "Advertiser",
+            "2026-10-27 09:59:00", "2026-10-27 10:02:00",
+        )
+
+        self.assertEqual(first["draft_id"], second["draft_id"])
+        self.assertEqual(first["client_comment"], "Комментарий клиента")
+        self.assertEqual(first["edited_body"], "Тело оффера")
+
     def test_comments_are_appended_instead_of_overwritten(self):
         ticket_id = sql.add_ticket(
             101, "", "", "Задача", "2026-10-27 10:00:00",

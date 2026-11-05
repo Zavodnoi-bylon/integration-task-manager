@@ -12,6 +12,10 @@
     advertiserPage: 1,
     advertisers: [],
     advertiserLoading: false,
+    currentDraft: null,
+    draftAdvertiserPage: 1,
+    draftAdvertisers: [],
+    draftAdvertiserLoading: false,
   };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -86,6 +90,18 @@
     });
     $("#advertiser-more").addEventListener("click", () => loadAdvertisers(false));
     $("#create-form").addEventListener("submit", createTicket);
+    $("#draft-advertiser-select").addEventListener("change", () => {
+      $("#draft-new-advertiser").classList.toggle("hidden", $("#draft-advertiser-select").value !== "__new__");
+    });
+    $("#draft-advertiser-search").addEventListener("input", () => {
+      clearTimeout(state.draftAdvertiserSearchTimer);
+      state.draftAdvertiserSearchTimer = setTimeout(() => loadDraftAdvertisers(true), 300);
+    });
+    $("#draft-advertiser-more").addEventListener("click", () => loadDraftAdvertisers(false));
+    $("#draft-save").addEventListener("click", saveCurrentDraft);
+    $("#draft-submit").addEventListener("click", submitCurrentDraft);
+    $("#draft-delete").addEventListener("click", deleteCurrentDraft);
+    $("#draft-close").addEventListener("click", closeDraft);
   }
 
   function renderIdentity() {
@@ -129,7 +145,10 @@
       $("#page-subtitle").textContent = copy[page][1];
     }
     if (page === "tickets") loadTickets();
-    if (page === "create") loadAdvertisers(true);
+    if (page === "create") {
+      loadAdvertisers(true);
+      loadDrafts();
+    }
     if (page === "tools") loadPostbacks();
   }
 
@@ -262,6 +281,137 @@
       await openTicket(result.ticket_id);
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; }
+  }
+
+  async function loadDrafts() {
+    const panel = $("#drafts-panel");
+    const list = $("#draft-list");
+    try {
+      const drafts = await api("/api/drafts");
+      panel.classList.toggle("hidden", !drafts.length);
+      $("#draft-count").textContent = drafts.length ? String(drafts.length) : "";
+      list.innerHTML = drafts.map((draft) => `<button class="draft-card" data-draft-id="${draft.draft_id}"><strong>${escapeHtml(draft.source_preview)}</strong><span>${escapeHtml(draft.client_comment || "Без комментария")} · ${formatDate(draft.updated_at)}</span></button>`).join("");
+      $$("[data-draft-id]").forEach((button) => button.addEventListener("click", () => openDraft(Number(button.dataset.draftId))));
+    } catch (error) {
+      panel.classList.remove("hidden");
+      list.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  async function openDraft(draftId) {
+    try {
+      const draft = await api(`/api/drafts/${draftId}`);
+      state.currentDraft = draft;
+      $("#draft-title").textContent = `Черновик #${draft.draft_id}`;
+      $("#draft-comment").value = draft.client_comment || "";
+      $("#draft-body").value = draft.edited_body;
+      $("#draft-cap").value = draft.cap || "";
+      $("#draft-advertiser-search").value = "";
+      await loadDraftAdvertisers(true);
+      if (draft.advertiser_kind === "catalog" && draft.advertiser_key) {
+        const select = $("#draft-advertiser-select");
+        if (![...select.options].some((option) => option.value === draft.advertiser_key)) {
+          select.add(new Option(draft.advertiser_key, draft.advertiser_key), 1);
+        }
+        select.value = draft.advertiser_key;
+      } else if (draft.advertiser_kind === "new") {
+        $("#draft-advertiser-select").value = "__new__";
+        $("#draft-new-advertiser").value = draft.advertiser_name || "";
+      }
+      $("#draft-new-advertiser").classList.toggle("hidden", $("#draft-advertiser-select").value !== "__new__");
+      $("#draft-dialog").showModal();
+    } catch (error) { toast(error.message); }
+  }
+
+  function closeDraft() {
+    $("#draft-dialog").close();
+    state.currentDraft = null;
+  }
+
+  function draftPayload(requireComplete) {
+    const selected = $("#draft-advertiser-select").value;
+    const capValue = Number($("#draft-cap").value);
+    let advertiser = null;
+    if (selected === "__new__") {
+      const name = $("#draft-new-advertiser").value.trim();
+      if (name) advertiser = { kind: "new", name };
+    } else if (selected) {
+      advertiser = { kind: "catalog", key: selected };
+    }
+    const payload = {
+      advertiser,
+      cap: capValue || null,
+      body: $("#draft-body").value.trim(),
+      client_comment: $("#draft-comment").value.trim(),
+    };
+    if (!payload.body) throw friendlyError(422, "Укажите текст заявки");
+    if (requireComplete && !payload.advertiser) throw friendlyError(422, "Выберите рекламодателя");
+    if (requireComplete && !payload.cap) throw friendlyError(422, "Укажите cap");
+    return payload;
+  }
+
+  async function saveCurrentDraft() {
+    if (!state.currentDraft) return;
+    try {
+      const draft = await api(`/api/drafts/${state.currentDraft.draft_id}/save`, { method: "POST", body: draftPayload(false) });
+      state.currentDraft = draft;
+      toast("Черновик сохранён");
+      await loadDrafts();
+    } catch (error) { toast(error.message); }
+  }
+
+  async function submitCurrentDraft() {
+    if (!state.currentDraft) return;
+    const button = $("#draft-submit");
+    button.disabled = true;
+    try {
+      const result = await api(`/api/drafts/${state.currentDraft.draft_id}/submit`, { method: "POST", body: draftPayload(true) });
+      closeDraft();
+      toast(`Тикет #${result.ticket_id} создан`);
+      await openTicket(result.ticket_id);
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; }
+  }
+
+  async function deleteCurrentDraft() {
+    if (!state.currentDraft || !window.confirm("Удалить этот черновик?")) return;
+    try {
+      await api(`/api/drafts/${state.currentDraft.draft_id}`, { method: "DELETE" });
+      closeDraft();
+      toast("Черновик удалён");
+      await loadDrafts();
+    } catch (error) { toast(error.message); }
+  }
+
+  async function loadDraftAdvertisers(reset = true) {
+    if (state.draftAdvertiserLoading) return;
+    state.draftAdvertiserLoading = true;
+    const select = $("#draft-advertiser-select");
+    const more = $("#draft-advertiser-more");
+    const query = $("#draft-advertiser-search").value.trim();
+    if (reset) {
+      state.draftAdvertiserPage = 1;
+      state.draftAdvertisers = [];
+      select.innerHTML = '<option value="">Загрузка…</option>';
+    }
+    try {
+      const params = new URLSearchParams(query ? {
+        mode: "search", q: query, page_size: "100",
+      } : {
+        mode: "page", page: String(state.draftAdvertiserPage), page_size: "50",
+      });
+      const data = await api(`/api/advertisers?${params}`);
+      const known = new Set(state.draftAdvertisers.map((item) => item.key));
+      state.draftAdvertisers.push(...data.items.filter((item) => !known.has(item.key)));
+      select.innerHTML = '<option value="">Выбрать…</option>' + state.draftAdvertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + '<option value="__new__">+ Новый рекламодатель</option>';
+      more.classList.toggle("hidden", Boolean(query) || !data.has_next);
+      if (!query && data.has_next) state.draftAdvertiserPage += 1;
+    } catch (error) {
+      select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
+      more.classList.add("hidden");
+    } finally {
+      state.draftAdvertiserLoading = false;
+    }
   }
 
   async function loadAdvertisers(reset = true) {

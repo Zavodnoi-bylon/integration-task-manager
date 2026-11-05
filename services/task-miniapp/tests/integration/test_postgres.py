@@ -9,6 +9,7 @@ from uuid import UUID
 
 from dest_miniapp.domain import EventDraft, EventKind, NotificationIntentDraft, NotificationKind, WorkflowAction
 from dest_miniapp.canonical import PostgresMiniAppGateway
+from dest_miniapp.dto import DraftSaveInput
 from dest_miniapp.gateway import ResourceNotFound
 from dest_miniapp.models import Actor
 from dest_miniapp.outbox import PostgresOutboxWorker
@@ -86,7 +87,8 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         await admin_db.open()
         async with admin_db.pool.connection() as connection:
             await connection.execute(
-                """TRUNCATE ticketing.outbox,ticketing.ticket_events,
+                """TRUNCATE ticketing.ticket_draft_intake,ticketing.ticket_drafts,
+                   ticketing.outbox,ticketing.ticket_events,
                    ticketing.ticket_messages,ticketing.tickets,
                    ticketing.miniapp_sessions,ticketing.miniapp_idempotency,
                    ticketing.memberships,ticketing.telegram_users RESTART IDENTITY CASCADE"""
@@ -163,6 +165,57 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 "SELECT current_role AS value"
             )).fetchone()
         self.assertEqual(role["value"], "ticketing_writer")
+
+    async def test_forwarded_draft_is_private_to_author_and_reporting_reader(self):
+        async with self.db.pool.connection() as connection:
+            await connection.execute(
+                "SELECT ticketing.save_draft_intake(%s,%s,%s,%s,%s,now())",
+                ("kalisto", 100, 500, 10, "Client note"),
+            )
+            row = await (
+                await connection.execute(
+                    "SELECT ticketing.create_forwarded_draft("
+                    "%s,%s,%s,%s,%s,%s,%s,now(),now()) AS draft_id",
+                    (
+                        "kalisto", 100, 500, 11, "Forwarded offer",
+                        "user", "Advertiser",
+                    ),
+                )
+            ).fetchone()
+            reader_access = await (
+                await connection.execute(
+                    "SELECT has_table_privilege("
+                    "'activity_reader','ticketing.ticket_drafts','SELECT') AS allowed"
+                )
+            ).fetchone()
+
+        gateway = PostgresMiniAppGateway(
+            self.db, profile_key="kalisto", profile_name="Kalisto",
+            advertiser_catalog=EmptyCatalog(), postback_service=EmptyPostbacks(),
+        )
+        author = Actor(100, "Client", "client")
+        foreign = Actor(101, "Other client", "client")
+        drafts = await gateway.list_drafts(profile_key="kalisto", actor=author)
+        self.assertEqual([item.draft_id for item in drafts], [row["draft_id"]])
+        self.assertFalse(reader_access["allowed"])
+        with self.assertRaises(ResourceNotFound):
+            await gateway.get_draft(
+                profile_key="kalisto", actor=foreign, draft_id=row["draft_id"]
+            )
+
+        saved = await gateway.save_draft(
+            profile_key="kalisto",
+            actor=author,
+            draft_id=row["draft_id"],
+            payload=DraftSaveInput(
+                advertiser={"kind": "catalog", "key": "adv-1"},
+                cap=25,
+                body="Edited offer",
+                client_comment="Edited note",
+            ),
+        )
+        self.assertEqual(saved.edited_body, "Edited offer")
+        self.assertEqual(saved.cap, 25)
 
     async def test_persistent_session_rotation_and_membership_recheck(self):
         store = PostgresSessionStore(self.db)

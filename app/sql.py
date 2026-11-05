@@ -178,6 +178,36 @@ def create_tables():
                     FOREIGN KEY(ticket_id) REFERENCES ticket(number_ticket)
                 )
             ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ticket_draft_intake (
+                    bot_key TEXT NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    telegram_message_id INTEGER NOT NULL,
+                    body TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    PRIMARY KEY (bot_key, author_id, chat_id)
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ticket_drafts (
+                    draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bot_key TEXT NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'draft',
+                    source_body TEXT NOT NULL,
+                    client_comment TEXT NOT NULL DEFAULT '',
+                    edited_body TEXT NOT NULL,
+                    source_chat_id INTEGER NOT NULL,
+                    source_message_id INTEGER NOT NULL,
+                    forward_origin_type TEXT,
+                    forward_origin_name TEXT,
+                    forward_origin_date TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE (bot_key, source_chat_id, source_message_id)
+                )
+            ''')
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_ticket_owner_status "
                 "ON ticket(tg_id_ticket, state_ticket)"
@@ -257,6 +287,83 @@ def get_user_by_id(tg_id: int, bot_key: str | None = None) -> dict | None:
         params = (tg_id, bot_key)
     row = execute_query(query, params, fetch_one=True)
     return dict(row) if row else None
+
+
+def save_draft_intake(bot_key: str, author_id: int, chat_id: int,
+                      message_id: int, body: str, received_at: str) -> None:
+    execute_query(
+        '''
+        INSERT INTO ticket_draft_intake (
+            bot_key, author_id, chat_id, telegram_message_id, body, received_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(bot_key, author_id, chat_id) DO UPDATE SET
+            telegram_message_id=excluded.telegram_message_id,
+            body=excluded.body,
+            received_at=excluded.received_at
+        ''',
+        (bot_key, author_id, chat_id, message_id, body.strip(), received_at),
+    )
+
+
+def create_forwarded_draft(
+    bot_key: str,
+    author_id: int,
+    source_chat_id: int,
+    source_message_id: int,
+    source_body: str,
+    forward_origin_type: str | None,
+    forward_origin_name: str | None,
+    forward_origin_date: str | None,
+    created_at: str,
+) -> dict:
+    conn = _connect()
+    try:
+        with conn:
+            pending = conn.execute(
+                '''
+                SELECT body FROM ticket_draft_intake
+                WHERE bot_key=? AND author_id=? AND chat_id=?
+                  AND datetime(received_at) BETWEEN datetime(?, '-10 minutes')
+                                                AND datetime(?)
+                ''',
+                (bot_key, author_id, source_chat_id, created_at, created_at),
+            ).fetchone()
+            conn.execute(
+                "DELETE FROM ticket_draft_intake "
+                "WHERE bot_key=? AND author_id=? AND chat_id=?",
+                (bot_key, author_id, source_chat_id),
+            )
+            conn.execute(
+                '''
+                INSERT INTO ticket_drafts (
+                    bot_key, author_id, source_body, client_comment, edited_body,
+                    source_chat_id, source_message_id, forward_origin_type,
+                    forward_origin_name, forward_origin_date, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bot_key, source_chat_id, source_message_id) DO NOTHING
+                ''',
+                (
+                    bot_key, author_id, source_body.strip(),
+                    pending["body"] if pending else "", source_body.strip(),
+                    source_chat_id, source_message_id, forward_origin_type,
+                    forward_origin_name, forward_origin_date, created_at, created_at,
+                ),
+            )
+            row = conn.execute(
+                '''
+                SELECT draft_id,bot_key AS profile_key,author_id,status,
+                       source_body,client_comment,edited_body,source_chat_id,
+                       source_message_id,created_at
+                FROM ticket_drafts
+                WHERE bot_key=? AND source_chat_id=? AND source_message_id=?
+                ''',
+                (bot_key, source_chat_id, source_message_id),
+            ).fetchone()
+            if row is None:
+                raise RuntimeError("Unable to load forwarded draft")
+            return dict(row)
+    finally:
+        conn.close()
 
 def update_user_field(tg_id: int, field_name: str, value: str,
                       bot_key: str | None = None) -> None:

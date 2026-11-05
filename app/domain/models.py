@@ -66,6 +66,35 @@ class TicketRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class TicketDraftRecord:
+    draft_id: int
+    profile_key: str
+    author_id: int
+    status: str
+    source_body: str
+    client_comment: str
+    edited_body: str
+    source_chat_id: int
+    source_message_id: int
+    created_at: str
+
+    @classmethod
+    def from_mapping(cls, row: Mapping) -> TicketDraftRecord:
+        return cls(
+            draft_id=int(row["draft_id"]),
+            profile_key=str(row.get("profile_key") or "default"),
+            author_id=int(row["author_id"]),
+            status=str(row.get("status") or "draft"),
+            source_body=str(row.get("source_body") or ""),
+            client_comment=str(row.get("client_comment") or ""),
+            edited_body=str(row.get("edited_body") or row.get("source_body") or ""),
+            source_chat_id=int(row["source_chat_id"]),
+            source_message_id=int(row["source_message_id"]),
+            created_at=str(row.get("created_at") or ""),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class TicketEventRecord:
     event_id: int
     ticket_id: int

@@ -6,6 +6,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from app.handlers import (
     client_tickets,
     common,
+    drafts,
     postbacks,
     ticket_messages,
     technician_tickets,
@@ -46,6 +47,7 @@ def build_dispatcher(
         ticket_messages.router,
         technician_tickets.router,
         ticket_actions.router,
+        drafts.router,
     )
     return dispatcher
 

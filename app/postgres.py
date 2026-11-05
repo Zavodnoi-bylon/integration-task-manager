@@ -159,6 +159,61 @@ def get_user_by_id(tg_id: int, bot_key: str | None = None) -> dict | None:
     }
 
 
+def save_draft_intake(bot_key: str, author_id: int, chat_id: int,
+                      message_id: int, body: str, received_at: str) -> None:
+    with _get_pool().connection() as conn:
+        conn.execute(
+            "SELECT ticketing.save_draft_intake(%s,%s,%s,%s,%s,%s)",
+            (bot_key, author_id, chat_id, message_id, body, _aware(received_at)),
+        )
+
+
+def create_forwarded_draft(
+    bot_key: str,
+    author_id: int,
+    source_chat_id: int,
+    source_message_id: int,
+    source_body: str,
+    forward_origin_type: str | None,
+    forward_origin_name: str | None,
+    forward_origin_date: str | None,
+    created_at: str,
+) -> dict:
+    with _get_pool().connection() as conn:
+        result = conn.execute(
+            "SELECT ticketing.create_forwarded_draft(%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+            "AS draft_id",
+            (
+                bot_key,
+                author_id,
+                source_chat_id,
+                source_message_id,
+                source_body,
+                forward_origin_type,
+                forward_origin_name,
+                _aware(forward_origin_date) if forward_origin_date else None,
+                _aware(created_at),
+            ),
+        ).fetchone()
+        row = conn.execute(
+            '''
+            SELECT d.draft_id,d.profile_key,u.telegram_user_id AS author_id,
+                   d.status,d.source_body,d.client_comment,d.edited_body,
+                   d.source_chat_id,d.source_message_id,d.created_at
+            FROM ticketing.ticket_drafts d
+            JOIN ticketing.telegram_users u ON u.user_id=d.author_user_id
+            WHERE d.profile_key=%s AND d.draft_id=%s
+            ''',
+            (bot_key, result["draft_id"]),
+        ).fetchone()
+    if row is None:
+        raise RuntimeError("Unable to load forwarded draft")
+    return {
+        **row,
+        "created_at": _format_timestamp(row["created_at"]),
+    }
+
+
 def update_user_field(tg_id: int, field_name: str, value: str,
                       bot_key: str | None = None) -> None:
     # Legacy denormalized fields are intentionally absent from PostgreSQL.

@@ -30,6 +30,22 @@ class FakeGateway:
         self.leak_ticket = False
         self.leak_advertiser = False
         self.leak_postback = False
+        self.drafts = {
+            7: {
+                "draft_id": 7,
+                "source_preview": "Forwarded offer",
+                "source_body": "Forwarded offer",
+                "client_comment": "Client note",
+                "edited_body": "Forwarded offer",
+                "advertiser_kind": None,
+                "advertiser_key": None,
+                "advertiser_name": None,
+                "cap": None,
+                "forward_origin_name": "Advertiser",
+                "created_at": "2026-11-05T10:00:00Z",
+                "updated_at": "2026-11-05T10:00:00Z",
+            }
+        }
 
     def _actor(self, user_id: int, display_name: str = "Test") -> Actor:
         return Actor(user_id, display_name, self.role, self.active)  # type: ignore[arg-type]
@@ -101,6 +117,59 @@ class FakeGateway:
         self.profiles_seen.append(profile_key)
         return {"key": key, "name": "Template",
                 "template": "https://example.invalid"}
+
+    async def list_drafts(self, *, profile_key, actor):
+        self.profiles_seen.append(profile_key)
+        return [
+            {
+                key: item[key]
+                for key in (
+                    "draft_id", "source_preview", "client_comment",
+                    "created_at", "updated_at",
+                )
+            }
+            for item in self.drafts.values()
+        ]
+
+    async def get_draft(self, *, profile_key, actor, draft_id):
+        self.profiles_seen.append(profile_key)
+        if draft_id not in self.drafts:
+            raise ResourceNotFound
+        return dict(self.drafts[draft_id])
+
+    async def save_draft(self, *, profile_key, actor, draft_id, payload):
+        draft = await self.get_draft(
+            profile_key=profile_key, actor=actor, draft_id=draft_id
+        )
+        draft.update(
+            edited_body=payload.body,
+            client_comment=payload.client_comment,
+            advertiser_kind=payload.advertiser.kind if payload.advertiser else None,
+            advertiser_key=(
+                payload.advertiser.key
+                if payload.advertiser and payload.advertiser.kind == "catalog"
+                else None
+            ),
+            advertiser_name=(
+                payload.advertiser.name
+                if payload.advertiser and payload.advertiser.kind == "new"
+                else None
+            ),
+            cap=payload.cap,
+        )
+        self.drafts[draft_id] = draft
+        return dict(draft)
+
+    async def cancel_draft(self, *, profile_key, actor, draft_id):
+        await self.get_draft(profile_key=profile_key, actor=actor, draft_id=draft_id)
+        self.drafts.pop(draft_id)
+
+    async def mark_draft_submitted(
+        self, *, profile_key, actor, draft_id, ticket_id
+    ):
+        await self.get_draft(profile_key=profile_key, actor=actor, draft_id=draft_id)
+        self.drafts.pop(draft_id)
+        self.submitted_draft = (draft_id, ticket_id)
 
 
 class StubMutations:
@@ -365,6 +434,59 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.profile_key, "kalisto")
         self.assertEqual(gateway.mutations.last_command.advertiser.key, "adv-1")
+
+    def test_forwarded_draft_is_private_until_explicit_submit(self) -> None:
+        client, gateway = make_client()
+        csrf = login(client).json()["csrf_token"]
+
+        listed = client.get("/api/drafts")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()[0]["draft_id"], 7)
+        self.assertIsNone(gateway.mutations.last_command)
+
+        saved = client.post(
+            "/api/drafts/7/save",
+            json={
+                "advertiser": None,
+                "cap": None,
+                "body": "Edited offer",
+                "client_comment": "Edited note",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json()["edited_body"], "Edited offer")
+        self.assertIsNone(gateway.mutations.last_command)
+
+        submitted = client.post(
+            "/api/drafts/7/submit",
+            json={
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": 25,
+                "body": "Edited offer",
+                "client_comment": "Edited note",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(submitted.status_code, 201)
+        self.assertEqual(submitted.json()["ticket_id"], 101)
+        self.assertEqual(gateway.submitted_draft, (7, 101))
+        self.assertEqual(
+            gateway.mutations.last_command.body,
+            "Edited note\n\nEdited offer",
+        )
+
+    def test_draft_delete_requires_csrf(self) -> None:
+        client, gateway = make_client()
+        csrf = login(client).json()["csrf_token"]
+        self.assertEqual(client.delete("/api/drafts/7").status_code, 403)
+        self.assertEqual(
+            client.delete(
+                "/api/drafts/7", headers={"X-CSRF-Token": csrf}
+            ).status_code,
+            204,
+        )
+        self.assertNotIn(7, gateway.drafts)
 
     def test_workflow_endpoint_builds_typed_command(self) -> None:
         client, gateway = make_client(role="technician")

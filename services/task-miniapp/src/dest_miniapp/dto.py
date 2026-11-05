@@ -100,6 +100,45 @@ class DestinationTicketCreate(StrictInput):
     body: str = Field(min_length=1, max_length=16_384)
 
 
+class TicketDraftSummary(StrictOutput):
+    draft_id: int = Field(gt=0)
+    source_preview: str = Field(min_length=1, max_length=512)
+    client_comment: str = Field(max_length=16_384)
+    created_at: datetime
+    updated_at: datetime
+
+
+class TicketDraftDetail(TicketDraftSummary):
+    source_body: str = Field(min_length=1, max_length=16_384)
+    edited_body: str = Field(min_length=1, max_length=16_384)
+    advertiser_kind: Literal["catalog", "new"] | None = None
+    advertiser_key: str | None = Field(default=None, max_length=128)
+    advertiser_name: str | None = Field(default=None, max_length=256)
+    cap: int | None = Field(default=None, gt=0, le=1_000_000)
+    forward_origin_name: str | None = Field(default=None, max_length=256)
+
+
+class DraftSaveInput(StrictInput):
+    advertiser: AdvertiserInput | None = None
+    cap: int | None = Field(default=None, gt=0, le=1_000_000)
+    body: str = Field(min_length=1, max_length=16_384)
+    client_comment: str = Field(default="", max_length=16_384)
+
+
+class DraftSubmitInput(StrictInput):
+    advertiser: AdvertiserInput
+    cap: int = Field(gt=0, le=1_000_000)
+    body: str = Field(min_length=1, max_length=16_384)
+    client_comment: str = Field(default="", max_length=16_384)
+
+
+class DraftMutationResponse(StrictOutput):
+    draft_id: int = Field(gt=0)
+    status: Literal["submitted"]
+    ticket_id: int = Field(gt=0)
+    replayed: bool
+
+
 CreateTicketInput = Annotated[
     GeneralTicketCreate | DestinationTicketCreate, Field(discriminator="type")
 ]
