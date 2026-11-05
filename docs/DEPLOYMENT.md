@@ -25,3 +25,16 @@ docker compose -p team-activity-trial --env-file .env -f compose.yaml -f deploy/
 Caddy управляется отдельным project team-activity-access и deploy/compose.dashboard-access.yaml.
 Рабочие файлы: /etc/team-activity-access/. PostgreSQL и web доступны только на loopback,
 наружу опубликован HTTPS через Caddy. Таймер коллектора не требует пересборки web.
+
+Read-only Mini App техлида запускается отдельным сервисом и не требует пересоздания web:
+
+```sh
+cd /home/teamactivity/team-activity-explorer
+docker compose -p team-activity-trial --env-file .env \
+  -f compose.yaml -f deploy/compose.trial.yaml -f deploy/compose.lead.yaml \
+  up -d --no-deps --build lead
+```
+
+Закрытая конфигурация `/etc/team-activity-lead/lead.env` содержит токен входного бота и
+allowlist Telegram ID, имеет режим 0600 и не копируется в checkout. Сервис использует только
+reader credentials, публикуется на `127.0.0.1:8482`; Caddy снимает префикс `/lead/`.

@@ -12,8 +12,9 @@ WORKDIR /app
 COPY requirements.lock ./
 RUN pip install --no-cache-dir --requirement requirements.lock \
     && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin activity
-COPY app.py sync.py ./
+COPY app.py lead_app.py sync.py ./
 COPY activity ./activity
+COPY lead_static ./lead_static
 COPY --from=frontend /build/dist ./dist
 # Demo fixtures are deliberately absent from the production image.
 USER 10001:10001

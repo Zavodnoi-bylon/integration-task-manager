@@ -19,15 +19,21 @@ VPS `172.105.249.196` хранит сообщения разрешённых Tel
 | Ticket bots | /home/teamactivity/integration-task-manager/source | Compose для Kalisto/Mephisto; deployed commit `e68b51f` |
 | Bot containers | integration-task-manager-kalisto-1; integration-task-manager-mephisto-1 | Один образ, два изолированных профиля |
 | Конфигурация ботов | /home/teamactivity/.config/integration-task-manager | Раздельные bot env и общий закрытый database.env |
+| Task Mini App | /home/teamactivity/dest-bot-miniapp/source | Текущий source `e6a3741`; оба production-профиля включены |
+| Task Mini App config | /home/teamactivity/.config/dest-bot-miniapp | Закрытые production profile env и общий database.env, root 0600 |
+| Kalisto Mini App | https://kalisto-mini.172-105-249-196.sslip.io/ | `@IntegrationTECH_bot`; web/worker healthy |
+| Mephisto Mini App | https://mephisto-mini.172-105-249-196.sslip.io/ | `@Integrationtechs_bot`; web/worker healthy |
 | AIO domain monitor | /home/teamactivity/aio-domain-monitor/source | Docker/Compose source, deployed commit `2921669` |
 | Domain containers | aio-domain-monitor-bot-1; aio-domain-monitor-refresh-1 | Telegram delivery и почасовое обновление AIO |
 | Domain state | /var/lib/aio-domain-monitor/state.sqlite3 | Снимок доменов, дневной baseline и delivery outbox |
 | Рабочий collector | /home/teamactivity/team-activity-ingest/current | Отдельный процесс сбора Telegram |
 | PostgreSQL | team-activity-trial-postgres-1; БД activity_trial | Текущий источник задач и отчёта |
 | Web/API | team-activity-trial-web-1; 127.0.0.1:8481 | Метрики и проверенные изменения статуса |
+| Lead Mini App | team-activity-trial-lead-1; 127.0.0.1:8482 | `@tiketanalitic_bot`; read-only аналитика двух профилей |
 | PostgreSQL-порт | 127.0.0.1:55432 | Только локальные подключения |
 | HTTPS | team-activity-access-caddy-1 | Внешний доступ с авторизацией |
 | Дашборд | https://team-bi.172-105-249-196.sslip.io/ | Интерфейс пользователя |
+| Lead Mini App | https://team-bi.172-105-249-196.sslip.io/lead/ | Telegram-auth интерфейс `@tiketanalitic_bot` |
 | Раскладка | /home/teamactivity/ui-state/layout.json | Общая настройка панелей |
 | Резервные данные | /home/teamactivity/migration-trial | Дампы и результаты восстановления |
 | Архив обслуживания | /home/teamactivity/maintenance/20261026-baseline | Материалы до новой точки отсчёта |
@@ -121,6 +127,7 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | START_HERE.md | Ссылка на этот документ |
 | team-activity-explorer/.env | Административная конфигурация БД/приложения/ролей, root 0600 |
 | team-activity-explorer/.env.client | Подключение reader/writer для importer, teamactivity 0600 |
+| /etc/team-activity-lead/lead.env | Закрытые token `@tiketanalitic_bot` и Telegram allowlist, root 0600 |
 | team-activity-explorer/.venv/ | Зависимости Python приложения |
 | integration-task-manager/source | Production source `Zavodnoi-bylon/integration-task-manager`, commit `e68b51f` |
 | integration-task-manager/source/compose.yaml | Контейнеры Kalisto/Mephisto, ресурсы и сети |
@@ -129,6 +136,14 @@ runuser -u teamactivity -- /home/teamactivity/team-activity-ingest/.venv/bin/pyt
 | integration-task-manager/.venv/ | Legacy Python-окружение systemd, только rollback |
 | integration-task-manager/data/database.db | Прежняя SQLite; сохранена для rollback, не каноническая после cutover |
 | integration-task-manager/backups/*/database.db | Согласованные SQLite backups перед переключением |
+| dest-bot-miniapp/source | Symlink на текущий production Mini App release |
+| dest-bot-miniapp/releases/20261104Tnav-e6a3741/ | Текущий source commit `e6a3741`; компактный список и исправленная навигация |
+| dest-bot-miniapp/runtime.env | Несекретные image tag, порты, source/config и Docker network |
+| .config/dest-bot-miniapp/kalisto.env | Закрытая конфигурация `@IntegrationTECH_bot` |
+| .config/dest-bot-miniapp/mephisto.env | Закрытая конфигурация `@Integrationtechs_bot` |
+| .config/dest-bot-miniapp/database.env | Закрытые runtime/migration DSN к `activity_trial` |
+| migration-trial/ticketing/20261104Tminiapp-before/ | Dump `activity_trial` и Caddyfile до test Mini App migration |
+| maintenance/20261104T170659Z-miniapp-production-cutover/ | Dump БД и закрытые конфиги перед production Mini App cutover |
 | maintenance/20261031Tdestination-task-before-2493f73/ | Предыдущий source/runtime task-manager перед Destination deploy |
 | maintenance/20261031Tcap-before-260bf11/ | Source/runtime task-manager перед каталогом advertiser и вводом капы |
 | maintenance/20261031Tno-tgid-before-e68b51f/ | Source/runtime перед удалением Telegram ID из уведомлений технарю |
@@ -262,7 +277,9 @@ Collector/timer отключать только отдельным решени�
 | `activity/proposals.py` | Валидация предложений, импорт, принятие и журнал решений |
 | `activity/repository.py` | Чтение PostgreSQL в согласованный snapshot |
 | `activity/task_status.py` | Аудируемое ручное завершение/переоткрытие из UI |
+| `activity/telegram_webapp_auth.py` | Проверка подписи, срока и allowlist Telegram Mini App |
 | `activity/tenants.py` | Идентификаторы/ограничения тенантов и аккаунтов |
+| `activity/ticket_analytics.py` | Ограниченные read-only запросы к витринам reporting тикет-менеджеров |
 | `app.py` | FastAPI: маршруты, авторизация, отчёт, задачи, статусы и static files |
 | `collector/.gitignore` | Исключения локальных данных/секретов collector |
 | `collector/README.txt` | Вход в актуальную инструкцию collector |
@@ -284,9 +301,10 @@ Collector/timer отключать только отдельным решени�
 | `collector/test_ingest.py` | Тесты импорта, ревизий и источников |
 | `collector/test_partition.py` | Тесты разделения inputs и manual exports |
 | `compose.yaml` | Базовые сервисы; на этом VPS обязательно дополнение compose.trial.yaml |
-| `deploy/Caddyfile.dashboard` | Шаблон текущего HTTPS/Basic Auth proxy |
+| `deploy/Caddyfile.dashboard` | HTTPS proxy: Telegram-auth путь /lead и Basic Auth основного dashboard |
 | `deploy/Caddyfile.example` | Общий пример proxy, не действующая конфигурация |
 | `deploy/compose.dashboard-access.yaml` | Отдельный Compose HTTPS-прокси |
+| `deploy/compose.lead.yaml` | Изолированный read-only контейнер Telegram Mini App на loopback 8482 |
 | `deploy/compose.proxy.example.yaml` | Пример proxy для другой установки, не рабочий Compose |
 | `deploy/compose.trial.yaml` | Обязательные overrides текущего VPS: БД, порты, статусные записи |
 | `deploy/team-activity-collect.service` | Исходник systemd service двух аккаунтов |
@@ -327,6 +345,10 @@ Collector/timer отключать только отдельным решени�
 | `integrations/asana-review-bdm/original-sha256.json` | Отпечатки проверенной исходной версии внешнего бота |
 | `integrations/asana-review-bdm/service.py` | Внешний бот: уведомление о переходе в Review BDM |
 | `integrations/asana-review-bdm/test_review_bdm.py` | Регрессии переходов Review BDM и совместимости бот-кода |
+| `lead_app.py` | Read-only FastAPI Mini App для сводки и истории тикетов двух профилей |
+| `lead_static/app.js` | Фильтры, графики, список и карточки тикетов без мутаций |
+| `lead_static/index.html` | Каркас read-only Mini App техлида |
+| `lead_static/styles.css` | Адаптивное оформление Mini App аналитики |
 | `package-lock.json` | Зафиксированные версии frontend-зависимостей |
 | `package.json` | Команды и зависимости frontend |
 | `requirements-dev.in` | Дополнительные зависимости разработки Python |
@@ -376,7 +398,8 @@ Collector/timer отключать только отдельным решени�
 | `tests/test_repository.py` | Тесты SQL snapshots и лимитов |
 | `tests/test_task_status.py` | Тесты завершения/переоткрытия и идемпотентности |
 | `tests/test_tenants.py` | Тесты tenant/account ограничений |
+| `tests/test_ticket_analytics.py` | Тесты Telegram-подписи, allowlist и фильтров read-only аналитики |
 | `vite.config.js` | Настройка сборки и локального frontend-сервера |
 
-Всего файлов исходников проекта: **133**. Секреты и генерируемые данные описаны отдельной таблицей выше.
+Всего файлов исходников проекта: **141**. Секреты и генерируемые данные описаны отдельной таблицей выше.
 <!-- FILE_MAP_END -->

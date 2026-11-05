@@ -1,0 +1,32 @@
+# Read-only Telegram Mini App. Apply together with compose.yaml and compose.trial.yaml.
+services:
+  lead:
+    build: .
+    image: team-activity-explorer:lead-local
+    command: [uvicorn, lead_app:app, --host, 0.0.0.0, --port, '8000', --no-access-log]
+    restart: unless-stopped
+    env_file:
+      - /etc/team-activity-lead/lead.env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: activity_trial
+      DB_USER: activity_reader
+      DB_PASSWORD: ${ACTIVITY_READER_PASSWORD:?Configure reader password}
+    ports:
+      - '127.0.0.1:8482:8000'
+    networks: [backend, frontend]
+    depends_on:
+      postgres: {condition: service_healthy}
+    read_only: true
+    tmpfs: ['/tmp:size=16m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}

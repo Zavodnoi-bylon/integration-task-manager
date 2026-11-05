@@ -1,6 +1,65 @@
-# Проверенное состояние — 31 октября 2026
+# Проверенное состояние — 4 ноября 2026
 
 Новая рабочая точка отсчёта. Карта и команды — [SERVER_GUIDE](SERVER_GUIDE.md).
+
+## Клиентско-техническая Mini App — production включён 4 ноября
+
+- На VPS установлен релиз `dest_bot_miniapp`: текущий source commit
+  `e6a3741`, image `dest-bot-miniapp:20261104Tnav-e6a3741`. Он использует каноническую
+  `activity_trial`, отдельные persistent sessions/idempotency и transactional outbox.
+- Миграция `0002_miniapp_workflow.sql` применена успешно после backup БД:
+  `/home/teamactivity/migration-trial/ticketing/20261104Tminiapp-before/`.
+  Существующие task-manager, dashboard и read-only analytics Mini App продолжают работать.
+- Оба production-профиля запущены: `kalisto-web`/`kalisto-worker` и
+  `mephisto-web`/`mephisto-worker` healthy. Публичные URL
+  `https://kalisto-mini.172-105-249-196.sslip.io/` и
+  `https://mephisto-mini.172-105-249-196.sslip.io/` возвращают успешный health-check.
+- Общие и доступные персональные кнопки `Открыть задачи` подтверждены Telegram API у
+  рабочих `@IntegrationTECH_bot` и `@Integrationtechs_bot`. Тестовые
+  `@experementa1_bot` и `@testmaniken_bot` возвращены к обычному command menu.
+  Один настроенный сотрудник Mephisto ещё не запускал рабочего бота (`user not found`);
+  после первого `/start` он получит общую Web App-кнопку без изменения конфигурации.
+- Список тикетов приведён к компактным однострочным строкам по образцу аналитической
+  Mini App; двухколоночные карточки, роль в шапке и буквенные псевдоиконки нижнего меню
+  удалены. Длинные нейминги больше не создают горизонтальный overflow. Возврат из
+  созданного/открытого тикета снова показывает нижнее меню на основных страницах.
+- Перед cutover пользователь провёл ручную проверку обоих тестовых ботов; новых замечаний
+  по основной механике не выявлено. Ручной smoke-test уже через production-ботов ещё
+  должен быть выполнен пользователем.
+- Перед сервером подтверждены 57/57 unit/API-тестов, JavaScript syntax check и 8/8
+  PostgreSQL integration tests под ограниченной ролью `ticketing_writer`.
+  Аналитика остаётся отдельным read-only сервисом и не использует task-worker.
+- Перед переключением сохранён и проверен custom-format dump БД, закрытые test-env и
+  runtime: `/home/teamactivity/maintenance/20261104T170659Z-miniapp-production-cutover/`.
+  Накопленных outbox-сообщений не было; тестовые Mini App-сессии сброшены перед заменой
+  токенов, поэтому рабочие пользователи проходят новую Telegram-аутентификацию.
+
+## Read-only Mini App аналитики — включена 4 ноября
+
+- Отдельный контейнер `team-activity-trial-lead-1` читает рабочую `activity_trial`
+  через роль `activity_reader`; root filesystem read-only, наружу порт не опубликован,
+  loopback endpoint — `127.0.0.1:8482`.
+- Публичная точка входа — `/lead/` на действующем HTTPS dashboard. Основной dashboard
+  сохранил Basic Auth; API Mini App требует свежую Telegram `initData`, проверяет HMAC
+  и разрешает только явный список техлидов.
+- Интерфейс объединяет Kalisto/Mephisto: 7/30/90 дней, текущий backlog, созданные,
+  уникальные закрытые, события завершения/переоткрытия, медиану выполнения, возраст
+  открытых задач, типы и read-only карточки с перепиской. Telegram ID не выдаются.
+- Создание тикетов, ответы, заметки и смена статуса в этом сервисе отсутствуют.
+  Рабочие контейнеры Kalisto/Mephisto не менялись и не перезапускались.
+- Проверено: 5/5 новых backend-тестов, 19/19 frontend-тестов; полный backend-набор на
+  серверном Linux — 78/78. Локально один старый symlink-тест не исполнился из-за права Windows. Серверный image собран,
+  контейнер healthy, restart count 0; внутренний и публичный подписанные API-прогоны прошли.
+  Неподписанный API возвращает 401, прежний dashboard без Basic Auth — 401.
+- Read-only приложение подключено к production `@tiketanalitic_bot`. Общая кнопка
+  `Аналитика` и персональная кнопка текущего владельца подтверждены Telegram API;
+  прежние кнопки `@experementa1_bot` сброшены. В allowlist два аккаунта, но второй
+  ещё не запускал `@tiketanalitic_bot` (`user not found`) и получит общую кнопку после
+  первого `/start`.
+- Резервная копия до изменения Caddy/Dockerfile:
+  `/home/teamactivity/maintenance/20261104Tlead-miniapp-before`.
+- Закрытый config перед подключением production-бота:
+  `/home/teamactivity/maintenance/20261104T173347Z-analytics-bot-cutover/lead.env`.
 
 ## Destination-задачи — каталог и капа включены 31 октября
 
