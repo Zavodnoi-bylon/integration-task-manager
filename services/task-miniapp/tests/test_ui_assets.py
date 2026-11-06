@@ -52,6 +52,12 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('api("/api/help")', self.js)
         self.assertIn('class="faq-item"', self.js)
 
+    def test_postbacks_are_shown_before_help(self) -> None:
+        self.assertLess(
+            self.html.index('id="postback-list"'),
+            self.html.index('id="help-content"'),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
