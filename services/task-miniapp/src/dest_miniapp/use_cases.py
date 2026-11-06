@@ -5,7 +5,7 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
-from typing import Literal, Protocol
+from typing import Literal, Protocol, TypeAlias
 from uuid import UUID
 
 from .domain import (
@@ -31,6 +31,9 @@ class DestinationFormattingError(RuntimeError):
     pass
 
 
+CapValue: TypeAlias = int | Literal["uncap"]
+
+
 @dataclass(frozen=True)
 class CatalogAdvertiser:
     kind: Literal["catalog"]
@@ -51,7 +54,7 @@ class CreateTicketCommand:
     ticket_type: Literal["general", "destination"]
     body: str
     advertiser: CatalogAdvertiser | NewAdvertiser | None = None
-    cap: int | None = None
+    cap: CapValue | None = None
 
 
 @dataclass(frozen=True)
@@ -116,7 +119,7 @@ class DestinationFormatRequest:
     advertiser_name: str
     suffix: str | None
     technician_note: str | None
-    cap: int
+    cap: CapValue
     source_body: str
 
 
@@ -134,7 +137,7 @@ class PreparedTicketAggregate:
     source_public_message: str | None
     internal_note: str | None
     advertiser_name: str | None = None
-    cap: int | None = None
+    cap: CapValue | None = None
     used_fallback: bool = False
 
 
@@ -308,6 +311,8 @@ class TicketWorkflow:
         self, command: CreateTicketCommand
     ) -> PreparedTicketAggregate:
         assert command.advertiser is not None and command.cap is not None
+        if not _valid_cap(command.cap):
+            raise ValueError("destination cap must be a positive integer or uncap")
         if isinstance(command.advertiser, CatalogAdvertiser):
             advertiser = await self._advertisers.resolve(
                 profile_key=command.profile_key,
@@ -388,8 +393,18 @@ def _idempotency_scope(
     )
 
 
-def _destination_source_message(advertiser_name: str, cap: int, body: str) -> str:
+def _destination_source_message(
+    advertiser_name: str, cap: CapValue, body: str
+) -> str:
     return f"Advertiser: {advertiser_name}\nCap: {cap}\n\n{body}"
+
+
+def _valid_cap(value: object) -> bool:
+    return value == "uncap" or (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 1 <= value <= 1_000_000
+    )
 
 
 def _merge_notes(*notes: str | None) -> str | None:

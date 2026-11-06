@@ -89,6 +89,7 @@
       state.advertiserSearchTimer = setTimeout(() => loadAdvertisers(true), 300);
     });
     $("#advertiser-more").addEventListener("click", () => loadAdvertisers(false));
+    $("#cap-uncap").addEventListener("change", () => syncCapInput("#cap-input", "#cap-uncap"));
     $("#create-form").addEventListener("submit", createTicket);
     $("#draft-advertiser-select").addEventListener("change", () => {
       $("#draft-new-advertiser").classList.toggle("hidden", $("#draft-advertiser-select").value !== "__new__");
@@ -98,6 +99,7 @@
       state.draftAdvertiserSearchTimer = setTimeout(() => loadDraftAdvertisers(true), 300);
     });
     $("#draft-advertiser-more").addEventListener("click", () => loadDraftAdvertisers(false));
+    $("#draft-cap-uncap").addEventListener("change", () => syncCapInput("#draft-cap", "#draft-cap-uncap"));
     $("#draft-save").addEventListener("click", saveCurrentDraft);
     $("#draft-submit").addEventListener("click", submitCurrentDraft);
     $("#draft-delete").addEventListener("click", deleteCurrentDraft);
@@ -149,7 +151,10 @@
       loadAdvertisers(true);
       loadDrafts();
     }
-    if (page === "tools") loadPostbacks();
+    if (page === "tools") {
+      loadHelp();
+      loadPostbacks();
+    }
   }
 
   function goBack() {
@@ -265,7 +270,7 @@
     let payload = { type, body };
     if (type === "destination") {
       const advertiser = $("#advertiser-select").value;
-      const cap = Number($("#cap-input").value);
+      const cap = $("#cap-uncap").checked ? "uncap" : Number($("#cap-input").value);
       if (!advertiser || !cap) return toast("Выберите рекламодателя и укажите cap");
       payload.advertiser = advertiser === "__new__" ? { kind: "new", name: $("#new-advertiser").value.trim() } : { kind: "catalog", key: advertiser };
       payload.cap = cap;
@@ -276,6 +281,7 @@
     try {
       const result = await api("/api/tickets", { method: "POST", body: payload });
       event.target.reset();
+      syncCapInput("#cap-input", "#cap-uncap");
       toggleCreateType();
       toast(`Тикет #${result.ticket_id} создан`);
       await openTicket(result.ticket_id);
@@ -305,7 +311,9 @@
       $("#draft-title").textContent = `Черновик #${draft.draft_id}`;
       $("#draft-comment").value = draft.client_comment || "";
       $("#draft-body").value = draft.edited_body;
-      $("#draft-cap").value = draft.cap || "";
+      $("#draft-cap-uncap").checked = draft.cap === "uncap";
+      $("#draft-cap").value = typeof draft.cap === "number" ? String(draft.cap) : "";
+      syncCapInput("#draft-cap", "#draft-cap-uncap");
       $("#draft-advertiser-search").value = "";
       await loadDraftAdvertisers(true);
       if (draft.advertiser_kind === "catalog" && draft.advertiser_key) {
@@ -330,7 +338,7 @@
 
   function draftPayload(requireComplete) {
     const selected = $("#draft-advertiser-select").value;
-    const capValue = Number($("#draft-cap").value);
+    const capValue = $("#draft-cap-uncap").checked ? "uncap" : Number($("#draft-cap").value);
     let advertiser = null;
     if (selected === "__new__") {
       const name = $("#draft-new-advertiser").value.trim();
@@ -455,6 +463,70 @@
     } catch (error) { list.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; }
   }
 
+  async function loadHelp() {
+    const target = $("#help-content");
+    target.innerHTML = '<div class="empty">Загрузка…</div>';
+    try {
+      const help = await api("/api/help");
+      target.innerHTML = helpMarkup(help.markdown);
+    } catch (error) {
+      target.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function helpMarkup(markdown) {
+    const sections = String(markdown || "").split(/^##\s+/m).map((part) => part.trim()).filter(Boolean);
+    if (!sections.length) return '<div class="empty">Справка пока не заполнена.</div>';
+    return sections.map((section) => {
+      const [title, ...body] = section.split("\n");
+      return `<details class="faq-item"><summary>${inlineHelp(title)}</summary><div class="faq-body">${helpBody(body)}</div></details>`;
+    }).join("");
+  }
+
+  function helpBody(lines) {
+    const output = [];
+    let paragraph = [];
+    let list = null;
+    let items = [];
+    const flushParagraph = () => {
+      if (paragraph.length) output.push(`<p>${inlineHelp(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    };
+    const flushList = () => {
+      if (list && items.length) output.push(`<${list}>${items.map((item) => `<li>${inlineHelp(item)}</li>`).join("")}</${list}>`);
+      list = null;
+      items = [];
+    };
+    lines.forEach((raw) => {
+      const line = raw.trim();
+      if (!line) { flushParagraph(); flushList(); return; }
+      const bullet = line.match(/^[-*]\s+(.+)$/);
+      const ordered = line.match(/^\d+\.\s+(.+)$/);
+      const match = bullet || ordered;
+      if (match) {
+        flushParagraph();
+        const nextList = ordered ? "ol" : "ul";
+        if (list && list !== nextList) flushList();
+        list = nextList;
+        items.push(match[1]);
+        return;
+      }
+      if (list && /^\s+/.test(raw) && items.length) {
+        items[items.length - 1] += ` ${line}`;
+        return;
+      }
+      flushList();
+      paragraph.push(line);
+    });
+    flushParagraph();
+    flushList();
+    return output.join("");
+  }
+
+  function inlineHelp(value) {
+    return escapeHtml(value).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  }
+
   async function showPostback(button) {
     const target = button.parentElement.querySelector(".template");
     if (target.textContent) return target.classList.toggle("hidden");
@@ -469,6 +541,13 @@
     const destination = $("input[name='ticket-type']:checked").value === "destination";
     $("#destination-fields").classList.toggle("hidden", !destination);
     if (destination) loadAdvertisers(true);
+  }
+
+  function syncCapInput(inputSelector, checkboxSelector) {
+    const input = $(inputSelector);
+    const checkbox = $(checkboxSelector);
+    input.disabled = checkbox.checked;
+    if (checkbox.checked) input.value = "";
   }
 
   function askReason(title) {

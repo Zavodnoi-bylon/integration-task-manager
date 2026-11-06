@@ -126,6 +126,9 @@ input, textarea, select {
 }
 textarea { resize: vertical; }
 input:focus, textarea:focus, select:focus { border-color: #a84c28; box-shadow: 0 0 0 3px rgba(255,107,44,.1); }
+input:disabled { color: var(--muted); background: #191a1d; }
+.check-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px; color: #d2d4d8; cursor: pointer; }
+.check-row input { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--accent); }
 .type-switch label { cursor: pointer; }
 .type-switch input { position: absolute; opacity: 0; pointer-events: none; }
 .type-switch span { display: block; padding: 11px 8px; border-radius: 11px; color: var(--muted); text-align: center; font-weight: 700; }
@@ -160,11 +163,21 @@ button:disabled { opacity: .5; cursor: wait; }
 .action-row { padding: 0 20px 20px; }
 .action-row button { flex: 1 1 150px; }
 
+.tools-stack { display: grid; gap: 14px; }
 .tools-panel h2 { margin: 0 0 15px; }
 .tool-list { display: grid; gap: 9px; }
 .tool-item { padding: 13px 14px; border: 1px solid var(--line); border-radius: 13px; background: #101113; }
 .tool-item button { width: 100%; border: 0; color: inherit; background: none; text-align: left; cursor: pointer; }
 .template { margin: 10px 0 0; color: #c9ccd1; white-space: pre-wrap; word-break: break-word; }
+.faq-list { display: grid; gap: 8px; }
+.faq-item { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: #101113; }
+.faq-item summary { padding: 13px 14px; font-weight: 700; cursor: pointer; list-style-position: inside; }
+.faq-item[open] summary { border-bottom: 1px solid var(--line); }
+.faq-body { padding: 12px 15px 14px; color: #c9ccd1; }
+.faq-body p { margin: 0 0 10px; }
+.faq-body p:last-child { margin-bottom: 0; }
+.faq-body ul, .faq-body ol { margin: 0 0 10px; padding-left: 22px; }
+.faq-body li + li { margin-top: 5px; }
 
 .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .section-head h2 { margin: 0; font-size: 18px; }

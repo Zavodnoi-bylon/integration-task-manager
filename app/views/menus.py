@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.domain import AdvertiserEntry
+from app.domain import AdvertiserEntry, CapValue, cap_label
 
 from .helpers import html
 
@@ -159,9 +159,13 @@ def destination_cap_prompt(advertiser: str):
     text = (
         "<b>Destination</b>\n\n"
         f"<b>Advertiser:</b> <code>{html(advertiser)}</code>\n\n"
-        "Укажите капу одним целым числом."
+        "Укажите капу одним целым числом или выберите вариант без лимита."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Без лимита (uncap)",
+            callback_data="dest_cap_uncap",
+        )],
         [InlineKeyboardButton(
             text="Назад",
             callback_data="ticket_type_destination",
@@ -170,11 +174,11 @@ def destination_cap_prompt(advertiser: str):
     return text, keyboard
 
 
-def destination_offer_prompt(advertiser: str, cap: int):
+def destination_offer_prompt(advertiser: str, cap: CapValue):
     text = (
         "<b>Destination</b>\n\n"
         f"<b>Advertiser:</b> <code>{html(advertiser)}</code>\n"
-        f"<b>Капа:</b> <code>{cap}</code>\n\n"
+        f"<b>Капа:</b> <code>{cap_label(cap)}</code>\n\n"
         "Отправьте полное тело оффера одним сообщением."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 
 from app.domain import (
+    CapValue,
     ROLE_CLIENT,
     ROLE_ADMIN,
     ROLE_TECHNICIAN,
@@ -10,6 +11,7 @@ from app.domain import (
     STATUS_OPEN,
     TICKET_TYPE_DESTINATION,
     TICKET_TYPE_GENERAL,
+    is_valid_cap,
     TICKET_TYPES,
     TicketDraftRecord,
     TicketEventRecord,
@@ -191,7 +193,7 @@ class TicketService:
         owner_id: int,
         advertiser: str,
         source_body: str,
-        cap: int,
+        cap: CapValue,
         formatted_body: str,
         created_at: TimestampInput,
         request_key: str,
@@ -203,8 +205,8 @@ class TicketService:
             raise ValueError("Advertiser cannot be empty")
         if not source_body:
             raise ValueError("Source offer cannot be empty")
-        if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
-            raise ValueError("Cap must be a positive integer")
+        if not is_valid_cap(cap):
+            raise ValueError("Cap must be a positive integer or uncap")
 
         ticket = self.create_ticket(
             owner_id,

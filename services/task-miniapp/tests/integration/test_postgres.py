@@ -217,6 +217,29 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved.edited_body, "Edited offer")
         self.assertEqual(saved.cap, 25)
 
+        unlimited = await gateway.save_draft(
+            profile_key="kalisto",
+            actor=author,
+            draft_id=row["draft_id"],
+            payload=DraftSaveInput(
+                advertiser={"kind": "catalog", "key": "adv-1"},
+                cap="uncap",
+                body="Edited offer",
+                client_comment="Edited note",
+            ),
+        )
+        self.assertEqual(unlimited.cap, "uncap")
+        async with self.db.pool.connection() as connection:
+            persisted = await (
+                await connection.execute(
+                    "SELECT cap,cap_unlimited FROM ticketing.ticket_drafts "
+                    "WHERE draft_id=%s",
+                    (row["draft_id"],),
+                )
+            ).fetchone()
+        self.assertIsNone(persisted["cap"])
+        self.assertTrue(persisted["cap_unlimited"])
+
     async def test_persistent_session_rotation_and_membership_recheck(self):
         store = PostgresSessionStore(self.db)
         first = await store.rotate(

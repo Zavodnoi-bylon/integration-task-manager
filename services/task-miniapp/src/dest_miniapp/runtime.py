@@ -104,6 +104,7 @@ def create_application():
         admin_ids=admins,
         technician_ids=technicians,
         technical_actor_telegram_id=int(_required("ADMIN_MESSAGE")),
+        help_directory=Path("/app/help"),
     )
     @runtime.app.get("/healthz", include_in_schema=False)
     async def healthz():

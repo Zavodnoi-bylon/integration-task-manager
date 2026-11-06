@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -44,6 +45,7 @@ def build_postgres_runtime(
     admin_ids: frozenset[int],
     technician_ids: frozenset[int],
     technical_actor_telegram_id: int,
+    help_directory: Path | None = None,
 ) -> MiniAppRuntime:
     database = PostgresDatabase(database_url)
     catalog_adapter = CanonicalAdvertiserCatalogAdapter(
@@ -83,6 +85,7 @@ def build_postgres_runtime(
         gateway=gateway,
         sessions=PostgresSessionStore(database),
         mutations=workflow,
+        help_directory=help_directory,
         lifespan=lifespan,
     )
     return MiniAppRuntime(app=app, database=database)

@@ -373,7 +373,8 @@ class PostgresMiniAppGateway:
                         """
                         UPDATE ticketing.ticket_drafts d SET
                             edited_body=%s,client_comment=%s,advertiser_kind=%s,
-                            advertiser_key=%s,advertiser_name=%s,cap=%s,updated_at=now()
+                            advertiser_key=%s,advertiser_name=%s,cap=%s,
+                            cap_unlimited=%s,updated_at=now()
                         FROM ticketing.telegram_users u
                         WHERE d.author_user_id=u.user_id AND d.profile_key=%s
                           AND d.draft_id=%s AND u.telegram_user_id=%s
@@ -386,7 +387,8 @@ class PostgresMiniAppGateway:
                             advertiser_kind,
                             advertiser_key,
                             advertiser_name,
-                            payload.cap,
+                            payload.cap if isinstance(payload.cap, int) else None,
+                            payload.cap == "uncap",
                             profile_key,
                             draft_id,
                             actor.telegram_user_id,
@@ -473,6 +475,7 @@ JOIN ticketing.telegram_users requester ON requester.user_id=t.requester_user_id
 _DRAFT_SQL = """
 SELECT d.draft_id,d.source_body,d.client_comment,d.edited_body,
        d.advertiser_kind,d.advertiser_key,d.advertiser_name,d.cap,
+       d.cap_unlimited,
        d.forward_origin_name,d.created_at,d.updated_at
 FROM ticketing.ticket_drafts d
 JOIN ticketing.telegram_users u ON u.user_id=d.author_user_id
@@ -523,6 +526,6 @@ def _draft_detail(row: dict[str, Any]) -> TicketDraftDetail:
         advertiser_kind=row["advertiser_kind"],
         advertiser_key=row["advertiser_key"],
         advertiser_name=row["advertiser_name"],
-        cap=row["cap"],
+        cap="uncap" if row["cap_unlimited"] else row["cap"],
         forward_origin_name=row["forward_origin_name"],
     )

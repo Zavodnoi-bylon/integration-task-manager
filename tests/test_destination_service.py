@@ -96,6 +96,39 @@ class DestinationServiceTests(unittest.IsolatedAsyncioTestCase):
                 cap=20,
             )
 
+    async def test_uncap_is_sent_as_explicit_offer_cap(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json={
+                "choices": [{
+                    "finish_reason": "stop",
+                    "message": {"content": (
+                        "**V.Partners | Brand | FB | PL | Slots | 100 USD | uncap**\n\n"
+                        "**Destination**\n```text\nhttps://example.test/\n```"
+                    )},
+                }],
+            })
+
+        service = DestinationService(
+            api_key="secret-key",
+            model="test-model",
+            prompt_path=str(self.prompt),
+            transport=httpx.MockTransport(handler),
+        )
+        result = await service.format_offer(
+            advertiser="V.Partners",
+            source_body="Offer",
+            cap="uncap",
+        )
+
+        self.assertIn("uncap", result.text)
+        self.assertIn(
+            '"offer_cap": "uncap"',
+            seen["payload"]["messages"][2]["content"],
+        )
+
     async def test_http_error_does_not_leak_api_key(self):
         def handler(_: httpx.Request) -> httpx.Response:
             return httpx.Response(401, json={"error": "secret-key"})

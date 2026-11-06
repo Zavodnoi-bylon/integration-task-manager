@@ -8,7 +8,9 @@ class DestinationFlowTests(unittest.TestCase):
     def test_cap_accepts_only_positive_plain_integers(self):
         self.assertEqual(_parse_destination_cap("10"), 10)
         self.assertEqual(_parse_destination_cap(" 100 "), 100)
-        for value in ("", "0", "-10", "10.5", "10 FTD", "10000000"):
+        self.assertEqual(_parse_destination_cap("uncap"), "uncap")
+        self.assertEqual(_parse_destination_cap(" UNCAP "), "uncap")
+        for value in ("", "0", "-10", "10.5", "10 FTD", "1000001", "10000000"):
             self.assertIsNone(_parse_destination_cap(value))
 
     def test_client_confirmation_does_not_disclose_internal_processing(self):

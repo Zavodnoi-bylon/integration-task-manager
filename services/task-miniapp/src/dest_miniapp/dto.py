@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from .models import Role
 
@@ -73,6 +73,11 @@ class PostbackDetail(PostbackSummary):
     template: str = Field(min_length=1, max_length=16_384)
 
 
+class HelpContent(StrictOutput):
+    audience: Literal["client", "staff"]
+    markdown: str = Field(min_length=1, max_length=65_536)
+
+
 class CatalogAdvertiserInput(StrictInput):
     kind: Literal["catalog"]
     key: str = Field(min_length=1, max_length=128)
@@ -87,6 +92,9 @@ AdvertiserInput = Annotated[
     CatalogAdvertiserInput | NewAdvertiserInput, Field(discriminator="kind")
 ]
 
+LimitedCap = Annotated[StrictInt, Field(gt=0, le=1_000_000)]
+CapValue = LimitedCap | Literal["uncap"]
+
 
 class GeneralTicketCreate(StrictInput):
     type: Literal["general"]
@@ -96,7 +104,7 @@ class GeneralTicketCreate(StrictInput):
 class DestinationTicketCreate(StrictInput):
     type: Literal["destination"]
     advertiser: AdvertiserInput
-    cap: int = Field(gt=0, le=1_000_000)
+    cap: CapValue
     body: str = Field(min_length=1, max_length=16_384)
 
 
@@ -114,20 +122,20 @@ class TicketDraftDetail(TicketDraftSummary):
     advertiser_kind: Literal["catalog", "new"] | None = None
     advertiser_key: str | None = Field(default=None, max_length=128)
     advertiser_name: str | None = Field(default=None, max_length=256)
-    cap: int | None = Field(default=None, gt=0, le=1_000_000)
+    cap: CapValue | None = None
     forward_origin_name: str | None = Field(default=None, max_length=256)
 
 
 class DraftSaveInput(StrictInput):
     advertiser: AdvertiserInput | None = None
-    cap: int | None = Field(default=None, gt=0, le=1_000_000)
+    cap: CapValue | None = None
     body: str = Field(min_length=1, max_length=16_384)
     client_comment: str = Field(default="", max_length=16_384)
 
 
 class DraftSubmitInput(StrictInput):
     advertiser: AdvertiserInput
-    cap: int = Field(gt=0, le=1_000_000)
+    cap: CapValue
     body: str = Field(min_length=1, max_length=16_384)
     client_comment: str = Field(default="", max_length=16_384)
 

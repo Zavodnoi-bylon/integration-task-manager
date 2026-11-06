@@ -81,6 +81,10 @@
               <input class="hidden" id="new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
               <label class="field-label" for="cap-input">Cap</label>
               <input id="cap-input" type="number" min="1" max="1000000" inputmode="numeric" placeholder="25">
+              <label class="check-row" for="cap-uncap">
+                <input id="cap-uncap" type="checkbox">
+                <span>Без лимита (uncap)</span>
+              </label>
             </div>
             <label class="field-label" for="ticket-body">Опишите задачу</label>
             <textarea id="ticket-body" maxlength="16384" rows="7" placeholder="Что нужно сделать?" required></textarea>
@@ -89,9 +93,15 @@
         </div>
 
         <div class="hidden" id="tools-page">
-          <div class="panel tools-panel">
-            <h2>Postbacks</h2>
-            <div id="postback-list" class="tool-list"></div>
+          <div class="tools-stack">
+            <section class="panel tools-panel">
+              <h2>Справка</h2>
+              <div id="help-content" class="faq-list"><div class="empty">Загрузка…</div></div>
+            </section>
+            <section class="panel tools-panel">
+              <h2>Postbacks</h2>
+              <div id="postback-list" class="tool-list"></div>
+            </section>
           </div>
         </div>
 
@@ -138,6 +148,10 @@
       <input class="hidden" id="draft-new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
       <label class="field-label" for="draft-cap">Cap</label>
       <input id="draft-cap" type="number" min="1" max="1000000" inputmode="numeric" placeholder="25">
+      <label class="check-row" for="draft-cap-uncap">
+        <input id="draft-cap-uncap" type="checkbox">
+        <span>Без лимита (uncap)</span>
+      </label>
       <div class="draft-actions">
         <button class="primary-button" type="button" id="draft-submit">Передать в работу</button>
         <button class="secondary-button" type="button" id="draft-save">Сохранить</button>

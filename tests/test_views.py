@@ -93,10 +93,13 @@ class NewTicketFlowViewsTests(unittest.TestCase):
         self.assertIn("dest_adv_search", advertiser_callbacks)
         cap_text, cap_keyboard = destination_cap_prompt("V.Partners")
         self.assertIn("V.Partners", cap_text)
-        self.assertEqual(
-            cap_keyboard.inline_keyboard[0][0].callback_data,
-            "ticket_type_destination",
-        )
+        cap_callbacks = {
+            button.callback_data
+            for row in cap_keyboard.inline_keyboard
+            for button in row
+        }
+        self.assertIn("dest_cap_uncap", cap_callbacks)
+        self.assertIn("ticket_type_destination", cap_callbacks)
         text, offer_keyboard = destination_offer_prompt("V.Partners", 40)
         self.assertIn("V.Partners", text)
         self.assertIn("40", text)
@@ -105,6 +108,9 @@ class NewTicketFlowViewsTests(unittest.TestCase):
             "dest_cap_edit",
         )
         self.assertNotIn("confirm", str(offer_keyboard.inline_keyboard))
+
+        uncap_text, _ = destination_offer_prompt("V.Partners", "uncap")
+        self.assertIn("uncap", uncap_text)
 
     def test_advertiser_catalog_uses_plain_text_buttons(self):
         entry = AdvertiserEntry(

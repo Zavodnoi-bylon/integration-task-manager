@@ -122,6 +122,27 @@ class TicketServiceTests(unittest.TestCase):
             ["Системная пометка: Выбрать advertiser для нужного GEO"],
         )
 
+    def test_destination_ticket_preserves_uncap_in_source_history(self):
+        ticket = self.service.create_destination_ticket(
+            100,
+            "V.Partners",
+            "Исходное тело оффера",
+            "uncap",
+            "V.Partners | Brand | FB | PL | Slots | 100 USD | uncap",
+            "2026-10-28 10:01:00",
+            request_key="telegram-message:100:uncap",
+        )
+
+        public = [
+            event.text
+            for event in self.service.get_events(ticket.ticket_id)
+            if event.event_type == EVENT_PUBLIC_MESSAGE
+        ]
+        self.assertEqual(
+            public,
+            ["Advertiser: V.Partners\nCap: uncap\n\nИсходное тело оффера"],
+        )
+
     def test_client_cannot_access_or_reopen_another_clients_ticket(self):
         self.service.register_user(101, "@other", "2026-10-28 10:00:00")
         ticket = self.service.create_ticket(100, "Чужая задача", "2026-10-28 10:01:00")

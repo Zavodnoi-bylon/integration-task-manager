@@ -21,6 +21,7 @@ from .dto import (
     DraftSaveInput,
     DraftSubmitInput,
     EmptyInput,
+    HelpContent,
     MessageInput,
     MutationResponse,
     Page,
@@ -79,6 +80,7 @@ def create_app(
     gateway: MiniAppGateway,
     sessions: SessionStore,
     mutations: TicketMutationService,
+    help_directory: Path | None = None,
     lifespan: Any = None,
 ) -> FastAPI:
     app = FastAPI(
@@ -88,6 +90,7 @@ def create_app(
         lifespan=lifespan,
     )
     web_root = Path(__file__).with_name("web")
+    help_root = help_directory or web_root / "help"
     app.mount("/assets", StaticFiles(directory=web_root / "assets"), name="assets")
     app.add_middleware(
         CORSMiddleware,
@@ -563,6 +566,19 @@ def create_app(
             profile_key=settings.profile_key, actor=auth.actor, key=key
         )
         return _validate_output(PostbackDetail, result)
+
+    @app.get("/api/help")
+    async def help_content(auth: Authenticated = Depends(authenticated)):
+        audience = "staff" if auth.actor.is_staff else "client"
+        filename = "FAQ_TECHNICIAN.md" if auth.actor.is_staff else "FAQ_CLIENT.md"
+        try:
+            markdown = (help_root / filename).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise BackendUnavailable("help content is unavailable") from exc
+        return _validate_output(
+            HelpContent,
+            {"audience": audience, "markdown": markdown},
+        )
 
     return app
 

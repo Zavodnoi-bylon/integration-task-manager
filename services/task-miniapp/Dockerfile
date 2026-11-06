@@ -14,6 +14,8 @@ RUN pip install --upgrade pip && \
     pip install .
 
 COPY --from=canonical / /opt/integration-task-manager
+COPY --from=canonical docs/FAQ_CLIENT.md /app/help/FAQ_CLIENT.md
+COPY --from=canonical docs/FAQ_TECHNICIAN.md /app/help/FAQ_TECHNICIAN.md
 COPY migrations /app/migrations
 COPY scripts /app/scripts
 WORKDIR /app

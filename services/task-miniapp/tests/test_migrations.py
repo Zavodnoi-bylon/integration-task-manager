@@ -34,6 +34,13 @@ class MigrationTests(unittest.TestCase):
             sql,
         )
 
+    def test_uncap_uses_separate_draft_flag(self):
+        sql = Path("migrations/0005_ticket_draft_uncap.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("cap_unlimited boolean", sql)
+        self.assertIn("NOT cap_unlimited OR cap IS NULL", sql)
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

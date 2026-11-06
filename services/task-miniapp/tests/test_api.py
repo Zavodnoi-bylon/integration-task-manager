@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -235,8 +236,14 @@ def make_client(*, role: str = "client", active: bool = True, clock=None):
     gateway.session_store = store
     mutations = StubMutations()
     gateway.mutations = mutations
+    local_help = Path(__file__).resolve().parents[3] / "docs"
+    help_directory = Path("/app/help") if Path("/app/help").is_dir() else local_help
     app = create_app(
-        settings=settings, gateway=gateway, sessions=store, mutations=mutations
+        settings=settings,
+        gateway=gateway,
+        sessions=store,
+        mutations=mutations,
+        help_directory=help_directory,
     )
     return TestClient(app, base_url="https://testserver"), gateway
 
@@ -378,6 +385,22 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(postback_response.status_code, 503)
         self.assertNotIn("file_path", postback_response.text)
 
+    def test_help_is_selected_by_role(self) -> None:
+        client, _ = make_client(role="client")
+        login(client)
+        client_help = client.get("/api/help")
+        self.assertEqual(client_help.status_code, 200)
+        self.assertEqual(client_help.json()["audience"], "client")
+        self.assertIn("Как создать обычную задачу", client_help.json()["markdown"])
+        self.assertNotIn("Внутренняя запись", client_help.json()["markdown"])
+
+        staff, _ = make_client(role="technician")
+        login(staff)
+        staff_help = staff.get("/api/help")
+        self.assertEqual(staff_help.status_code, 200)
+        self.assertEqual(staff_help.json()["audience"], "staff")
+        self.assertIn("Внутренняя запись", staff_help.json()["markdown"])
+
     def test_postback_path_traversal_is_rejected(self) -> None:
         client, _ = make_client()
         login(client)
@@ -435,6 +458,45 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(gateway.mutations.last_command.profile_key, "kalisto")
         self.assertEqual(gateway.mutations.last_command.advertiser.key, "adv-1")
 
+    def test_destination_accepts_uncap(self) -> None:
+        client, gateway = make_client()
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": "uncap",
+                "body": "Create destination",
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "23232323-2323-4232-8232-232323232323",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.cap, "uncap")
+
+    def test_destination_rejects_ambiguous_cap_values(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        headers = {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": "24242424-2424-4242-8242-242424242424",
+        }
+        for value in (True, 0, -1, "25", "unlimited"):
+            response = client.post(
+                "/api/tickets",
+                json={
+                    "type": "destination",
+                    "advertiser": {"kind": "catalog", "key": "adv-1"},
+                    "cap": value,
+                    "body": "Create destination",
+                },
+                headers=headers,
+            )
+            self.assertEqual(response.status_code, 422, value)
+
     def test_forwarded_draft_is_private_until_explicit_submit(self) -> None:
         client, gateway = make_client()
         csrf = login(client).json()["csrf_token"]
@@ -475,6 +537,35 @@ class ApiTests(unittest.TestCase):
             gateway.mutations.last_command.body,
             "Edited note\n\nEdited offer",
         )
+
+    def test_forwarded_draft_preserves_uncap(self) -> None:
+        client, gateway = make_client()
+        csrf = login(client).json()["csrf_token"]
+        saved = client.post(
+            "/api/drafts/7/save",
+            json={
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": "uncap",
+                "body": "Edited offer",
+                "client_comment": "",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json()["cap"], "uncap")
+
+        submitted = client.post(
+            "/api/drafts/7/submit",
+            json={
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": "uncap",
+                "body": "Edited offer",
+                "client_comment": "",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(submitted.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.cap, "uncap")
 
     def test_draft_delete_requires_csrf(self) -> None:
         client, gateway = make_client()

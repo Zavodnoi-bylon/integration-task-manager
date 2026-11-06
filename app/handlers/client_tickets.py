@@ -5,7 +5,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.domain import STATUS_COMPLETED, STATUS_OPEN
+from app.domain import CapValue, STATUS_COMPLETED, STATUS_OPEN, UNCAP, is_valid_cap
 from app.services.advertiser_catalog import AdvertiserCatalog
 from app.services.destination_service import (
     DestinationFormatterError,
@@ -34,11 +34,26 @@ router = Router(name="client_tickets")
 logger = logging.getLogger(__name__)
 
 
-def _parse_destination_cap(value: str) -> int | None:
+def _parse_destination_cap(value: str) -> CapValue | None:
     value = value.strip()
+    if value.lower() == UNCAP:
+        return UNCAP
     if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
         return None
-    return int(value)
+    parsed = int(value)
+    return parsed if parsed <= 1_000_000 else None
+
+
+async def _continue_destination_with_cap(
+    message: Message,
+    state: FSMContext,
+    advertiser: str,
+    cap: CapValue,
+) -> None:
+    await state.update_data(destination_cap=cap)
+    await state.set_state(UserStates.waiting_for_destination_offer)
+    text, keyboard = destination_offer_prompt(advertiser, cap)
+    await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
 
 
 def _open_list(service: TicketService, user_id: int, page: int = 1):
@@ -340,17 +355,33 @@ async def receive_destination_cap(message: Message, state: FSMContext):
     raw_cap = (message.text or "").strip()
     cap = _parse_destination_cap(raw_cap)
     if cap is None:
-        await message.reply("Укажите капу целым положительным числом.")
+        await message.reply("Укажите капу целым положительным числом или выберите uncap.")
         return
     state_data = await state.get_data()
     advertiser = str(state_data.get("destination_advertiser") or "").strip()
     if not advertiser:
         await message.reply("Сначала выберите advertiser.")
         return
-    await state.update_data(destination_cap=cap)
+    await _continue_destination_with_cap(message, state, advertiser, cap)
+
+
+@router.callback_query(F.data == "dest_cap_uncap")
+async def select_destination_uncap(query: CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    advertiser = str(state_data.get("destination_advertiser") or "").strip()
+    if not advertiser:
+        await query.answer("Сначала выберите advertiser.", show_alert=True)
+        return
+    await query.answer()
+    await state.update_data(destination_cap=UNCAP)
     await state.set_state(UserStates.waiting_for_destination_offer)
-    text, keyboard = destination_offer_prompt(advertiser, cap)
-    await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
+    text, keyboard = destination_offer_prompt(advertiser, UNCAP)
+    await edit_text_if_changed(
+        query.message,
+        text,
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
 
 
 @router.message(UserStates.waiting_for_destination_offer)
@@ -375,7 +406,7 @@ async def create_destination_ticket(
         await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
         return
     cap = state_data.get("destination_cap")
-    if not isinstance(cap, int) or cap < 1:
+    if not is_valid_cap(cap):
         await state.set_state(UserStates.waiting_for_destination_cap)
         text, keyboard = destination_cap_prompt(advertiser)
         await message.reply(text, reply_markup=keyboard, parse_mode="HTML")

@@ -295,6 +295,31 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
             "Новый рекл\n\nmodel-internal",
         )
 
+    async def test_destination_accepts_uncap_without_coercing_it(self) -> None:
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+        )
+        formatter = StubFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
+        await workflow.create_ticket(
+            CreateTicketCommand(
+                profile_key="kalisto",
+                actor=Actor(10, "Author", "client"),
+                idempotency_key=UUID("dcdcdcdc-dcdc-4dcd-8dcd-dcdcdcdcdcdc"),
+                ticket_type="destination",
+                body="Original",
+                advertiser=CatalogAdvertiser("catalog", "catalog-key"),
+                cap="uncap",
+            )
+        )
+
+        self.assertEqual(formatter.requests[0].cap, "uncap")
+        self.assertEqual(uow.aggregates[0].cap, "uncap")
+        self.assertEqual(
+            uow.aggregates[0].source_public_message,
+            "Advertiser: Resolved advertiser\nCap: uncap\n\nOriginal",
+        )
+
     async def test_destination_formatter_failure_uses_prepared_fallback(self) -> None:
         uow = RecordingUnitOfWork(
             TicketSnapshot(7, "kalisto", "destination", "open", 10)
