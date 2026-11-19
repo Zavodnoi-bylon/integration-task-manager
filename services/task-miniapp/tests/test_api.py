@@ -44,6 +44,7 @@ class FakeGateway:
         self.leak_ticket = False
         self.leak_advertiser = False
         self.leak_postback = False
+        self.advertiser_refresh_status = "idle"
         self.last_ticket_query: TicketQuery | None = None
         self.buying_flags: dict[int, bool] = {}
         self.destination_comments = ["Only Dasha", "Do not publish in chat"]
@@ -131,6 +132,16 @@ class FakeGateway:
         return {"items": [item],
                 "total": 1, "page": 1, "page_size": query.page_size,
                 "has_next": False}
+
+    async def request_advertiser_refresh(self, *, profile_key, actor):
+        self.profiles_seen.append(profile_key)
+        if self.advertiser_refresh_status not in {"pending", "running"}:
+            self.advertiser_refresh_status = "pending"
+        return {"status": self.advertiser_refresh_status}
+
+    async def get_advertiser_refresh_status(self, *, profile_key, actor):
+        self.profiles_seen.append(profile_key)
+        return {"status": self.advertiser_refresh_status}
 
     async def list_postbacks(
         self, *, profile_key: str, actor: Actor
@@ -653,6 +664,25 @@ class ApiTests(unittest.TestCase):
         postback_response = client.get("/api/postbacks")
         self.assertEqual(postback_response.status_code, 503)
         self.assertNotIn("file_path", postback_response.text)
+
+    def test_advertiser_refresh_is_profile_scoped_and_requires_csrf(self) -> None:
+        client, gateway = make_client(profile_key="kalisto")
+        csrf = login(client).json()["csrf_token"]
+        self.assertEqual(
+            client.post("/api/advertisers/refresh", json={}).status_code,
+            403,
+        )
+        response = client.post(
+            "/api/advertisers/refresh",
+            json={},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "pending"})
+        gateway.advertiser_refresh_status = "succeeded"
+        status = client.get("/api/advertisers/refresh")
+        self.assertEqual(status.json(), {"status": "succeeded"})
+        self.assertEqual(set(gateway.profiles_seen), {"kalisto"})
 
     def test_help_is_selected_by_role(self) -> None:
         client, _ = make_client(role="client")

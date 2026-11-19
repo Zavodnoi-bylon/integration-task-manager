@@ -78,12 +78,73 @@ class AioAdvertiserStore:
         async with await self._connect() as connection:
             cursor = await connection.execute(
                 "SELECT to_regclass('ticketing.advertiser_catalog') AS catalog, "
-                "to_regclass('ticketing.aio_advertiser_sync_state') AS state"
+                "to_regclass('ticketing.aio_advertiser_sync_state') AS state, "
+                "to_regclass('ticketing.aio_advertiser_refresh_requests') "
+                "AS refresh_requests"
             )
             row = await cursor.fetchone()
-        if not row or row["catalog"] is None or row["state"] is None:
+        if (
+            not row
+            or row["catalog"] is None
+            or row["state"] is None
+            or row["refresh_requests"] is None
+        ):
             raise RuntimeError(
-                "AIO advertiser schema is not installed; run migration 0012"
+                "AIO advertiser schema is not installed; run migrations 0012-0014"
+            )
+
+    async def claim_refresh_profiles(
+        self,
+        profiles: tuple[str, ...],
+        *,
+        stale_after_seconds: int = 1_800,
+    ) -> tuple[str, ...]:
+        if not profiles:
+            return ()
+        async with await self._connect() as connection:
+            cursor = await connection.execute(
+                """
+                WITH candidates AS (
+                    SELECT profile_key
+                    FROM ticketing.aio_advertiser_refresh_requests
+                    WHERE profile_key = ANY(%s)
+                      AND completed_at IS NULL
+                      AND (
+                          started_at IS NULL
+                          OR started_at <= now() - make_interval(secs => %s)
+                      )
+                    ORDER BY requested_at,profile_key
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE ticketing.aio_advertiser_refresh_requests request SET
+                    started_at=now(),completed_at=NULL,outcome=NULL
+                FROM candidates
+                WHERE request.profile_key=candidates.profile_key
+                RETURNING request.profile_key
+                """,
+                (list(profiles), stale_after_seconds),
+            )
+            rows = await cursor.fetchall()
+        return tuple(row["profile_key"] for row in rows)
+
+    async def complete_refresh_profiles(
+        self,
+        profiles: tuple[str, ...],
+        *,
+        succeeded: bool,
+    ) -> None:
+        if not profiles:
+            return
+        async with await self._connect() as connection:
+            await connection.execute(
+                """
+                UPDATE ticketing.aio_advertiser_refresh_requests SET
+                    completed_at=now(),outcome=%s
+                WHERE profile_key = ANY(%s)
+                  AND started_at IS NOT NULL
+                  AND completed_at IS NULL
+                """,
+                ("succeeded" if succeeded else "failed", list(profiles)),
             )
 
     async def seed_catalog(self, rows: tuple[SeedAdvertiser, ...]) -> int:

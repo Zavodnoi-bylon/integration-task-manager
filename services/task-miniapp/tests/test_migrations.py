@@ -136,6 +136,18 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("WHERE important_comment IS NOT NULL", sql)
         self.assertNotIn("UPDATE ticketing.", sql)
 
+    def test_advertiser_refresh_requests_are_profile_scoped_and_state_only(self):
+        sql = Path(
+            "migrations/0014_aio_advertiser_refresh_requests.sql"
+        ).read_text(encoding="utf-8")
+        self.assertIn("aio_advertiser_refresh_requests", sql)
+        self.assertIn("profile_key text PRIMARY KEY", sql)
+        self.assertIn("REFERENCES ticketing.bot_profiles", sql)
+        self.assertIn("requested_at timestamptz", sql)
+        self.assertIn("outcome IN ('succeeded', 'failed')", sql)
+        self.assertNotIn("telegram_user_id", sql)
+        self.assertNotIn("aio_token", sql)
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

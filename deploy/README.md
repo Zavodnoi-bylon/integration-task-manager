@@ -17,5 +17,8 @@
 Инкрементальный проход выполняется каждые 12 часов. Полный проход по существующим
 advertiser'ам и повторное чтение URL parameters выполняются каждые 24 часа;
 значение `AIO_ADVERTISER_FULL_SYNC_SECONDS` по умолчанию равно `86400`.
+Ручной запрос Mini App хранится в PostgreSQL и забирается тем же worker не позднее
+чем через `AIO_ADVERTISER_REQUEST_POLL_SECONDS` (по умолчанию 5 секунд). AIO token
+web-процессам не передаётся, параллельный refresh одного профиля не запускается.
 После успешного cutover он сохраняет несекретный runtime state с точным image tag.
 Для последующих операций используйте `sudo bash deploy/compose.sh <command>`.

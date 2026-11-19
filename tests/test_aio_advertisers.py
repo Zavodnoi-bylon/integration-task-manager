@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -18,9 +20,11 @@ from app.integrations.aio.advertisers import (
 )
 from app.services.aio_advertiser_store import AdvertiserSyncState
 from app.workers.aio_advertisers import (
+    AdvertiserSyncSummary,
     AdvertiserWorkerSettings,
     TENANT_PROFILES,
     run_cycle,
+    run_once,
 )
 
 
@@ -267,6 +271,56 @@ class AioAdvertiserWorkerTests(unittest.IsolatedAsyncioTestCase):
     def test_existing_advertiser_tails_are_refreshed_daily_by_default(self):
         self.assertEqual(self.settings.sync_seconds, 43_200)
         self.assertEqual(self.settings.full_sync_seconds, 86_400)
+        self.assertEqual(self.settings.request_poll_seconds, 5)
+
+    async def test_manual_refresh_runs_only_the_requested_profile_tenants(self):
+        tenants = [
+            SimpleNamespace(
+                uuid="5b758a0a-6b0f-4c69-9f11-9f084c722324",
+                name="Kalisto tenant",
+            ),
+            SimpleNamespace(
+                uuid="71bf7226-d6a6-4074-a7bc-ce8e61865e1f",
+                name="Mephisto tenant",
+            ),
+        ]
+        summary = AdvertiserSyncSummary(
+            full=False,
+            pages=1,
+            listed=1,
+            detailed=1,
+            database_rows=1,
+        )
+        client_context = MagicMock()
+        client_context.__aenter__ = AsyncMock(return_value=MagicMock())
+        client_context.__aexit__ = AsyncMock(return_value=None)
+        with (
+            patch(
+                "app.workers.aio_advertisers.database_conninfo",
+                return_value="postgresql://test",
+            ),
+            patch(
+                "app.workers.aio_advertisers.discover_available_tenants",
+                new=AsyncMock(return_value=tenants),
+            ),
+            patch(
+                "app.workers.aio_advertisers.AioAdvertiserClient",
+                return_value=client_context,
+            ),
+            patch(
+                "app.workers.aio_advertisers.run_cycle",
+                new=AsyncMock(return_value=summary),
+            ) as mocked_cycle,
+        ):
+            result = await run_once(self.settings, profiles=("mephisto",))
+
+        self.assertEqual(result.tenants, 1)
+        self.assertEqual(mocked_cycle.await_count, 1)
+        self.assertEqual(
+            mocked_cycle.await_args.kwargs["tenant_id"],
+            "71bf7226-d6a6-4074-a7bc-ce8e61865e1f",
+        )
+        self.assertEqual(mocked_cycle.await_args.kwargs["profiles"], ("mephisto",))
 
     async def test_first_cycle_is_full_and_updates_both_profiles(self):
         page = AioAdvertiserPage((advertiser(),), False, 60, 59)

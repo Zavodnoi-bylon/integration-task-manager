@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from app.services.advertiser_catalog import AdvertiserCatalog
 
@@ -111,6 +111,53 @@ class AdvertiserCatalogTests(unittest.TestCase):
         self.assertEqual(entry.key, "abcdef123456")
         self.assertEqual(entry.url_parameters, "&click_id={{aio.visit.uuid}}")
         self.assertEqual(catalog.search("v.partners"), ())
+
+    def test_invalidate_forces_the_next_database_refresh(self):
+        snapshots = [
+            [
+                {
+                    "catalog_key": "abcdef123456",
+                    "name": "First advertiser",
+                    "url_parameters": "",
+                    "technician_note": None,
+                    "priority": 0,
+                    "external_id_policy": [],
+                }
+            ],
+            [
+                {
+                    "catalog_key": "fedcba654321",
+                    "name": "Second advertiser",
+                    "url_parameters": "",
+                    "technician_note": None,
+                    "priority": 0,
+                    "external_id_policy": [],
+                }
+            ],
+        ]
+        connection = Mock()
+        connection.__enter__ = Mock(return_value=connection)
+        connection.__exit__ = Mock(return_value=None)
+        connection.execute.side_effect = [
+            Mock(fetchall=Mock(return_value=snapshots[0])),
+            Mock(fetchall=Mock(return_value=snapshots[1])),
+        ]
+        with patch(
+            "app.services.advertiser_catalog.psycopg.connect",
+            return_value=connection,
+        ):
+            catalog = AdvertiserCatalog(
+                bot_key="kalisto",
+                catalog_path=str(self.catalog_path),
+                database_url="postgresql://catalog",
+                refresh_seconds=3_600,
+            )
+            self.assertEqual(catalog.page(0, 10)[0][0].name, "First advertiser")
+            self.assertEqual(catalog.page(0, 10)[0][0].name, "First advertiser")
+            catalog.invalidate()
+            self.assertEqual(catalog.page(0, 10)[0][0].name, "Second advertiser")
+
+        self.assertEqual(connection.execute.call_count, 2)
 
 
 if __name__ == "__main__":

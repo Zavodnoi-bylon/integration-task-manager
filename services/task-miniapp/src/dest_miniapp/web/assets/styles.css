@@ -156,6 +156,7 @@ input:disabled { color: var(--muted); background: #191a1d; }
 }
 .primary-button { padding: 13px 17px; color: #fff; background: var(--accent); }
 .secondary-button { padding: 12px 15px; color: #e1e3e6; background: #292c31; }
+.catalog-refresh-button { width: 100%; min-width: 0; font-size: 13px; }
 .danger-button { padding: 12px 15px; color: var(--danger); background: #382123; }
 .icon-button { width: 42px; height: 42px; background: var(--surface-2); font-size: 22px; }
 button:disabled { opacity: .5; cursor: wait; }

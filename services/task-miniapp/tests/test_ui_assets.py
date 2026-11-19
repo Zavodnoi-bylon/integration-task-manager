@@ -62,6 +62,18 @@ class UiAssetTests(unittest.TestCase):
         self.assertNotIn("advertiser-more", self.js)
         self.assertIn('mode: "page", page: "1", page_size: "100"', self.js)
 
+    def test_advertiser_catalog_has_profile_scoped_manual_refresh(self) -> None:
+        self.assertIn('id="advertiser-refresh"', self.html)
+        self.assertIn('id="draft-advertiser-refresh"', self.html)
+        self.assertEqual(
+            self.html.count("Обновить список рекламодателей"),
+            2,
+        )
+        self.assertIn('api("/api/advertisers/refresh"', self.js)
+        self.assertIn('["pending", "running"].includes(result.status)', self.js)
+        self.assertIn('toast("Список рекламодателей обновлён")', self.js)
+        self.assertIn(".catalog-refresh-button", self.css)
+
     def test_long_urls_and_unbroken_text_wrap_inside_mobile_containers(self) -> None:
         for selector in (".destination-url", ".message p", ".faq-body"):
             self.assertRegex(

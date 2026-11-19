@@ -495,6 +495,67 @@ class PostgresMiniAppGateway:
             has_next=query.page * query.page_size < total,
         )
 
+    async def request_advertiser_refresh(
+        self, *, profile_key: str, actor: Actor
+    ) -> dict[str, str]:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            async with connection.transaction():
+                row = await (
+                    await connection.execute(
+                        """
+                        INSERT INTO ticketing.aio_advertiser_refresh_requests (
+                            profile_key,requested_at,started_at,completed_at,outcome
+                        ) VALUES (%s,now(),NULL,NULL,NULL)
+                        ON CONFLICT (profile_key) DO UPDATE SET
+                            requested_at=now(),started_at=NULL,
+                            completed_at=NULL,outcome=NULL
+                        WHERE
+                            ticketing.aio_advertiser_refresh_requests.started_at IS NULL
+                            OR (
+                                ticketing.aio_advertiser_refresh_requests.completed_at
+                                    IS NOT NULL
+                                AND ticketing.aio_advertiser_refresh_requests.completed_at
+                                    <= now() - interval '60 seconds'
+                            )
+                        RETURNING requested_at,started_at,completed_at,outcome
+                        """,
+                        (profile_key,),
+                    )
+                ).fetchone()
+                if row is None:
+                    row = await (
+                        await connection.execute(
+                            """
+                            SELECT requested_at,started_at,completed_at,outcome
+                            FROM ticketing.aio_advertiser_refresh_requests
+                            WHERE profile_key=%s
+                            """,
+                            (profile_key,),
+                        )
+                    ).fetchone()
+        return _advertiser_refresh_status(row)
+
+    async def get_advertiser_refresh_status(
+        self, *, profile_key: str, actor: Actor
+    ) -> dict[str, str]:
+        self._profile(profile_key)
+        async with self._database.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    """
+                    SELECT requested_at,started_at,completed_at,outcome
+                    FROM ticketing.aio_advertiser_refresh_requests
+                    WHERE profile_key=%s
+                    """,
+                    (profile_key,),
+                )
+            ).fetchone()
+        result = _advertiser_refresh_status(row)
+        if result["status"] == "succeeded":
+            self._advertisers.invalidate()
+        return result
+
     async def list_postbacks(
         self, *, profile_key: str, actor: Actor
     ) -> list[PostbackSummary]:
@@ -750,6 +811,20 @@ SELECT t.ticket_id,t.ticket_number,t.status_code,t.ticket_type_code,t.title,t.de
 FROM ticketing.tickets t
 JOIN ticketing.telegram_users requester ON requester.user_id=t.requester_user_id
 """
+
+def _advertiser_refresh_status(row: Any | None) -> dict[str, str]:
+    if row is None:
+        return {"status": "idle"}
+    if row["completed_at"] is not None:
+        return {
+            "status": (
+                "succeeded" if row["outcome"] == "succeeded" else "failed"
+            )
+        }
+    if row["started_at"] is not None:
+        return {"status": "running"}
+    return {"status": "pending"}
+
 
 _DRAFT_SQL = """
 SELECT d.draft_id,d.source_body,d.client_comment,d.edited_body,

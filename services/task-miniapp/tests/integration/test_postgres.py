@@ -95,10 +95,13 @@ class FailingDelivery(Delivery):
 
 
 class EmptyCatalog:
+    def __init__(self):
+        self.invalidations = 0
     count = 0
     def popular(self, limit=6): return ()
     def search(self, query, limit=8): return ()
     def page(self, page, page_size=8): return (), 1
+    def invalidate(self): self.invalidations += 1
 
 
 class EmptyPostbacks:
@@ -114,6 +117,7 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         async with admin_db.pool.connection() as connection:
             await connection.execute(
                 """TRUNCATE ticketing.ticket_draft_intake,ticketing.ticket_drafts,
+                   ticketing.aio_advertiser_refresh_requests,
                    ticketing.outbox,ticketing.ticket_events,
                    ticketing.ticket_messages,ticketing.tickets,
                    ticketing.miniapp_sessions,ticketing.miniapp_idempotency,
@@ -136,6 +140,80 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await self.db.close()
+
+    async def test_advertiser_refresh_request_is_single_profile_state(self):
+        catalog = EmptyCatalog()
+        gateway = PostgresMiniAppGateway(
+            self.db,
+            profile_key="kalisto",
+            profile_name="Kalisto",
+            advertiser_catalog=catalog,
+            postback_service=EmptyPostbacks(),
+        )
+        actor = Actor(100, "Client", "client")
+        self.assertEqual(
+            await gateway.get_advertiser_refresh_status(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "idle"},
+        )
+        self.assertEqual(
+            await gateway.request_advertiser_refresh(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "pending"},
+        )
+        self.assertEqual(
+            await gateway.request_advertiser_refresh(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "pending"},
+        )
+        async with self.db.pool.connection() as connection:
+            count = await (
+                await connection.execute(
+                    """
+                    SELECT count(*) AS value
+                    FROM ticketing.aio_advertiser_refresh_requests
+                    WHERE profile_key='kalisto'
+                    """
+                )
+            ).fetchone()
+            await connection.execute(
+                """
+                UPDATE ticketing.aio_advertiser_refresh_requests
+                SET started_at=now()
+                WHERE profile_key='kalisto'
+                """
+            )
+        self.assertEqual(count["value"], 1)
+        self.assertEqual(
+            await gateway.get_advertiser_refresh_status(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "running"},
+        )
+        async with self.db.pool.connection() as connection:
+            await connection.execute(
+                """
+                UPDATE ticketing.aio_advertiser_refresh_requests
+                SET completed_at=now(),outcome='succeeded'
+                WHERE profile_key='kalisto'
+                """
+            )
+        self.assertEqual(
+            await gateway.get_advertiser_refresh_status(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "succeeded"},
+        )
+        self.assertEqual(catalog.invalidations, 1)
+        self.assertEqual(
+            await gateway.request_advertiser_refresh(
+                profile_key="kalisto", actor=actor
+            ),
+            {"status": "succeeded"},
+        )
 
     async def test_concurrent_destination_create_is_single_flight_and_atomic(self):
         async with self.db.pool.connection() as connection:

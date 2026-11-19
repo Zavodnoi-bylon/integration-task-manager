@@ -86,6 +86,14 @@ class MiniAppGateway(Protocol):
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
     ) -> Page[AdvertiserSummary]: ...
 
+    async def request_advertiser_refresh(
+        self, *, profile_key: str, actor: Actor
+    ) -> dict[str, str]: ...
+
+    async def get_advertiser_refresh_status(
+        self, *, profile_key: str, actor: Actor
+    ) -> dict[str, str]: ...
+
     async def list_postbacks(
         self, *, profile_key: str, actor: Actor
     ) -> list[PostbackSummary]: ...

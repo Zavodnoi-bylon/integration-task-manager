@@ -15,6 +15,7 @@
     page: "tickets",
     advertisers: [],
     advertiserLoading: false,
+    advertiserRefreshRunning: false,
     currentDraft: null,
     draftAdvertisers: [],
     draftAdvertiserLoading: false,
@@ -113,6 +114,7 @@
       clearTimeout(state.advertiserSearchTimer);
       state.advertiserSearchTimer = setTimeout(() => loadAdvertisers(true), 300);
     });
+    $("#advertiser-refresh").addEventListener("click", () => refreshAdvertisers("create"));
     $$("input[name='cap-mode']").forEach((input) => input.addEventListener("change", () => syncCapInput("#cap-input", "cap-mode")));
     $("#create-form").addEventListener("submit", createTicket);
     $("#create-form").addEventListener("input", clearFieldError);
@@ -124,6 +126,7 @@
       clearTimeout(state.draftAdvertiserSearchTimer);
       state.draftAdvertiserSearchTimer = setTimeout(() => loadDraftAdvertisers(true), 300);
     });
+    $("#draft-advertiser-refresh").addEventListener("click", () => refreshAdvertisers("draft"));
     $$("input[name='draft-cap-mode']").forEach((input) => input.addEventListener("change", () => syncCapInput("#draft-cap", "draft-cap-mode")));
     $("#draft-save").addEventListener("click", saveCurrentDraft);
     $("#draft-submit").addEventListener("click", submitCurrentDraft);
@@ -642,6 +645,7 @@
     if (state.draftAdvertiserLoading) return;
     state.draftAdvertiserLoading = true;
     const select = $("#draft-advertiser-select");
+    const previous = select.value;
     const query = $("#draft-advertiser-search").value.trim();
     if (reset) {
       state.draftAdvertisers = [];
@@ -658,6 +662,7 @@
       state.draftAdvertisers.push(...data.items.filter((item) => !known.has(item.key)));
       const newOption = isKalisto() ? "" : '<option value="__new__">+ Новый рекламодатель</option>';
       select.innerHTML = '<option value="">Выбрать…</option>' + state.draftAdvertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + newOption;
+      if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
       select.innerHTML = isKalisto() ? '<option value="">Недоступно</option>' : '<option value="__new__">Новый рекламодатель</option>';
     } finally {
@@ -669,6 +674,7 @@
     if (state.advertiserLoading) return;
     state.advertiserLoading = true;
     const select = $("#advertiser-select");
+    const previous = select.value;
     const query = $("#advertiser-search").value.trim();
     if (reset) {
       state.advertisers = [];
@@ -685,11 +691,49 @@
       state.advertisers.push(...data.items.filter((item) => !known.has(item.key)));
       const newOption = isKalisto() ? "" : '<option value="__new__">+ Новый рекламодатель</option>';
       select.innerHTML = '<option value="">Выбрать…</option>' + state.advertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + newOption;
+      if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
       if (!state.advertisers.length) select.innerHTML = isKalisto() ? '<option value="">Недоступно</option>' : '<option value="__new__">Новый рекламодатель</option>';
     } finally {
       state.advertiserLoading = false;
     }
+  }
+
+  async function refreshAdvertisers(target) {
+    if (state.advertiserRefreshRunning) return;
+    state.advertiserRefreshRunning = true;
+    setAdvertiserRefreshBusy(true);
+    try {
+      let result = await api("/api/advertisers/refresh", {
+        method: "POST",
+        body: {},
+      });
+      for (let attempt = 0; attempt < 300 && ["pending", "running"].includes(result.status); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        result = await api("/api/advertisers/refresh");
+      }
+      if (result.status === "succeeded") {
+        if (target === "draft") await loadDraftAdvertisers(true);
+        else await loadAdvertisers(true);
+        toast("Список рекламодателей обновлён");
+      } else if (result.status === "failed") {
+        toast("Не удалось обновить список. Повторите позже.");
+      } else {
+        toast("Обновление продолжается. Проверьте список позже.");
+      }
+    } catch (error) {
+      toast(error.message || "Не удалось запустить обновление.");
+    } finally {
+      state.advertiserRefreshRunning = false;
+      setAdvertiserRefreshBusy(false);
+    }
+  }
+
+  function setAdvertiserRefreshBusy(busy) {
+    [$("#advertiser-refresh"), $("#draft-advertiser-refresh")].forEach((button) => {
+      button.disabled = busy;
+      button.textContent = busy ? "Обновление…" : "Обновить список рекламодателей";
+    });
   }
 
   async function loadPostbacks() {

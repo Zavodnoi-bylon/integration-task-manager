@@ -225,6 +225,11 @@ class AdvertiserCatalog:
         start = page * page_size
         return self._entries[start:start + page_size], total_pages
 
+    def invalidate(self) -> None:
+        """Force the next catalog read to fetch the latest database snapshot."""
+        with self._refresh_lock:
+            self._refresh_at = 0.0
+
     @property
     def count(self) -> int:
         self._refresh_if_due()

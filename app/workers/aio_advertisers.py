@@ -56,6 +56,7 @@ class AdvertiserWorkerSettings:
     aio_base_url: str = "https://app.aio.tech"
     sync_seconds: float = 43_200
     full_sync_seconds: float = 86_400
+    request_poll_seconds: float = 5
     detail_delay_seconds: float = 1.1
     page_size: int = 100
     max_pages: int = 100
@@ -95,6 +96,9 @@ class AdvertiserWorkerSettings:
             ),
             full_sync_seconds=_positive_float(
                 "AIO_ADVERTISER_FULL_SYNC_SECONDS", "86400"
+            ),
+            request_poll_seconds=_positive_float(
+                "AIO_ADVERTISER_REQUEST_POLL_SECONDS", "5"
             ),
             detail_delay_seconds=_positive_float(
                 "AIO_ADVERTISER_DETAIL_DELAY_SECONDS", "1.1"
@@ -228,8 +232,15 @@ def _client_config(
     )
 
 
-async def run_once(settings: AdvertiserWorkerSettings) -> AdvertiserSyncSummary:
+async def run_once(
+    settings: AdvertiserWorkerSettings,
+    *,
+    profiles: tuple[str, ...] | None = None,
+) -> AdvertiserSyncSummary:
     store = AioAdvertiserStore(database_conninfo())
+    selected_profiles = frozenset(profiles or settings.profiles)
+    if not selected_profiles or not selected_profiles.issubset(settings.profiles):
+        raise ValueError("Requested profiles must be enabled for this worker")
     tenants = await discover_available_tenants(
         token=settings.aio_token,
         base_url=settings.aio_base_url,
@@ -239,7 +250,7 @@ async def run_once(settings: AdvertiserWorkerSettings) -> AdvertiserSyncSummary:
         profiles = tuple(
             profile
             for profile in TENANT_PROFILES.get(tenant.uuid, ())
-            if profile in settings.profiles
+            if profile in selected_profiles
         )
         if not profiles:
             LOG.info("AIO tenant skipped: tenant=%s", tenant.name)
@@ -277,12 +288,39 @@ async def run_once(settings: AdvertiserWorkerSettings) -> AdvertiserSyncSummary:
 
 
 async def serve(settings: AdvertiserWorkerSettings) -> None:
+    store = AioAdvertiserStore(database_conninfo())
+    await store.verify_schema()
+    loop = asyncio.get_running_loop()
+    next_scheduled_at = 0.0
     while True:
+        claimed_profiles: tuple[str, ...] = ()
+        scheduled = False
         try:
-            summary = await run_once(settings)
+            claimed_profiles = await store.claim_refresh_profiles(
+                settings.profiles
+            )
+            scheduled = loop.time() >= next_scheduled_at
+            if not scheduled and not claimed_profiles:
+                await asyncio.sleep(
+                    min(
+                        settings.request_poll_seconds,
+                        max(0.1, next_scheduled_at - loop.time()),
+                    )
+                )
+                continue
+            summary = await run_once(
+                settings,
+                profiles=None if scheduled else claimed_profiles,
+            )
+            if claimed_profiles:
+                await store.complete_refresh_profiles(
+                    claimed_profiles,
+                    succeeded=True,
+                )
             LOG.info(
-                "AIO advertiser sync complete: tenants=%d full=%s pages=%d "
-                "listed=%d detailed=%d database_rows=%d",
+                "AIO advertiser sync complete: trigger=%s tenants=%d full=%s "
+                "pages=%d listed=%d detailed=%d database_rows=%d",
+                "scheduled" if scheduled else "manual",
                 summary.tenants,
                 summary.full,
                 summary.pages,
@@ -291,8 +329,19 @@ async def serve(settings: AdvertiserWorkerSettings) -> None:
                 summary.database_rows,
             )
         except Exception:
+            if claimed_profiles:
+                try:
+                    await store.complete_refresh_profiles(
+                        claimed_profiles,
+                        succeeded=False,
+                    )
+                except Exception:
+                    LOG.exception("Unable to record advertiser refresh failure")
             LOG.exception("AIO advertiser sync failed")
-        await asyncio.sleep(settings.sync_seconds)
+            await asyncio.sleep(settings.request_poll_seconds)
+        finally:
+            if scheduled:
+                next_scheduled_at = loop.time() + settings.sync_seconds
 
 
 def main() -> None:

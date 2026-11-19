@@ -74,6 +74,10 @@ class AdvertiserSummary(StrictOutput):
     name: str = Field(min_length=1, max_length=256)
 
 
+class AdvertiserRefreshStatus(StrictOutput):
+    status: Literal["idle", "pending", "running", "succeeded", "failed"]
+
+
 class PostbackSummary(StrictOutput):
     key: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=256)

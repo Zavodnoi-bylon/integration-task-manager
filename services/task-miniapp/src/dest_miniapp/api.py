@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 from .auth import InitDataError, verify_init_data
 from .analytics_handoff import issue_analytics_handoff
 from .dto import (
+    AdvertiserRefreshStatus,
     AdvertiserSummary,
     BuyingFlagInput,
     BuyingFlagResponse,
@@ -684,6 +685,29 @@ def create_app(
             query=AdvertiserQuery(mode=mode, query=q, page=page, page_size=page_size),  # type: ignore[arg-type]
         )
         return _validate_output(Page[AdvertiserSummary], result)
+
+    @app.post("/api/advertisers/refresh")
+    async def request_advertiser_refresh(
+        _payload: EmptyInput,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ):
+        _require_csrf(auth, csrf_token)
+        result = await gateway.request_advertiser_refresh(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+        )
+        return _validate_output(AdvertiserRefreshStatus, result)
+
+    @app.get("/api/advertisers/refresh")
+    async def advertiser_refresh_status(
+        auth: Authenticated = Depends(authenticated),
+    ):
+        result = await gateway.get_advertiser_refresh_status(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+        )
+        return _validate_output(AdvertiserRefreshStatus, result)
 
     @app.get("/api/postbacks")
     async def postbacks(auth: Authenticated = Depends(authenticated)):
