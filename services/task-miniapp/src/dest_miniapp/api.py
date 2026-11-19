@@ -706,7 +706,7 @@ def create_app(
         audience = "staff" if auth.actor.is_staff else "client"
         filename = "FAQ_TECHNICIAN.md" if auth.actor.is_staff else "FAQ_CLIENT.md"
         try:
-            markdown = (help_root / filename).read_text(encoding="utf-8").strip()
+            markdown = (help_root / "faq" / settings.profile_key / filename).read_text(encoding="utf-8").strip()
         except OSError as exc:
             raise BackendUnavailable("help content is unavailable") from exc
         return _validate_output(

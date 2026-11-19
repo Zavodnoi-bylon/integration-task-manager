@@ -1,0 +1,4 @@
+# Build from the monorepository root; preserves deployed dependencies.
+FROM dest-bot-miniapp:20261119-search-pages
+COPY services/task-miniapp/src/dest_miniapp/api.py /usr/local/lib/python3.12/site-packages/dest_miniapp/api.py
+COPY docs/faq /app/help/faq

@@ -670,6 +670,36 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(staff_help.json()["audience"], "staff")
         self.assertIn("Внутренняя запись", staff_help.json()["markdown"])
 
+    def test_help_is_isolated_by_profile_and_role(self) -> None:
+        for profile in ("kalisto", "mephisto"):
+            for role in ("client", "supervisor", "technician", "admin"):
+                with self.subTest(profile=profile, role=role):
+                    client, _ = make_client(profile_key=profile, role=role)
+                    login(client)
+                    response = client.get("/api/help?profile=other&audience=staff")
+                    self.assertEqual(response.status_code, 200)
+                    content = response.json()
+                    staff = role in {"technician", "admin"}
+                    self.assertEqual(content["audience"], "staff" if staff else "client")
+                    markdown = content["markdown"]
+                    self.assertIn("Поиск по названию", markdown)
+                    self.assertIn("Назад / Далее", markdown)
+                    self.assertIn("Аналитика", markdown)
+                    if profile == "kalisto":
+                        self.assertIn("Kalisto", markdown)
+                        self.assertIn("Выдано баингу", markdown)
+                        self.assertNotIn("Важный комментарий", markdown)
+                        self.assertNotIn("Новый рекламодатель", markdown)
+                    else:
+                        self.assertIn("TheRaw", markdown)
+                        self.assertIn("Важный комментарий", markdown)
+                        self.assertIn("Новый рекламодатель", markdown)
+                        self.assertNotIn("Выдано баингу", markdown)
+                    if staff:
+                        self.assertIn("Внутренняя запись", markdown)
+                    else:
+                        self.assertNotIn("Внутренняя запись", markdown)
+
     def test_postback_path_traversal_is_rejected(self) -> None:
         client, _ = make_client()
         login(client)
