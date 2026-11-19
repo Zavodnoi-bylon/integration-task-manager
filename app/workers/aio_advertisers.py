@@ -55,7 +55,7 @@ class AdvertiserWorkerSettings:
     catalog_path: Path
     aio_base_url: str = "https://app.aio.tech"
     sync_seconds: float = 43_200
-    full_sync_seconds: float = 604_800
+    full_sync_seconds: float = 86_400
     detail_delay_seconds: float = 1.1
     page_size: int = 100
     max_pages: int = 100
@@ -94,7 +94,7 @@ class AdvertiserWorkerSettings:
                 "AIO_ADVERTISER_SYNC_SECONDS", "43200"
             ),
             full_sync_seconds=_positive_float(
-                "AIO_ADVERTISER_FULL_SYNC_SECONDS", "604800"
+                "AIO_ADVERTISER_FULL_SYNC_SECONDS", "86400"
             ),
             detail_delay_seconds=_positive_float(
                 "AIO_ADVERTISER_DETAIL_DELAY_SECONDS", "1.1"

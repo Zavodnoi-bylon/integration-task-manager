@@ -264,6 +264,10 @@ class AioAdvertiserWorkerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("666", TENANT_PROFILES)
 
+    def test_existing_advertiser_tails_are_refreshed_daily_by_default(self):
+        self.assertEqual(self.settings.sync_seconds, 43_200)
+        self.assertEqual(self.settings.full_sync_seconds, 86_400)
+
     async def test_first_cycle_is_full_and_updates_both_profiles(self):
         page = AioAdvertiserPage((advertiser(),), False, 60, 59)
         client = StubClient([page])
@@ -297,7 +301,7 @@ class AioAdvertiserWorkerTests(unittest.IsolatedAsyncioTestCase):
         state = AdvertiserSyncState(
             latest_created_at=watermark,
             last_incremental_at=watermark,
-            last_full_at=NOW - timedelta(days=2),
+            last_full_at=NOW - timedelta(hours=12),
         )
         client = StubClient(pages)
         store = StubStore(state)
@@ -314,6 +318,37 @@ class AioAdvertiserWorkerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(summary.full)
         self.assertEqual(summary.pages, 1)
         self.assertEqual(client.details, ["new"])
+
+    async def test_daily_full_cycle_refreshes_existing_advertiser_tail(self):
+        existing = advertiser(
+            "existing",
+            "Existing advertiser",
+            NOW - timedelta(days=30),
+        )
+        state = AdvertiserSyncState(
+            latest_created_at=NOW - timedelta(days=1),
+            last_incremental_at=NOW - timedelta(hours=12),
+            last_full_at=NOW - timedelta(days=1),
+        )
+        client = StubClient([
+            AioAdvertiserPage((existing,), False, 60, 59),
+        ])
+        store = StubStore(state)
+
+        summary = await run_cycle(
+            self.settings,
+            store,
+            client,
+            tenant_id="tenant-a",
+            profiles=("kalisto",),
+            now=NOW,
+        )
+
+        self.assertTrue(summary.full)
+        self.assertEqual(client.details, ["existing"])
+        self.assertEqual(store.commit["rows"][0].url_parameters,
+                         "click_id={{aio.visit.uuid}}&source=existing")
+        self.assertTrue(store.commit["full"])
 
 
 if __name__ == "__main__":
