@@ -214,6 +214,235 @@ def create_forwarded_draft(
     }
 
 
+def append_forwarded_message(
+    bot_key: str,
+    author_id: int,
+    chat_id: int,
+    message_id: int,
+    body: str,
+    received_at: str,
+    window_seconds: int,
+    forward_origin_type: str | None,
+    forward_origin_name: str | None,
+    forward_origin_date: str | None,
+) -> str:
+    received = _aware(received_at)
+    with _get_pool().connection() as conn:
+        with conn.transaction():
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
+                (f"forward:{bot_key}:{author_id}:{chat_id}",),
+            )
+            duplicate = conn.execute(
+                """
+                SELECT 1 FROM ticketing.forward_batch_messages
+                WHERE profile_key=%s AND chat_id=%s AND telegram_message_id=%s
+                """,
+                (bot_key, chat_id, message_id),
+            ).fetchone()
+            if duplicate is not None:
+                return "duplicate"
+            author = conn.execute(
+                """
+                SELECT u.user_id
+                FROM ticketing.telegram_users u
+                JOIN ticketing.memberships m USING(user_id)
+                WHERE u.telegram_user_id=%s AND m.profile_key=%s AND m.active
+                """,
+                (author_id, bot_key),
+            ).fetchone()
+            if author is None:
+                raise RuntimeError("Active draft author membership is required")
+            batch = conn.execute(
+                """
+                SELECT batch_id,due_at
+                FROM ticketing.forward_batches
+                WHERE profile_key=%s AND author_user_id=%s AND chat_id=%s
+                  AND state='collecting'
+                FOR UPDATE
+                """,
+                (bot_key, author["user_id"], chat_id),
+            ).fetchone()
+            state = "appended"
+            if batch is not None and received >= batch["due_at"]:
+                conn.execute(
+                    "UPDATE ticketing.forward_batches SET state='ready' "
+                    "WHERE batch_id=%s",
+                    (batch["batch_id"],),
+                )
+                batch = None
+            if batch is None:
+                state = "new"
+                batch = conn.execute(
+                    """
+                    INSERT INTO ticketing.forward_batches
+                        (profile_key,author_user_id,chat_id,received_at,due_at,
+                         window_seconds)
+                    VALUES (%s,%s,%s,%s,%s + make_interval(secs => %s),%s)
+                    RETURNING batch_id,due_at
+                    """,
+                    (
+                        bot_key,
+                        author["user_id"],
+                        chat_id,
+                        received,
+                        received,
+                        window_seconds,
+                        window_seconds,
+                    ),
+                ).fetchone()
+            conn.execute(
+                """
+                INSERT INTO ticketing.forward_batch_messages
+                    (batch_id,profile_key,chat_id,telegram_message_id,body,
+                     received_at,forward_origin_type,forward_origin_name,
+                     forward_origin_date)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    batch["batch_id"],
+                    bot_key,
+                    chat_id,
+                    message_id,
+                    body.strip(),
+                    received,
+                    forward_origin_type,
+                    forward_origin_name,
+                    _aware(forward_origin_date) if forward_origin_date else None,
+                ),
+            )
+            return state
+
+
+def finalize_due_forward_batches(
+    bot_key: str,
+    now: str,
+    limit: int = 20,
+) -> list[dict]:
+    completed: list[dict] = []
+    due_now = _aware(now)
+    with _get_pool().connection() as conn:
+        while len(completed) < limit:
+            with conn.transaction():
+                batch = conn.execute(
+                    """
+                    SELECT b.*
+                    FROM ticketing.forward_batches b
+                    WHERE b.profile_key=%s
+                      AND b.state IN ('collecting','ready')
+                      AND b.due_at <= %s
+                    ORDER BY b.due_at,b.batch_id
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1
+                    """,
+                    (bot_key, due_now),
+                ).fetchone()
+                if batch is None:
+                    break
+                messages = conn.execute(
+                    """
+                    SELECT * FROM ticketing.forward_batch_messages
+                    WHERE batch_id=%s
+                    ORDER BY telegram_message_id,batch_message_id
+                    """,
+                    (batch["batch_id"],),
+                ).fetchall()
+                if not messages:
+                    raise RuntimeError("Forward batch has no messages")
+                source_body = "\n\n".join(row["body"] for row in messages)
+                first = messages[0]
+                intake = conn.execute(
+                    """
+                    SELECT body FROM ticketing.ticket_draft_intake
+                    WHERE profile_key=%s AND author_user_id=%s AND chat_id=%s
+                      AND consumed_at IS NULL
+                      AND received_at BETWEEN %s - interval '10 minutes' AND %s
+                    """,
+                    (
+                        bot_key,
+                        batch["author_user_id"],
+                        batch["chat_id"],
+                        batch["received_at"],
+                        batch["received_at"],
+                    ),
+                ).fetchone()
+                draft = conn.execute(
+                    """
+                    INSERT INTO ticketing.ticket_drafts
+                        (profile_key,author_user_id,status,source_body,
+                         client_comment,edited_body,source_chat_id,
+                         source_message_id,forward_origin_type,
+                         forward_origin_name,forward_origin_date,created_at,updated_at,
+                         ticket_type)
+                    VALUES (%s,%s,'draft',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
+                    ON CONFLICT (profile_key,source_chat_id,source_message_id)
+                    DO NOTHING
+                    RETURNING draft_id
+                    """,
+                    (
+                        bot_key,
+                        batch["author_user_id"],
+                        source_body,
+                        intake["body"] if intake else "",
+                        source_body,
+                        batch["chat_id"],
+                        first["telegram_message_id"],
+                        first["forward_origin_type"],
+                        first["forward_origin_name"],
+                        first["forward_origin_date"],
+                        batch["received_at"],
+                        due_now,
+                    ),
+                ).fetchone()
+                if draft is None:
+                    draft = conn.execute(
+                        """
+                        SELECT draft_id FROM ticketing.ticket_drafts
+                        WHERE profile_key=%s AND source_chat_id=%s
+                          AND source_message_id=%s
+                        """,
+                        (bot_key, batch["chat_id"], first["telegram_message_id"]),
+                    ).fetchone()
+                conn.execute(
+                    """
+                    UPDATE ticketing.forward_batches
+                    SET state='closed',draft_id=%s,closed_at=%s
+                    WHERE batch_id=%s
+                    """,
+                    (draft["draft_id"], due_now, batch["batch_id"]),
+                )
+                if intake is not None:
+                    conn.execute(
+                        """
+                        UPDATE ticketing.ticket_draft_intake SET consumed_at=%s
+                        WHERE profile_key=%s AND author_user_id=%s AND chat_id=%s
+                          AND consumed_at IS NULL
+                        """,
+                        (
+                            due_now,
+                            bot_key,
+                            batch["author_user_id"],
+                            batch["chat_id"],
+                        ),
+                    )
+                row = conn.execute(
+                    """
+                    SELECT d.draft_id,d.profile_key,u.telegram_user_id AS author_id,
+                           d.status,d.source_body,d.client_comment,d.edited_body,
+                           d.source_chat_id,d.source_message_id,d.created_at
+                    FROM ticketing.ticket_drafts d
+                    JOIN ticketing.telegram_users u ON u.user_id=d.author_user_id
+                    WHERE d.draft_id=%s
+                    """,
+                    (draft["draft_id"],),
+                ).fetchone()
+                completed.append({
+                    **row,
+                    "created_at": _format_timestamp(row["created_at"]),
+                })
+    return completed
+
+
 def update_user_field(tg_id: int, field_name: str, value: str,
                       bot_key: str | None = None) -> None:
     # Legacy denormalized fields are intentionally absent from PostgreSQL.
@@ -239,7 +468,7 @@ def add_ticket(tg_id_ticket: int, organization: str, addres_ticket: str,
 
 
 _TICKET_SELECT = """
-SELECT f.ticket_id,f.requester_telegram_id,f.description,f.created_at,
+SELECT f.ticket_id,f.ticket_number,f.requester_telegram_id,f.description,f.created_at,
        f.status_code,f.assigned_telegram_id,f.updated_at,f.closed_at,f.profile_key,
        f.ticket_type,
        (SELECT m.body FROM ticketing.ticket_messages m
@@ -252,6 +481,7 @@ FROM reporting.ticket_facts f
 def _ticket_mapping(row: dict) -> dict:
     return {
         "ticket_id": row["ticket_id"],
+        "ticket_number": row["ticket_number"],
         "owner_id": row["requester_telegram_id"],
         "body": row["description"],
         "created_at": _format_timestamp(row["created_at"]),
@@ -336,11 +566,14 @@ def get_completed_tickets_by_user(tg_id: int) -> list[dict]:
     return get_tickets_by_user(tg_id, STATUS_COMPLETED, limit=100)
 
 
-def get_last_ticket_number() -> int:
+def get_last_ticket_number(bot_key: str | None = None) -> int:
+    query = "SELECT coalesce(max(ticket_number),0) AS value FROM ticketing.tickets"
+    params: tuple[object, ...] = ()
+    if bot_key is not None:
+        query += " WHERE profile_key=%s"
+        params = (bot_key,)
     with _get_pool().connection() as conn:
-        return int(conn.execute(
-            "SELECT coalesce(max(ticket_id),0) AS value FROM ticketing.tickets"
-        ).fetchone()["value"])
+        return int(conn.execute(query, params).fetchone()["value"])
 
 
 def add_ticket_comment(ticket_id: int, actor_tg_id: int, comment: str,

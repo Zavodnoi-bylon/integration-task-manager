@@ -4,6 +4,7 @@ import asyncio
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from dest_miniapp.domain import TicketSnapshot, WorkflowAction
@@ -14,6 +15,8 @@ from dest_miniapp.use_cases import (
     CreateTicketCommand,
     DestinationFormatResult,
     DestinationFormattingError,
+    DestinationRequestDetails,
+    DestinationResult,
     IdempotencyConflict,
     IdempotencyLease,
     IdempotencyReplay,
@@ -138,6 +141,10 @@ class StubFormatter:
         return DestinationFormatResult(
             formatted_ticket="model-formatted",
             internal_note="model-internal",
+            results=(DestinationResult(
+                "Resolved advertiser | Brand | FB | BR | Slots | 100 USD | cap 25",
+                "https://example.test/?offer=1",
+            ),),
         )
 
     def fallback(self, request):
@@ -235,7 +242,7 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_catalog_destination_is_resolved_and_formatted_before_uow(self) -> None:
         uow = RecordingUnitOfWork(
-            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
         )
         advertisers = StubAdvertisers()
         formatter = StubFormatter()
@@ -243,29 +250,52 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
             uow, advertisers=advertisers, formatter=formatter
         )
         command = CreateTicketCommand(
-            profile_key="kalisto",
+            profile_key="mephisto",
             actor=Actor(10, "Author", "client"),
             idempotency_key=UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
             ticket_type="destination",
             body="Original client request",
             advertiser=CatalogAdvertiser("catalog", "catalog-key"),
             cap=25,
+            cap_mode="daily",
         )
         await workflow.create_ticket(command)
-        self.assertEqual(advertisers.keys, [("kalisto", "catalog-key")])
+        self.assertEqual(advertisers.keys, [("mephisto", "catalog-key")])
         self.assertEqual(formatter.requests[0].suffix, "catalog-suffix")
         aggregate = uow.aggregates[0]
         self.assertEqual(aggregate.formatted_ticket, "model-formatted")
         self.assertEqual(
             aggregate.source_public_message,
-            "Advertiser: Resolved advertiser\nCap: 25\n\nOriginal client request",
+            "Advertiser: Resolved advertiser\nCap: 25 daily\n\nOriginal client request",
         )
         self.assertEqual(aggregate.internal_note, "catalog-note\n\nmodel-internal")
         self.assertFalse(aggregate.used_fallback)
 
+    async def test_mephisto_important_comment_is_not_sent_to_formatter(self) -> None:
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
+        )
+        formatter = StubFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
+        await workflow.create_ticket(CreateTicketCommand(
+            profile_key="mephisto",
+            actor=Actor(10, "Author", "client"),
+            idempotency_key=UUID("cececece-cece-4ece-8ece-cececececece"),
+            ticket_type="destination",
+            body="Original offer body",
+            advertiser=CatalogAdvertiser("catalog", "catalog-key"),
+            cap=20,
+            cap_mode="lifetime",
+            important_comment="Share only with Dasha",
+        ))
+        aggregate = uow.aggregates[0]
+        self.assertEqual(formatter.requests[0].source_body, "Original offer body")
+        self.assertNotIn("Share only with Dasha", aggregate.source_public_message)
+        self.assertEqual(aggregate.important_comment, "Share only with Dasha")
+
     async def test_new_advertiser_does_not_use_catalog(self) -> None:
         uow = RecordingUnitOfWork(
-            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
         )
         advertisers = StubAdvertisers()
         formatter = StubFormatter()
@@ -274,13 +304,14 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         )
         await workflow.create_ticket(
             CreateTicketCommand(
-                profile_key="kalisto",
+                profile_key="mephisto",
                 actor=Actor(10, "Author", "client"),
                 idempotency_key=UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
                 ticket_type="destination",
                 body="Original",
                 advertiser=NewAdvertiser("new", "New advertiser"),
                 cap=30,
+                cap_mode="monthly",
             )
         )
         self.assertEqual(advertisers.keys, [])
@@ -288,74 +319,120 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(formatter.requests[0].suffix)
         self.assertEqual(
             uow.aggregates[0].source_public_message,
-            "Advertiser: New advertiser\nCap: 30\n\nOriginal",
+            "Advertiser: New advertiser\nCap: 30 monthly\n\nOriginal",
         )
         self.assertEqual(
             uow.aggregates[0].internal_note,
             "Новый рекл\n\nmodel-internal",
         )
 
-    async def test_destination_accepts_uncap_without_coercing_it(self) -> None:
+    async def test_kalisto_persists_complete_structured_request(self) -> None:
         uow = RecordingUnitOfWork(
             TicketSnapshot(7, "kalisto", "destination", "open", 10)
         )
         formatter = StubFormatter()
         workflow = make_workflow(uow, formatter=formatter)
+        naming = (
+            "Resolved advertiser | Brand | FB | BR | Slots | 100 USD | cap 25"
+        )
+        details = DestinationRequestDetails(
+            naming=naming,
+            geo="BR",
+            rate=Decimal("100.00"),
+            currency="USD",
+            landing_url="https://example.test/?offer=1",
+            clickid_subid="click_id from advertiser",
+            additional="KPI: none",
+        )
+
+        await workflow.create_ticket(CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(10, "Author", "client"),
+            idempotency_key=UUID("cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd"),
+            ticket_type="destination",
+            body="Forwarded source evidence",
+            advertiser=CatalogAdvertiser("catalog", "catalog-key"),
+            cap=25,
+            cap_mode="lifetime",
+            details=details,
+        ))
+
+        aggregate = uow.aggregates[0]
+        self.assertEqual(aggregate.title, naming)
+        self.assertEqual(aggregate.destination_request.details, details)
+        self.assertEqual(aggregate.destination_request.processing_status, "validated")
+        self.assertEqual(aggregate.destination_results[0].naming, naming)
+        self.assertIn("Landing URL: https://example.test/?offer=1", aggregate.source_public_message)
+        self.assertIn("Original source:\nForwarded source evidence", aggregate.source_public_message)
+
+    async def test_destination_accepts_uncap_without_coercing_it(self) -> None:
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
+        )
+        formatter = StubFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
         await workflow.create_ticket(
             CreateTicketCommand(
-                profile_key="kalisto",
+                profile_key="mephisto",
                 actor=Actor(10, "Author", "client"),
                 idempotency_key=UUID("dcdcdcdc-dcdc-4dcd-8dcd-dcdcdcdcdcdc"),
                 ticket_type="destination",
                 body="Original",
                 advertiser=CatalogAdvertiser("catalog", "catalog-key"),
                 cap="uncap",
+                cap_mode="unlim",
             )
         )
 
         self.assertEqual(formatter.requests[0].cap, "uncap")
+        self.assertEqual(formatter.requests[0].cap_mode, "unlim")
         self.assertEqual(uow.aggregates[0].cap, "uncap")
         self.assertEqual(
             uow.aggregates[0].source_public_message,
-            "Advertiser: Resolved advertiser\nCap: uncap\n\nOriginal",
+            "Advertiser: Resolved advertiser\nCap: unlim\n\nOriginal",
         )
 
     async def test_destination_formatter_failure_uses_prepared_fallback(self) -> None:
         uow = RecordingUnitOfWork(
-            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
         )
         formatter = StubFormatter(fail=True)
         workflow = make_workflow(uow, formatter=formatter)
         await workflow.create_ticket(
             CreateTicketCommand(
-                profile_key="kalisto",
+                profile_key="mephisto",
                 actor=Actor(10, "Author", "client"),
                 idempotency_key=UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
                 ticket_type="destination",
                 body="Original",
                 advertiser=CatalogAdvertiser("catalog", "catalog-key"),
                 cap=40,
+                cap_mode="daily",
             )
         )
         aggregate = uow.aggregates[0]
         self.assertTrue(aggregate.used_fallback)
         self.assertEqual(aggregate.formatted_ticket, "fallback:Resolved advertiser:40")
-        self.assertEqual(aggregate.internal_note, "catalog-note")
+        self.assertEqual(
+            aggregate.internal_note,
+            "catalog-note\n\nDestination validation fallback: destination validation failed",
+        )
 
     async def test_replay_and_concurrent_duplicate_call_formatter_once(self) -> None:
         uow = RecordingUnitOfWork(
-            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
         )
         formatter = StubFormatter()
         workflow = make_workflow(uow, formatter=formatter)
         command = CreateTicketCommand(
-            profile_key="kalisto",
+            profile_key="mephisto",
             actor=Actor(10, "Author", "client"),
             idempotency_key=UUID("abababab-abab-4bab-8bab-abababababab"),
             ticket_type="destination",
             body="Original",
             advertiser=CatalogAdvertiser("catalog", "catalog-key"),
             cap=25,
+            cap_mode="daily",
         )
         first, second = await asyncio.gather(
             workflow.create_ticket(command), workflow.create_ticket(command)
@@ -374,21 +451,29 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
                 self.requests.append(request)
                 if len(self.requests) == 1:
                     raise RuntimeError("temporary failure")
-                return DestinationFormatResult("recovered", None)
+                return DestinationFormatResult(
+                    "recovered",
+                    None,
+                    results=(DestinationResult(
+                        "New advertiser | Brand | FB | BR | Slots | 100 USD | cap 25",
+                        "https://example.test/?offer=1",
+                    ),),
+                )
 
         uow = RecordingUnitOfWork(
-            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+            TicketSnapshot(7, "mephisto", "destination", "open", 10)
         )
         formatter = FlakyFormatter()
         workflow = make_workflow(uow, formatter=formatter)
         command = CreateTicketCommand(
-            profile_key="kalisto",
+            profile_key="mephisto",
             actor=Actor(10, "Author", "client"),
             idempotency_key=UUID("acacacac-acac-4cac-8cac-acacacacacac"),
             ticket_type="destination",
             body="Original",
             advertiser=NewAdvertiser("new", "New advertiser"),
             cap=25,
+            cap_mode="lifetime",
         )
         with self.assertRaises(RuntimeError):
             await workflow.create_ticket(command)

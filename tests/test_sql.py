@@ -71,6 +71,41 @@ class SqlRepositoryTests(unittest.TestCase):
         self.assertEqual(first["client_comment"], "Комментарий клиента")
         self.assertEqual(first["edited_body"], "Тело оффера")
 
+    def test_forward_batch_has_fixed_deadline_order_and_idempotency(self):
+        sql.ensure_user(101, "2026-10-27 10:00:00", "@client", "client", "kalisto")
+
+        self.assertEqual(sql.append_forwarded_message(
+            "kalisto", 101, 500, 12, "Второе", "2026-10-27 10:00:00", 5,
+            "user", "Sender", None,
+        ), "new")
+        self.assertEqual(sql.append_forwarded_message(
+            "kalisto", 101, 500, 11, "Первое", "2026-10-27 10:00:04", 5,
+            "user", "Sender", None,
+        ), "appended")
+        self.assertEqual(sql.append_forwarded_message(
+            "kalisto", 101, 500, 11, "Первое", "2026-10-27 10:00:04", 5,
+            "user", "Sender", None,
+        ), "duplicate")
+        self.assertEqual(sql.append_forwarded_message(
+            "kalisto", 101, 500, 13, "Новый пакет", "2026-10-27 10:00:05", 5,
+            "user", "Sender", None,
+        ), "new")
+
+        first_batch = sql.finalize_due_forward_batches(
+            "kalisto", "2026-10-27 10:00:05"
+        )
+        self.assertEqual(len(first_batch), 1)
+        self.assertEqual(first_batch[0]["source_body"], "Первое\n\nВторое")
+        self.assertEqual(
+            sql.finalize_due_forward_batches("kalisto", "2026-10-27 10:00:09"),
+            [],
+        )
+        second_batch = sql.finalize_due_forward_batches(
+            "kalisto", "2026-10-27 10:00:10"
+        )
+        self.assertEqual(len(second_batch), 1)
+        self.assertEqual(second_batch[0]["source_body"], "Новый пакет")
+
     def test_comments_are_appended_instead_of_overwritten(self):
         ticket_id = sql.add_ticket(
             101, "", "", "Задача", "2026-10-27 10:00:00",

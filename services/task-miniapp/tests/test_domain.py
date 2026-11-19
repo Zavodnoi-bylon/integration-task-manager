@@ -21,6 +21,8 @@ NOW = datetime(2026, 11, 4, 18, 30, tzinfo=UTC)
 AUTHOR = Actor(10, "Author", "client")
 TECH = Actor(20, "Tech", "technician")
 ADMIN_AUTHOR = Actor(10, "Staff author", "admin")
+SUPERVISOR_AUTHOR = Actor(10, "Supervisor author", "supervisor")
+SUPERVISOR = Actor(30, "Supervisor", "supervisor")
 
 
 def ticket(
@@ -89,6 +91,29 @@ class WorkflowTests(unittest.TestCase):
             now=NOW,
         )
         self.assertEqual(plan.new_status, "completed")
+
+    def test_supervisor_keeps_author_actions_only_on_own_ticket(self) -> None:
+        plan = plan_transition(
+            ticket(status="review", cycle=1),
+            action=WorkflowAction.ACCEPT,
+            actor=SUPERVISOR_AUTHOR,
+            now=NOW,
+        )
+        self.assertEqual(plan.new_status, "completed")
+        with self.assertRaises(ActionForbidden):
+            plan_transition(
+                ticket(status="review", cycle=1),
+                action=WorkflowAction.ACCEPT,
+                actor=SUPERVISOR,
+                now=NOW,
+            )
+        with self.assertRaises(ActionForbidden):
+            plan_transition(
+                ticket(),
+                action=WorkflowAction.SUBMIT_REVIEW,
+                actor=SUPERVISOR_AUTHOR,
+                now=NOW,
+            )
 
     def test_non_author_client_is_hidden_and_non_author_staff_is_forbidden(self) -> None:
         other_client = Actor(11, "Other", "client")
@@ -222,6 +247,16 @@ class WorkflowTests(unittest.TestCase):
         )
         self.assertEqual(plan.visibility, "public")
         self.assertEqual(plan.notifications[0].public_reason, "Question")
+
+    def test_supervisor_can_only_write_public_messages(self) -> None:
+        plan = plan_message(
+            ticket(), actor=SUPERVISOR, visibility="public", body="Status?"
+        )
+        self.assertEqual(plan.visibility, "public")
+        with self.assertRaises(ActionForbidden):
+            plan_message(
+                ticket(), actor=SUPERVISOR, visibility="internal", body="Hidden"
+            )
 
 
 if __name__ == "__main__":

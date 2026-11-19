@@ -1,0 +1,2 @@
+FROM dest-bot-miniapp:20261117-comment-2c71768
+COPY src/dest_miniapp /usr/local/lib/python3.12/site-packages/dest_miniapp

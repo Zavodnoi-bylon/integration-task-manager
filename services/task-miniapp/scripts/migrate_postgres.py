@@ -11,6 +11,16 @@ LOCK_ID = 814211970261030
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def accepted_digests(path: Path) -> set[str]:
+    raw = path.read_bytes()
+    lf = raw.replace(b"\r\n", b"\n")
+    crlf = lf.replace(b"\n", b"\r\n")
+    return {
+        hashlib.sha256(content).hexdigest()
+        for content in (raw, lf, crlf)
+    }
+
+
 def discover(directory: Path) -> list[tuple[int, Path, str]]:
     result = []
     seen = set()
@@ -55,7 +65,11 @@ def apply(dsn: str, directory: Path) -> list[str]:
             for version, path, digest in discover(directory):
                 recorded = existing.get(version)
                 if recorded:
-                    if recorded != (path.name, digest):
+                    recorded_name, recorded_digest = recorded
+                    if (
+                        recorded_name != path.name
+                        or recorded_digest not in accepted_digests(path)
+                    ):
                         raise RuntimeError(f"Applied migration was modified: {path.name}")
                     continue
                 with ClientCursor(connection) as cursor:

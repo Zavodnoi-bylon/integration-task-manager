@@ -256,6 +256,7 @@ def _mutation_result(payload: dict[str, Any] | str) -> MutationResult:
         ticket_type=payload["ticket_type"],
         review_cycle=int(payload["review_cycle"]),
         replayed=True,
+        ticket_number=int(payload.get("ticket_number") or payload["ticket_id"]),
     )
 
 

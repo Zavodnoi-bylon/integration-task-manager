@@ -5,6 +5,7 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Literal, Protocol, TypeAlias
 from uuid import UUID
 
@@ -32,6 +33,7 @@ class DestinationFormattingError(RuntimeError):
 
 
 CapValue: TypeAlias = int | Literal["uncap"]
+CapMode: TypeAlias = Literal["unlim", "daily", "monthly", "lifetime"]
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,31 @@ class NewAdvertiser:
 
 
 @dataclass(frozen=True)
+class DestinationRequestDetails:
+    naming: str
+    geo: str
+    rate: Decimal
+    currency: str
+    landing_url: str
+    clickid_subid: str = ""
+    additional: str = ""
+
+
+@dataclass(frozen=True)
+class ExternalIdentifierPolicySpec:
+    parameter: str
+    action: Literal["replace_visit_uuid", "remove"]
+    output_parameter: str | None = None
+
+
+@dataclass(frozen=True)
+class DestinationResult:
+    naming: str
+    url: str
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class CreateTicketCommand:
     profile_key: str
     actor: Actor
@@ -55,6 +82,9 @@ class CreateTicketCommand:
     body: str
     advertiser: CatalogAdvertiser | NewAdvertiser | None = None
     cap: CapValue | None = None
+    cap_mode: CapMode | None = None
+    details: DestinationRequestDetails | None = None
+    important_comment: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +114,11 @@ class MutationResult:
     ticket_type: Literal["general", "destination"]
     review_cycle: int
     replayed: bool = False
+    ticket_number: int | None = None
+
+    @property
+    def public_number(self) -> int:
+        return self.ticket_number or self.ticket_id
 
 
 @dataclass(frozen=True)
@@ -112,15 +147,20 @@ class ResolvedAdvertiser:
     name: str
     suffix: str | None = None
     technician_note: str | None = None
+    external_id_policy: tuple[ExternalIdentifierPolicySpec, ...] = ()
 
 
 @dataclass(frozen=True)
 class DestinationFormatRequest:
+    profile_key: str
     advertiser_name: str
     suffix: str | None
     technician_note: str | None
     cap: CapValue
+    cap_mode: CapMode
     source_body: str
+    details: DestinationRequestDetails | None = None
+    external_id_policy: tuple[ExternalIdentifierPolicySpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -128,6 +168,18 @@ class DestinationFormatResult:
     formatted_ticket: str
     internal_note: str | None
     used_fallback: bool = False
+    results: tuple[DestinationResult, ...] = ()
+
+
+@dataclass(frozen=True)
+class PreparedDestinationRequest:
+    advertiser_key: str
+    advertiser_name: str
+    details: DestinationRequestDetails
+    cap: CapValue
+    cap_mode: CapMode
+    source_body: str
+    processing_status: Literal["validated", "fallback"]
 
 
 @dataclass(frozen=True)
@@ -138,7 +190,12 @@ class PreparedTicketAggregate:
     internal_note: str | None
     advertiser_name: str | None = None
     cap: CapValue | None = None
+    cap_mode: CapMode | None = None
     used_fallback: bool = False
+    title: str | None = None
+    destination_request: PreparedDestinationRequest | None = None
+    destination_results: tuple[DestinationResult, ...] = ()
+    important_comment: str | None = None
 
 
 class AdvertiserCatalogPort(Protocol):
@@ -311,8 +368,21 @@ class TicketWorkflow:
         self, command: CreateTicketCommand
     ) -> PreparedTicketAggregate:
         assert command.advertiser is not None and command.cap is not None
-        if not _valid_cap(command.cap):
-            raise ValueError("destination cap must be a positive integer or uncap")
+        if not _valid_cap(command.cap, command.cap_mode):
+            raise ValueError(
+                "destination cap and cap mode must be a valid matching pair"
+            )
+        assert command.cap_mode is not None
+        if command.profile_key == "kalisto":
+            if not isinstance(command.advertiser, CatalogAdvertiser):
+                raise ValueError("Kalisto requires a catalog advertiser")
+            if command.details is None:
+                raise ValueError("Kalisto requires structured destination details")
+            if command.important_comment:
+                raise ValueError("important comment is only available for Mephisto")
+        elif command.details is not None:
+            raise ValueError("structured destination details are only valid for Kalisto")
+        important_comment = (command.important_comment or "").strip() or None
         if isinstance(command.advertiser, CatalogAdvertiser):
             advertiser = await self._advertisers.resolve(
                 profile_key=command.profile_key,
@@ -323,36 +393,99 @@ class TicketWorkflow:
                 name=command.advertiser.name,
                 technician_note="Новый рекл",
             )
+        source_body = (
+            _kalisto_source_message(
+                advertiser.name,
+                command.cap,
+                command.cap_mode,
+                command.details,
+                original_body=command.body,
+            )
+            if command.details is not None
+            else command.body
+        )
         request = DestinationFormatRequest(
+            profile_key=command.profile_key,
             advertiser_name=advertiser.name,
             suffix=advertiser.suffix,
             technician_note=advertiser.technician_note,
             cap=command.cap,
-            source_body=command.body,
+            cap_mode=command.cap_mode,
+            source_body=source_body,
+            details=command.details,
+            external_id_policy=advertiser.external_id_policy,
         )
+        fallback_diagnostic = None
         try:
             formatted = await self._destination_formatter.format(request)
-        except DestinationFormattingError:
+            if not formatted.results:
+                raise DestinationFormattingError("formatter returned no validated results")
+            if command.details is not None and (
+                len(formatted.results) != 1
+                or formatted.results[0].naming != command.details.naming
+            ):
+                raise DestinationFormattingError("formatter changed the immutable naming")
+        except DestinationFormattingError as exc:
             formatted = self._destination_formatter.fallback(request)
+            fallback_diagnostic = str(exc).strip() or "destination validation failed"
+        prepared_request = None
+        if command.details is not None:
+            assert isinstance(command.advertiser, CatalogAdvertiser)
+            prepared_request = PreparedDestinationRequest(
+                advertiser_key=command.advertiser.key,
+                advertiser_name=advertiser.name,
+                details=command.details,
+                cap=command.cap,
+                cap_mode=command.cap_mode,
+                source_body=source_body,
+                processing_status="fallback" if formatted.used_fallback else "validated",
+            )
         return PreparedTicketAggregate(
             ticket_type="destination",
             formatted_ticket=formatted.formatted_ticket,
-            source_public_message=_destination_source_message(
-                advertiser.name, command.cap, command.body
+            source_public_message=(
+                source_body
+                if command.details is not None
+                else _destination_source_message(
+                    advertiser.name,
+                    command.cap,
+                    command.cap_mode,
+                    command.body,
+                )
             ),
             internal_note=_merge_notes(
-                advertiser.technician_note, formatted.internal_note
+                advertiser.technician_note,
+                formatted.internal_note,
+                (
+                    f"Destination validation fallback: {fallback_diagnostic}"
+                    if fallback_diagnostic
+                    else None
+                ),
             ),
             advertiser_name=advertiser.name,
             cap=command.cap,
+            cap_mode=command.cap_mode,
             used_fallback=formatted.used_fallback,
+            title=(
+                command.details.naming
+                if command.details is not None
+                else formatted.results[0].naming if formatted.results else None
+            ),
+            destination_request=prepared_request,
+            destination_results=formatted.results,
+            important_comment=important_comment,
         )
 
     async def _prepare_create_aggregate(
         self, command: CreateTicketCommand
     ) -> PreparedTicketAggregate:
         if command.ticket_type == "general":
-            if command.advertiser is not None or command.cap is not None:
+            if (
+                command.advertiser is not None
+                or command.cap is not None
+                or command.details is not None
+                or command.important_comment
+            ):
                 raise ValueError("general ticket cannot contain destination fields")
             return PreparedTicketAggregate(
                 ticket_type="general",
@@ -394,17 +527,52 @@ def _idempotency_scope(
 
 
 def _destination_source_message(
-    advertiser_name: str, cap: CapValue, body: str
+    advertiser_name: str, cap: CapValue, cap_mode: CapMode, body: str
 ) -> str:
-    return f"Advertiser: {advertiser_name}\nCap: {cap}\n\n{body}"
+    return (
+        f"Advertiser: {advertiser_name}\n"
+        f"Cap: {_render_cap(cap, cap_mode)}\n\n{body}"
+    )
 
 
-def _valid_cap(value: object) -> bool:
-    return value == "uncap" or (
+def _kalisto_source_message(
+    advertiser_name: str,
+    cap: CapValue,
+    cap_mode: CapMode,
+    details: DestinationRequestDetails | None,
+    *,
+    original_body: str,
+) -> str:
+    assert details is not None
+    lines = [
+        f"Advertiser: {advertiser_name}",
+        f"Naming: {details.naming}",
+        f"GEO: {details.geo}",
+        f"Rate: {details.rate} {details.currency}",
+        f"Cap: {_render_cap(cap, cap_mode)}",
+        f"Landing URL: {details.landing_url}",
+    ]
+    if details.clickid_subid:
+        lines.append(f"ClickID / SubID: {details.clickid_subid}")
+    if details.additional:
+        lines.append(f"Additional: {details.additional}")
+    if original_body.strip():
+        lines.extend(("", "Original source:", original_body.strip()))
+    return "\n".join(lines)
+
+
+def _valid_cap(value: object, mode: object) -> bool:
+    if mode == "unlim":
+        return value == "uncap"
+    return mode in {"daily", "monthly", "lifetime"} and (
         isinstance(value, int)
         and not isinstance(value, bool)
         and 1 <= value <= 1_000_000
     )
+
+
+def _render_cap(value: CapValue, mode: CapMode) -> str:
+    return "unlim" if mode == "unlim" else f"{value} {mode}"
 
 
 def _merge_notes(*notes: str | None) -> str | None:

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-Role = Literal["client", "technician", "admin"]
+Role = Literal["client", "supervisor", "technician", "admin"]
 
 
 @dataclass(frozen=True)
@@ -24,3 +24,7 @@ class Actor:
     @property
     def is_staff(self) -> bool:
         return self.role in {"technician", "admin"}
+
+    @property
+    def is_supervisor(self) -> bool:
+        return self.role == "supervisor"

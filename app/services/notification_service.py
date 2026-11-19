@@ -20,7 +20,7 @@ class NotificationService:
             else "Другая задача"
         )
         text = (
-            f"📬 <b>Создана задача <code>#{ticket.ticket_id}</code></b>\n\n"
+            f"📬 <b>Создана задача <code>#{ticket.public_number}</code></b>\n\n"
             f"<b>Автор:</b> <a href='tg://user?id={ticket.owner_id}'>{html(author_name)}</a>\n"
             "\n"
             f"<b>Тип:</b> {ticket_type}\n\n"
@@ -52,7 +52,7 @@ class NotificationService:
         latest_comment: str,
     ) -> None:
         text = (
-            f"🎉 Задача <code>#{ticket.ticket_id}</code> выполнена!\n"
+            f"🎉 Задача <code>#{ticket.public_number}</code> выполнена!\n"
             "\n"
             f"<b>Ответ исполнителя:</b> {html(latest_comment)}\n\n"
             "<em>Пожалуйста, проверьте корректность исполнения задачи.</em>"
@@ -99,13 +99,13 @@ class NotificationService:
             recipient = ticket.assigned_to or self._settings.admin_message
             text = (
                 f"↩️ Пользователь вернул задачу "
-                f"<code>#{ticket.ticket_id}</code> в работу."
+                f"<code>#{ticket.public_number}</code> в работу."
             )
             callback = f"ticket_{ticket.ticket_id}"
             button_text = "Открыть задачу"
         else:
             recipient = ticket.owner_id
-            text = f"↩️ Задача <code>#{ticket.ticket_id}</code> возвращена в работу."
+            text = f"↩️ Задача <code>#{ticket.public_number}</code> возвращена в работу."
             callback = "my_ticket"
             button_text = "📥 Мои задачи"
 
@@ -141,7 +141,7 @@ class NotificationService:
         if recipient == actor_id:
             return
         text = (
-            f"💬 <b>{sender} написал в задачу <code>#{ticket.ticket_id}</code></b>\n\n"
+            f"💬 <b>{sender} написал в задачу <code>#{ticket.public_number}</code></b>\n\n"
             f"{html(message_text)}"
         )
         try:

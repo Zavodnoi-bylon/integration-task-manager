@@ -254,3 +254,42 @@ class ModuleTicketRepository:
             created_at,
         )
         return TicketDraftRecord.from_mapping(row)
+
+    def append_forwarded_message(
+        self,
+        profile_key: str,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        body: str,
+        received_at: str,
+        window_seconds: int,
+        forward_origin_type: str | None,
+        forward_origin_name: str | None,
+        forward_origin_date: str | None,
+    ) -> str:
+        return str(self._backend.append_forwarded_message(
+            profile_key,
+            author_id,
+            chat_id,
+            message_id,
+            body,
+            received_at,
+            window_seconds,
+            forward_origin_type,
+            forward_origin_name,
+            forward_origin_date,
+        ))
+
+    def finalize_due_forward_batches(
+        self,
+        profile_key: str,
+        now: str,
+        limit: int = 20,
+    ) -> tuple[TicketDraftRecord, ...]:
+        return tuple(
+            TicketDraftRecord.from_mapping(row)
+            for row in self._backend.finalize_due_forward_batches(
+                profile_key, now, limit
+            )
+        )

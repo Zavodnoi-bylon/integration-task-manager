@@ -53,8 +53,17 @@
             <button data-status="open">В работе</button>
             <button data-status="review">На проверке</button>
             <button data-status="completed">Завершённые</button>
+            <button class="hidden" id="buying-filter" data-buying="true">Выданные</button>
           </div>
-          <div class="ticket-list" id="ticket-list"></div>
+          <label class="ticket-search" for="ticket-search">Поиск по названию
+            <input id="ticket-search" type="search" maxlength="200" placeholder="Введите часть названия" autocomplete="off">
+          </label>
+          <div class="ticket-list" id="ticket-list" aria-live="polite"></div>
+          <nav class="ticket-pagination hidden" id="ticket-pagination" aria-label="Страницы тикетов">
+            <button type="button" class="secondary-button" id="tickets-prev">Назад</button>
+            <span id="tickets-page-info" aria-live="polite"></span>
+            <button type="button" class="secondary-button" id="tickets-next">Далее</button>
+          </nav>
         </div>
 
         <div class="hidden" id="create-page">
@@ -77,17 +86,48 @@
               <label class="field-label" for="advertiser-select">Рекламодатель</label>
               <input id="advertiser-search" type="search" maxlength="128" placeholder="Поиск по названию">
               <select id="advertiser-select"><option value="">Загрузка…</option></select>
-              <button class="secondary-button hidden" type="button" id="advertiser-more">Показать ещё</button>
               <input class="hidden" id="new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
-              <label class="field-label" for="cap-input">Cap</label>
-              <input id="cap-input" type="number" min="1" max="1000000" inputmode="numeric" placeholder="25">
-              <label class="check-row" for="cap-uncap">
-                <input id="cap-uncap" type="checkbox">
-                <span>Без лимита (uncap)</span>
-              </label>
+              <div class="hidden form-stack compact" id="kalisto-destination-fields">
+                <label class="field-label" for="destination-naming">Нейминг</label>
+                <input id="destination-naming" maxlength="512">
+                <label class="field-label" for="destination-geo">GEO</label>
+                <input id="destination-geo" maxlength="128">
+                <label class="field-label" for="destination-rate">Ставка</label>
+                <div class="inline-fields">
+                  <input id="destination-rate" type="number" min="0.0001" step="0.0001" inputmode="decimal">
+                  <input id="destination-currency" maxlength="32" placeholder="Валюта">
+                </div>
+                <div id="destination-cap-anchor"></div>
+                <label class="field-label" for="destination-landing">Основной ленд</label>
+                <textarea id="destination-landing" maxlength="16384" rows="3"></textarea>
+                <label class="field-label" for="destination-clickid">Параметры clickid/subid</label>
+                <textarea id="destination-clickid" maxlength="16384" rows="2" placeholder="Необязательно"></textarea>
+                <label class="field-label" for="destination-additional">Дополнительно</label>
+                <textarea id="destination-additional" maxlength="16384" rows="3" placeholder="Необязательно"></textarea>
+              </div>
+              <div class="form-stack compact" id="cap-fields">
+                <label class="field-label" for="cap-input">CAP</label>
+                <input id="cap-input" type="number" min="1" max="1000000" inputmode="numeric" placeholder="600">
+                <fieldset class="cap-mode-fieldset">
+                  <legend class="field-label">Категория CAP</legend>
+                  <div class="type-switch cap-mode-switch">
+                    <label><input type="radio" name="cap-mode" value="unlim"><span>Unlim</span></label>
+                    <label><input type="radio" name="cap-mode" value="daily" checked><span>Daily</span></label>
+                    <label><input type="radio" name="cap-mode" value="monthly"><span>Monthly</span></label>
+                    <label><input type="radio" name="cap-mode" value="lifetime"><span>Lifetime</span></label>
+                  </div>
+                </fieldset>
+              </div>
+              <div class="hidden form-stack compact" id="important-comment-field">
+                <label class="field-label" for="important-comment">Важный комментарий</label>
+                <select class="hidden comment-history" id="important-comment-history" aria-label="Прежние важные комментарии"></select>
+                <textarea id="important-comment" maxlength="2000" rows="4" placeholder="Необязательно. Например: шер только на меня и Дашу, в чат не выдавать"></textarea>
+              </div>
             </div>
-            <label class="field-label" for="ticket-body">Опишите задачу</label>
-            <textarea id="ticket-body" maxlength="16384" rows="7" placeholder="Что нужно сделать?" required></textarea>
+            <div class="form-stack compact" id="ticket-body-field">
+              <label class="field-label" for="ticket-body">Опишите задачу</label>
+              <textarea id="ticket-body" maxlength="16384" rows="7" placeholder="Что нужно сделать?" required></textarea>
+            </div>
             <button class="primary-button" type="submit">Создать тикет</button>
           </form>
         </div>
@@ -115,6 +155,7 @@
       <button class="active" data-page="tickets">Задачи</button>
       <button data-page="create">Создать</button>
       <button data-page="tools">Инструменты</button>
+      <button class="hidden" id="analytics-button" type="button">Аналитика</button>
     </nav>
   </div>
 
@@ -141,17 +182,53 @@
       <textarea id="draft-comment" maxlength="16384" rows="3" placeholder="Необязательно"></textarea>
       <label class="field-label" for="draft-body">Текст заявки</label>
       <textarea id="draft-body" maxlength="16384" rows="8" required></textarea>
-      <label class="field-label" for="draft-advertiser-select">Рекламодатель</label>
-      <input id="draft-advertiser-search" type="search" maxlength="128" placeholder="Поиск по названию">
-      <select id="draft-advertiser-select"><option value="">Выбрать…</option></select>
-      <button class="secondary-button hidden" type="button" id="draft-advertiser-more">Показать ещё</button>
-      <input class="hidden" id="draft-new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
-      <label class="field-label" for="draft-cap">Cap</label>
-      <input id="draft-cap" type="number" min="1" max="1000000" inputmode="numeric" placeholder="25">
-      <label class="check-row" for="draft-cap-uncap">
-        <input id="draft-cap-uncap" type="checkbox">
-        <span>Без лимита (uncap)</span>
-      </label>
+      <fieldset class="type-switch draft-type-switch">
+        <legend>Тип задачи</legend>
+        <label><input type="radio" name="draft-ticket-type" value="general"><span>Обычная задача</span></label>
+        <label><input type="radio" name="draft-ticket-type" value="destination"><span>Destination</span></label>
+      </fieldset>
+      <div class="hidden form-stack compact" id="draft-destination-fields">
+        <label class="field-label" for="draft-advertiser-select">Рекламодатель</label>
+        <input id="draft-advertiser-search" type="search" maxlength="128" placeholder="Поиск по названию">
+        <select id="draft-advertiser-select"><option value="">Выбрать…</option></select>
+        <input class="hidden" id="draft-new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
+        <div class="hidden form-stack compact" id="draft-kalisto-destination-fields">
+          <label class="field-label" for="draft-naming">Нейминг</label>
+          <input id="draft-naming" maxlength="512">
+          <label class="field-label" for="draft-geo">GEO</label>
+          <input id="draft-geo" maxlength="128">
+          <label class="field-label" for="draft-rate">Ставка</label>
+          <div class="inline-fields">
+            <input id="draft-rate" type="number" min="0.0001" step="0.0001" inputmode="decimal">
+            <input id="draft-currency" maxlength="32" placeholder="Валюта">
+          </div>
+          <div id="draft-cap-anchor"></div>
+          <label class="field-label" for="draft-landing">Основной ленд</label>
+          <textarea id="draft-landing" maxlength="16384" rows="3"></textarea>
+          <label class="field-label" for="draft-clickid">Параметры clickid/subid</label>
+          <textarea id="draft-clickid" maxlength="16384" rows="2" placeholder="Необязательно"></textarea>
+          <label class="field-label" for="draft-additional">Дополнительно</label>
+          <textarea id="draft-additional" maxlength="16384" rows="3" placeholder="Необязательно"></textarea>
+        </div>
+        <div class="form-stack compact" id="draft-cap-fields">
+          <label class="field-label" for="draft-cap">CAP</label>
+          <input id="draft-cap" type="number" min="1" max="1000000" inputmode="numeric" placeholder="600">
+          <fieldset class="cap-mode-fieldset">
+            <legend class="field-label">Категория CAP</legend>
+            <div class="type-switch cap-mode-switch">
+              <label><input type="radio" name="draft-cap-mode" value="unlim"><span>Unlim</span></label>
+              <label><input type="radio" name="draft-cap-mode" value="daily" checked><span>Daily</span></label>
+              <label><input type="radio" name="draft-cap-mode" value="monthly"><span>Monthly</span></label>
+              <label><input type="radio" name="draft-cap-mode" value="lifetime"><span>Lifetime</span></label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="hidden form-stack compact" id="draft-important-comment-field">
+          <label class="field-label" for="draft-important-comment">Важный комментарий</label>
+          <select class="hidden comment-history" id="draft-important-comment-history" aria-label="Прежние важные комментарии"></select>
+          <textarea id="draft-important-comment" maxlength="2000" rows="4" placeholder="Необязательно. Например: шер только на меня и Дашу, в чат не выдавать"></textarea>
+        </div>
+      </div>
       <div class="draft-actions">
         <button class="primary-button" type="button" id="draft-submit">Передать в работу</button>
         <button class="secondary-button" type="button" id="draft-save">Сохранить</button>

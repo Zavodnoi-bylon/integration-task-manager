@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 from .models import Role
 
@@ -37,8 +38,14 @@ class InternalConversationMessage(StrictOutput):
     actor: ActorPublic
 
 
+class DestinationResultOutput(StrictOutput):
+    naming: str = Field(min_length=1, max_length=512)
+    url: str = Field(min_length=1, max_length=16_384)
+
+
 class TicketSummary(StrictOutput):
     ticket_id: int = Field(gt=0)
+    ticket_number: int = Field(gt=0)
     profile_name: str = Field(min_length=1, max_length=128)
     status: Literal["open", "review", "completed"]
     ticket_type: Literal["general", "destination"]
@@ -47,6 +54,9 @@ class TicketSummary(StrictOutput):
     created_at: datetime
     updated_at: datetime
     closed_at: datetime | None = None
+    issued_to_buying: bool = False
+    important_comment: str | None = Field(default=None, max_length=2_000)
+    destination_results: list[DestinationResultOutput] = Field(default_factory=list)
 
 
 class ClientTicketDetail(TicketSummary):
@@ -94,6 +104,29 @@ AdvertiserInput = Annotated[
 
 LimitedCap = Annotated[StrictInt, Field(gt=0, le=1_000_000)]
 CapValue = LimitedCap | Literal["uncap"]
+CapMode = Literal["unlim", "daily", "monthly", "lifetime"]
+
+
+class KalistoDestinationDetails(StrictInput):
+    naming: str = Field(min_length=1, max_length=512)
+    geo: str = Field(min_length=1, max_length=128)
+    rate: Decimal = Field(gt=0, max_digits=18, decimal_places=4)
+    currency: str = Field(min_length=1, max_length=32)
+    landing_url: str = Field(min_length=1, max_length=16_384)
+    clickid_subid: str = Field(default="", max_length=16_384)
+    additional: str = Field(default="", max_length=16_384)
+
+
+class KalistoDestinationDraftDetails(StrictInput):
+    naming: str | None = Field(default=None, min_length=1, max_length=512)
+    geo: str | None = Field(default=None, min_length=1, max_length=128)
+    rate: Decimal | None = Field(
+        default=None, gt=0, max_digits=18, decimal_places=4
+    )
+    currency: str | None = Field(default=None, min_length=1, max_length=32)
+    landing_url: str | None = Field(default=None, min_length=1, max_length=16_384)
+    clickid_subid: str = Field(default="", max_length=16_384)
+    additional: str = Field(default="", max_length=16_384)
 
 
 class GeneralTicketCreate(StrictInput):
@@ -105,7 +138,10 @@ class DestinationTicketCreate(StrictInput):
     type: Literal["destination"]
     advertiser: AdvertiserInput
     cap: CapValue
-    body: str = Field(min_length=1, max_length=16_384)
+    cap_mode: CapMode
+    body: str = Field(default="", max_length=16_384)
+    important_comment: str = Field(default="", max_length=2_000)
+    details: KalistoDestinationDetails | None = None
 
 
 class TicketDraftSummary(StrictOutput):
@@ -123,27 +159,52 @@ class TicketDraftDetail(TicketDraftSummary):
     advertiser_key: str | None = Field(default=None, max_length=128)
     advertiser_name: str | None = Field(default=None, max_length=256)
     cap: CapValue | None = None
+    cap_mode: CapMode | None = None
     forward_origin_name: str | None = Field(default=None, max_length=256)
+    ticket_type: Literal["general", "destination"] | None = None
+    important_comment: str = Field(default="", max_length=2_000)
+    details: KalistoDestinationDraftDetails | None = None
 
 
 class DraftSaveInput(StrictInput):
+    type: Literal["general", "destination"] | None = None
     advertiser: AdvertiserInput | None = None
     cap: CapValue | None = None
+    cap_mode: CapMode | None = None
+    body: str = Field(min_length=1, max_length=16_384)
+    client_comment: str = Field(default="", max_length=16_384)
+    important_comment: str = Field(default="", max_length=2_000)
+    details: KalistoDestinationDraftDetails | None = None
+
+
+class GeneralDraftSubmitInput(StrictInput):
+    type: Literal["general"]
     body: str = Field(min_length=1, max_length=16_384)
     client_comment: str = Field(default="", max_length=16_384)
 
 
-class DraftSubmitInput(StrictInput):
+class DestinationDraftSubmitInput(StrictInput):
+    type: Literal["destination"]
     advertiser: AdvertiserInput
     cap: CapValue
+    cap_mode: CapMode
     body: str = Field(min_length=1, max_length=16_384)
     client_comment: str = Field(default="", max_length=16_384)
+    important_comment: str = Field(default="", max_length=2_000)
+    details: KalistoDestinationDetails | None = None
+
+
+DraftSubmitInput = Annotated[
+    GeneralDraftSubmitInput | DestinationDraftSubmitInput,
+    Field(discriminator="type"),
+]
 
 
 class DraftMutationResponse(StrictOutput):
     draft_id: int = Field(gt=0)
     status: Literal["submitted"]
     ticket_id: int = Field(gt=0)
+    ticket_number: int | None = Field(default=None, gt=0)
     replayed: bool
 
 
@@ -165,8 +226,18 @@ class EmptyInput(StrictInput):
     pass
 
 
+class BuyingFlagInput(StrictInput):
+    issued: StrictBool
+
+
+class BuyingFlagResponse(StrictOutput):
+    ticket_id: int = Field(gt=0)
+    issued_to_buying: bool
+
+
 class MutationResponse(StrictOutput):
     ticket_id: int = Field(gt=0)
+    ticket_number: int | None = Field(default=None, gt=0)
     status: Literal["open", "review", "completed"]
     ticket_type: Literal["general", "destination"]
     review_cycle: int = Field(ge=0)

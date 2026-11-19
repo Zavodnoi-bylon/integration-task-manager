@@ -63,6 +63,19 @@ services:
       - path: ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/aio-ftd.env
         required: false
 
+  aio-advertiser-sync:
+    <<: *bot
+    profiles:
+      - aio-advertisers
+    command:
+      - python
+      - -m
+      - app.workers.aio_advertisers
+    env_file:
+      - ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/database.env
+      - path: ${CONFIG_DIR:-/home/teamactivity/.config/integration-task-manager}/aio-advertisers.env
+        required: false
+
 networks:
   database:
     external: true

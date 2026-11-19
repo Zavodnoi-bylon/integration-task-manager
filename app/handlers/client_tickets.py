@@ -1,11 +1,19 @@
 import logging
 import re
+from dataclasses import asdict
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.domain import CapValue, STATUS_COMPLETED, STATUS_OPEN, UNCAP, is_valid_cap
+from app.domain import (
+    CapValue,
+    ExternalIdentifierPolicy,
+    STATUS_COMPLETED,
+    STATUS_OPEN,
+    UNCAP,
+    is_valid_cap,
+)
 from app.services.advertiser_catalog import AdvertiserCatalog
 from app.services.destination_service import (
     DestinationFormatterError,
@@ -170,6 +178,9 @@ async def select_destination_advertiser(
     await state.update_data(
         destination_advertiser=entry.name,
         destination_url_parameters=entry.url_parameters,
+        destination_external_id_policy=[
+            asdict(policy) for policy in entry.external_id_policy
+        ],
         destination_technician_note=entry.technician_note,
     )
     await state.set_state(UserStates.waiting_for_destination_cap)
@@ -277,7 +288,7 @@ async def create_ticket(
         message.date,
         request_key=f"telegram-message:{message.chat.id}:{message.message_id}",
     )
-    text, keyboard = ticket_created(ticket.ticket_id)
+    text, keyboard = ticket_created(ticket.ticket_id, ticket.public_number)
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
     await notification_service.new_ticket(ticket, display_name)
     await state.clear()
@@ -325,6 +336,7 @@ async def receive_custom_destination_advertiser(
     await state.update_data(
         destination_advertiser=advertiser,
         destination_url_parameters="",
+        destination_external_id_policy=[],
         destination_technician_note="Новый рекл",
     )
     await state.set_state(UserStates.waiting_for_destination_cap)
@@ -428,6 +440,11 @@ async def create_destination_ticket(
             url_parameters=str(
                 state_data.get("destination_url_parameters") or ""
             ),
+            external_id_policy=tuple(
+                ExternalIdentifierPolicy(**item)
+                for item in state_data.get("destination_external_id_policy", [])
+                if isinstance(item, dict)
+            ),
         )
         formatted_body = result.text
     except DestinationFormatterError:
@@ -452,7 +469,7 @@ async def create_destination_ticket(
         request_key=f"telegram-message:{message.chat.id}:{message.message_id}",
         technician_note="\n".join(note for note in technician_notes if note) or None,
     )
-    text, keyboard = ticket_created(ticket.ticket_id)
+    text, keyboard = ticket_created(ticket.ticket_id, ticket.public_number)
     await progress.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await notification_service.new_ticket(ticket, display_name)
     await state.clear()

@@ -65,23 +65,84 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                     await connection.execute(
                         """
                         INSERT INTO ticketing.tickets
-                            (profile_key,requester_user_id,status_code,ticket_type_code,
-                             description,request_key,source,created_at,updated_at,metadata)
-                        VALUES (%s,%s,'open',%s,%s,%s,'ui',%s,%s,%s)
-                        RETURNING ticket_id,review_cycle
+                            (profile_key,ticket_number,requester_user_id,status_code,
+                             ticket_type_code,description,title,important_comment,
+                             request_key,source,
+                             created_at,updated_at,metadata)
+                        VALUES (
+                            %s,ticketing.next_ticket_number(%s),%s,'open',%s,%s,%s,%s,
+                            %s,'ui',%s,%s,%s
+                        )
+                        RETURNING ticket_id,ticket_number,review_cycle
                         """,
                         (
-                            context.profile_key, actor_id, aggregate.ticket_type,
-                            aggregate.formatted_ticket, idempotency.namespace,
+                            context.profile_key, context.profile_key, actor_id,
+                            aggregate.ticket_type,
+                            aggregate.formatted_ticket, aggregate.title,
+                            aggregate.important_comment,
+                            idempotency.namespace,
                             now, now, Jsonb({
                                 "advertiser_name": aggregate.advertiser_name,
                                 "cap": aggregate.cap,
+                                "cap_mode": aggregate.cap_mode,
                                 "used_fallback": aggregate.used_fallback,
                             }),
                         ),
                     )
                 ).fetchone()
                 ticket_id = int(row["ticket_id"])
+                if aggregate.destination_request is not None:
+                    request = aggregate.destination_request
+                    details = request.details
+                    await connection.execute(
+                        """
+                        INSERT INTO ticketing.destination_requests
+                            (ticket_id,profile_key,advertiser_key,advertiser_name,
+                             naming,geo,rate,currency,cap,cap_unlimited,cap_mode,landing_url,
+                             clickid_subid,additional,source_body,processing_status,
+                             created_at)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        """,
+                        (
+                            ticket_id,
+                            context.profile_key,
+                            request.advertiser_key,
+                            request.advertiser_name,
+                            details.naming,
+                            details.geo,
+                            details.rate,
+                            details.currency,
+                            request.cap if isinstance(request.cap, int) else None,
+                            request.cap == "uncap",
+                            request.cap_mode,
+                            details.landing_url,
+                            details.clickid_subid,
+                            details.additional,
+                            request.source_body,
+                            request.processing_status,
+                            now,
+                        ),
+                    )
+                for order, destination in enumerate(
+                    aggregate.destination_results, start=1
+                ):
+                    await connection.execute(
+                        """
+                        INSERT INTO ticketing.destination_results
+                            (ticket_id,profile_key,result_order,naming,destination_url,
+                             warnings,created_at)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s)
+                        """,
+                        (
+                            ticket_id,
+                            context.profile_key,
+                            order,
+                            destination.naming,
+                            destination.url,
+                            list(destination.warnings),
+                            now,
+                        ),
+                    )
                 event_id = await _insert_event(
                     connection, ticket_id, context.profile_key, actor_id, actor.role,
                     "created", None, None, f"{idempotency.namespace}:event", now,
@@ -118,11 +179,13 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                         {"message_id": message_id}, message_id=message_id,
                     )
                 await _insert_notifications(
-                    connection, context.profile_key, ticket_id, event_id,
+                    connection, context.profile_key, ticket_id,
+                    int(row["ticket_number"]), event_id,
                     (notification,), now,
                 )
                 result = MutationResult(
-                    ticket_id, "open", aggregate.ticket_type, int(row["review_cycle"])
+                    ticket_id, "open", aggregate.ticket_type, int(row["review_cycle"]),
+                    ticket_number=int(row["ticket_number"]),
                 )
                 await _complete_idempotency(
                     connection, idempotency, idempotency_lease, result
@@ -171,12 +234,14 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                     "WHERE ticket_id=%s", (now, command.ticket_id)
                 )
                 await _insert_notifications(
-                    connection, command.profile_key, command.ticket_id, event_id,
+                    connection, command.profile_key, command.ticket_id,
+                    int(ticket["ticket_number"]), event_id,
                     plan.notifications, now,
                 )
                 result = MutationResult(
                     command.ticket_id, ticket["status_code"],
-                    ticket["ticket_type_code"], int(ticket["review_cycle"])
+                    ticket["ticket_type_code"], int(ticket["review_cycle"]),
+                    ticket_number=int(ticket["ticket_number"]),
                 )
                 await _complete_idempotency(connection, idempotency, lease, result)
                 return result
@@ -245,12 +310,14 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                     }, message_id=message_id,
                 )
                 await _insert_notifications(
-                    connection, command.profile_key, command.ticket_id, event_id,
+                    connection, command.profile_key, command.ticket_id,
+                    int(ticket["ticket_number"]), event_id,
                     plan.notifications, now,
                 )
                 result = MutationResult(
                     command.ticket_id, plan.new_status,
                     ticket["ticket_type_code"], plan.review_cycle,
+                    ticket_number=int(ticket["ticket_number"]),
                 )
                 await _complete_idempotency(connection, idempotency, lease, result)
                 return result
@@ -278,11 +345,35 @@ def _same_role(request_actor: Actor, database_actor: Actor) -> None:
 async def _visible_ticket(connection, profile_key, actor_id, actor, ticket_id):
     params: list[Any] = [ticket_id, profile_key]
     owner_clause = ""
-    if not actor.is_staff:
+    if actor.is_supervisor:
+        owner_clause = """
+          AND (
+            requester_user_id=%s
+            OR EXISTS (
+                SELECT 1
+                FROM ticketing.supervisor_subordinates ss
+                JOIN ticketing.memberships supervisor_membership
+                  ON supervisor_membership.profile_key=ss.profile_key
+                 AND supervisor_membership.user_id=ss.supervisor_user_id
+                JOIN ticketing.memberships subordinate_membership
+                  ON subordinate_membership.profile_key=ss.profile_key
+                 AND subordinate_membership.user_id=ss.subordinate_user_id
+                WHERE ss.profile_key=t.profile_key
+                  AND ss.supervisor_user_id=%s
+                  AND ss.subordinate_user_id=t.requester_user_id
+                  AND ss.active
+                  AND supervisor_membership.active
+                  AND supervisor_membership.role='supervisor'
+                  AND subordinate_membership.active
+            )
+          )
+        """
+        params.extend((actor_id, actor_id))
+    elif not actor.is_staff:
         owner_clause = " AND requester_user_id=%s"
         params.append(actor_id)
     row = await (await connection.execute(
-        "SELECT * FROM ticketing.tickets WHERE ticket_id=%s AND profile_key=%s"
+        "SELECT * FROM ticketing.tickets t WHERE ticket_id=%s AND profile_key=%s"
         + owner_clause + " FOR UPDATE", params,
     )).fetchone()
     if row is None:
@@ -345,7 +436,7 @@ async def _insert_event(
 
 
 async def _insert_notifications(
-    connection, profile_key: str, ticket_id: int, event_id: int,
+    connection, profile_key: str, ticket_id: int, ticket_number: int, event_id: int,
     intents: tuple[NotificationIntentDraft, ...], now: datetime,
 ) -> None:
     for intent in intents:
@@ -377,6 +468,7 @@ async def _insert_notifications(
                     intent.kind.value, f"{intent.dedup_key}:{recipient_id}",
                     Jsonb({
                         "ticket_id": ticket_id,
+                        "ticket_number": ticket_number,
                         "public_reason": intent.public_reason,
                         "review_cycle": intent.review_cycle,
                     }), intent.due_at or now, intent.review_cycle,
@@ -400,6 +492,7 @@ async def _begin_inline_idempotency(
             return MutationResult(
                 int(payload["ticket_id"]), payload["status"], payload["ticket_type"],
                 int(payload["review_cycle"]), True,
+                int(payload.get("ticket_number") or payload["ticket_id"]),
             ), ""
     lease = str(UUID(bytes=secrets.token_bytes(16)))
     expires = datetime.now(UTC) + timedelta(seconds=60)
@@ -435,6 +528,7 @@ async def _lock_reserved_idempotency(
         return MutationResult(
             int(payload["ticket_id"]), payload["status"], payload["ticket_type"],
             int(payload["review_cycle"]), True,
+            int(payload.get("ticket_number") or payload["ticket_id"]),
         )
     if row["state"] != "processing" or row["lease_token"] != UUID(lease_token):
         raise IdempotencyConflict("idempotency lease lost")

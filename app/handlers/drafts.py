@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from aiogram import F, Router
 from aiogram.filters import StateFilter
@@ -53,21 +53,21 @@ async def create_draft_from_forward(
     origin_type, origin_name, origin_date = forwarded_origin_metadata(
         message.forward_origin
     )
-    draft = ticket_service.create_forwarded_draft(
+    batch_state = ticket_service.append_forwarded_message(
         author_id=message.from_user.id,
-        source_chat_id=message.chat.id,
-        source_message_id=message.message_id,
+        chat_id=message.chat.id,
+        message_id=message.message_id,
         source_body=source_body,
-        created_at=message.date,
+        received_at=datetime.now(UTC),
         forward_origin_type=origin_type,
         forward_origin_name=origin_name,
         forward_origin_date=origin_date,
     )
-    await message.answer(
-        f"Черновик #{draft.draft_id} создан. "
-        "Откройте Mini App → Создать, проверьте текст, выберите advertiser "
-        "и укажите cap."
-    )
+    if batch_state == "new":
+        await message.answer(
+            "Собираю пересланные сообщения в один черновик. "
+            "Он появится в Mini App через несколько секунд."
+        )
 
 
 @router.message(F.text, StateFilter(None))

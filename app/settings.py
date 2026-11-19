@@ -14,6 +14,8 @@ class Settings:
     destination_model: str = "~openai/gpt-sol-latest"
     destination_prompt_path: str = "content/destination/system_prompt.md"
     destination_catalog_path: str = "content/destination/advertisers.json"
+    destination_catalog_database_url: str = ""
+    forward_batch_window_seconds: int = 5
 
 
 def load_settings() -> Settings:
@@ -36,6 +38,8 @@ def load_settings() -> Settings:
         raise RuntimeError(
             "ADMIN_MESSAGE must belong to ADMIN_USERS or TECHNICIAN_USERS"
         )
+    if not 1 <= legacy_config.FORWARD_BATCH_WINDOW_SECONDS <= 300:
+        raise RuntimeError("FORWARD_BATCH_WINDOW_SECONDS must be between 1 and 300")
     return Settings(
         bot_token=legacy_config.BOT_TOKEN,
         admin_users=frozenset(int(value) for value in legacy_config.ADMIN_USERS),
@@ -46,4 +50,8 @@ def load_settings() -> Settings:
         destination_model=legacy_config.DESTINATION_MODEL,
         destination_prompt_path=legacy_config.DESTINATION_PROMPT_PATH,
         destination_catalog_path=legacy_config.DESTINATION_CATALOG_PATH,
+        destination_catalog_database_url=(
+            legacy_config.DESTINATION_CATALOG_DATABASE_URL
+        ),
+        forward_batch_window_seconds=legacy_config.FORWARD_BATCH_WINDOW_SECONDS,
     )

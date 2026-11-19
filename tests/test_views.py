@@ -30,11 +30,15 @@ class TicketCardTests(unittest.TestCase):
             updated_at="2026-10-29 11:15:00",
             closed_at="2026-10-29 11:15:00",
             bot_key="kalisto",
+            ticket_number=3,
         )
 
     def test_client_card_hides_operational_metadata(self):
-        text, _ = ticket_card(self.ticket, "@client", admin_view=False)
+        text, keyboard = ticket_card(self.ticket, "@client", admin_view=False)
 
+        self.assertIn("#3", text)
+        self.assertNotIn("#17", text)
+        self.assertIn("reopen_17", str(keyboard.inline_keyboard))
         self.assertIn("Проверить интеграцию", text)
         self.assertNotIn("Автор:", text)
         self.assertNotIn("Статус:", text)

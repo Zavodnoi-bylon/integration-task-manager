@@ -4,9 +4,11 @@
 Ответы не содержат Telegram ID, bot token, internal DB ID пользователя или backend
 configuration.
 
-Все authenticated POST и DELETE требуют X-CSRF-Token. Все ticket mutations
-дополнительно требуют UUID Idempotency-Key. POST /api/session не требует этих
-headers, но обязательно проходит exact ALLOWED_ORIGIN check.
+Все authenticated POST и DELETE требуют X-CSRF-Token. Workflow ticket mutations
+дополнительно требуют UUID Idempotency-Key. Абсолютная установка business-флага
+`issued_to_buying` идемпотентна по значению и отдельный key не требует.
+POST /api/session не требует этих headers, но обязательно проходит exact
+ALLOWED_ORIGIN check.
 
 ## Session
 
@@ -38,7 +40,31 @@ X-CSRF-Token с constant-time проверкой. Server-side record инвал�
 
 ### GET /api/me
 
-Возвращает public role/profile capabilities без Telegram ID. Успех: 200.
+Возвращает public role/profile capabilities без Telegram ID. Опциональный объект
+`links` содержит только явно настроенные server-side HTTPS-переходы; отсутствие
+настройки возвращает пустой объект. Bot token и другие backend configuration не
+сериализуются. Успех: 200.
+
+### POST /api/analytics/handoff
+
+Доступен только активному пользователю, чей Telegram ID входит в server-side allowlist
+текущего профиля. Для остальных `/api/me` не возвращает ссылку, а прямой вызов endpoint
+возвращает 403. Пустой allowlist запрещает переход всем.
+Требует session-bound `X-CSRF-Token` и пустой JSON body. Backend повторно получает
+активного actor из БД и выпускает подписанный HMAC-SHA256 token на 300 секунд. Исходная
+роль Task Manager не передаётся: role всегда `analytics_viewer`.
+
+Response:
+
+    {
+      "url":"https://explorer.example/#handoff=<compact-token>",
+      "expires_at":1794840300
+    }
+
+Token содержит `iss`, `sub`, `telegram_user_id`, `bot_uuid`, `profile_id`, `role`,
+`iat`, `exp`, `jti`; не содержит `tenant_uuid`, имени, username или bot token. Fragment
+не отправляется в HTTP access logs. Полный контракт проверки Explorer описан в
+`ANALYTICS_HANDOFF.md`. При отключённой интеграции endpoint возвращает 404.
 
 ## Response DTO
 
@@ -52,10 +78,13 @@ Page содержит:
       "has_next": false
     }
 
-TicketSummary содержит ticket_id, profile display name, status, ticket type,
-title/description preview, created_at, updated_at и closed_at. Он не содержит
+TicketSummary содержит ticket_id, ticket_number, profile display name, status, ticket type,
+title/description preview, created_at, updated_at, closed_at и текущее булево
+`issued_to_buying`. Он не содержит
 requester Telegram ID, internal user ID или backend metadata.
-ticket_id — положительный bigint canonical ticket, не строковый transport ID.
+ticket_id — положительный bigint canonical ticket, не строковый transport ID. Он остаётся
+внутренним идентификатором в path, callback и связях БД. ticket_number — положительный
+публичный номер внутри текущего profile; номера разных профилей могут совпадать.
 
 Actor содержит display_name и role без Telegram/internal ID.
 
@@ -73,9 +102,14 @@ internal history. Internal history никогда не сериализуетс�
 
 ### GET /api/tickets
 
-- scope=mine|team; team только staff;
+- scope=mine|team; team доступен staff и supervisor в пределах его связей;
 - status=open|review|completed;
+- issued_to_buying=true — только supervisor Kalisto, оставляет только отмеченные тикеты;
 - page >= 1, page_size от 1 до server maximum.
+- search: optional literal substring of the visible title, trimmed, maximum 200
+  characters, case-insensitive. Includes the first Destination naming, with the same
+  title/description fallback as the list. Profile, actor and status restrictions
+  apply before both count and pagination; SQL wildcard characters are literal.
 
 Response: Page<TicketSummary>, status 200.
 
@@ -91,6 +125,23 @@ ticket неразличимы: одинаковые status 404 и response body.
 
 Response: ClientTicketDetail либо StaffTicketDetail, status 200.
 
+### POST /api/tickets/{ticket_id}/buying-flag
+
+Только `supervisor` профиля Kalisto и только для собственного либо связанного
+тикета. Body задаёт абсолютное текущее состояние:
+
+    {"issued":true}
+
+Поставить флаг можно только завершённому Destination. Снять уже установленный
+флаг можно и после повторного открытия тикета. Операция требует X-CSRF-Token и
+безопасна для повтора, потому что не переключает, а задаёт значение.
+
+Флаг не является workflow-статусом: его изменение не создаёт `ticket_event`,
+message, internal note или notification. В БД хранится только факт наличия флага
+без автора, времени изменения и истории. Response:
+
+    {"ticket_id":7,"issued_to_buying":true}
+
 ### POST /api/tickets
 
 Headers: Idempotency-Key UUID и X-CSRF-Token.
@@ -105,6 +156,7 @@ Destination:
       "type":"destination",
       "advertiser":{"kind":"catalog","key":"catalog-key"},
       "cap":25,
+      "cap_mode":"daily",
       "body":"Исходная заявка"
     }
 
@@ -114,12 +166,17 @@ Destination:
       "type":"destination",
       "advertiser":{"kind":"new","name":"Новое название"},
       "cap":25,
+      "cap_mode":"lifetime",
       "body":"Исходная заявка"
     }
 
 Advertiser — discriminated union: catalog key либо new name, ровно один вариант.
+`cap_mode` обязателен: `daily`, `monthly`, `lifetime` используют положительный
+целый `cap`; `unlim` использует `cap: "uncap"` и не содержит числового лимита.
 Backend сам получает catalog suffix/notes и не принимает их из request.
 Успех: 201. Повтор того же key/payload возвращает прежний response со status 200.
+Mutation response возвращает внутренний `ticket_id` для дальнейших API routes и
+публичный `ticket_number` для отображения пользователю.
 
 ### POST /api/tickets/{ticket_id}/messages
 
@@ -197,7 +254,7 @@ Telegram-бот создаёт черновик только из пересла
 
 ### POST /api/drafts/{draft_id}/save
 
-Требует X-CSRF-Token. Сохраняет редактируемый текст, комментарий, cap и
+Требует X-CSRF-Token. Сохраняет редактируемый текст, комментарий, cap, cap_mode и
 advertiser. Неполный черновик допустим; это не создаёт тикет.
 
 ### DELETE /api/drafts/{draft_id}
@@ -207,7 +264,7 @@ advertiser. Неполный черновик допустим; это не со
 
 ### POST /api/drafts/{draft_id}/submit
 
-Требует X-CSRF-Token. Требует заполненные body, advertiser и cap. Создаёт
+Требует X-CSRF-Token. Требует заполненные body, advertiser, cap и cap_mode. Создаёт
 обычный Destination ticket через тот же application service, что и
 `POST /api/tickets`, после чего закрывает черновик для повторной передачи.
 Создание использует стабильный idempotency key: если запись статуса черновика

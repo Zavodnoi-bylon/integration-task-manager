@@ -60,7 +60,7 @@ class TelegramNotificationDelivery:
 def render_notification(
     kind: NotificationKind, payload: dict[str, Any]
 ) -> str:
-    ticket_id = int(payload["ticket_id"])
+    ticket_id = int(payload.get("ticket_number") or payload["ticket_id"])
     reason = str(payload.get("public_reason") or "").strip()
     base = {
         NotificationKind.STAFF_TICKET_OPENED: f"Открыт тикет #{ticket_id}",

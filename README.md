@@ -7,7 +7,8 @@
 
 Production-источник данных — PostgreSQL `activity_trial`, схемы `ticketing` и
 `reporting`. Оба бота используют одну БД, разделяют доступ по `profile_key`, а
-номера тикетов остаются глобально уникальными. SQLite предназначен только для
+внутренние ID тикетов остаются глобально уникальными, а публичная нумерация независима
+в каждом профиле. SQLite предназначен только для
 локальной разработки и unit-тестов.
 
 Проект основан на MIT-проекте `prasx/HelpDesk`; исходная лицензия сохранена.
@@ -19,6 +20,8 @@ Production-источник данных — PostgreSQL `activity_trial`, схе
 - атомарное создание тикета с уникальным ID;
 - роли `client`, `technician`, `admin` отдельно для каждого профиля;
 - открытые и завершённые тикеты с пагинацией;
+- поиск по видимому названию, включая Destination naming, во всех доступных тикетах;
+- Mini App: по 50 тикетов, «Назад / Далее», счётчик страниц и сохранение поиска при возврате из карточки;
 - публичный диалог внутри тикета;
 - внутренние заметки, недоступные клиенту;
 - завершение и возврат тикета в работу всеми участниками;
@@ -34,7 +37,9 @@ Production-источник данных — PostgreSQL `activity_trial`, схе
 
 ## Монорепозиторий
 
-Корпоративный GitLab-проект содержит весь рабочий контур таск-менеджера:
+GitHub: https://github.com/Zavodnoi-bylon/integration-task-manager — актуальная публикация
+рабочего контура. Для публикации явно использовать remote `github`; `origin` в старых
+checkout может указывать на GitLab.
 
 ```text
 app/                     Telegram-боты Kalisto и Mephisto
@@ -115,6 +120,39 @@ Copy-Item .env.example .env
   C:\path\to\aio-advertisers-active.json `
   content\destination\advertisers.json
 ```
+
+### Автоматическая синхронизация advertiser'ов AIO
+
+Отдельный worker сначала получает все доступные токену tenant'ы через
+`GET /api/v1/auth/user`, затем в разрешённых tenant'ах читает
+`MTK\Settings\Advertisers`, а URL-хвост каждого advertiser'а получает read-only
+запросом `POST /api/v1/actions/data`. `AI Buying - G` и `Traffic Angels`
+объединяются только в каталоге Kalisto, `TheRaw Gambling` попадает только в
+Mephisto, остальные tenant'ы пропускаются. Дважды в сутки worker забирает новые записи по
+`created_at`; не реже раза в семь суток заново сверяет URL-хвосты всех записей.
+Канонический каталог хранится в PostgreSQL
+`ticketing.advertiser_catalog`; текущий JSON остаётся seed/fallback и сохраняет
+ручные `technician_note`, `priority` и `external_id_policy`.
+
+Закрытая конфигурация создаётся из `deploy/aio-advertisers.env.example`:
+
+```text
+/home/teamactivity/.config/integration-task-manager/aio-advertisers.env
+```
+
+В закрытом файле требуется только `AIO_TOKEN`; UUID tenant'ов вручную не
+перечисляются.
+
+После миграции `0012_aio_advertiser_catalog.sql` разовый запуск выполняется так:
+
+```bash
+sudo bash deploy/compose.sh --profile aio-advertisers run --rm \
+  aio-advertiser-sync python -m app.workers.aio_advertisers --once
+sudo bash deploy/compose.sh --profile aio-advertisers up -d aio-advertiser-sync
+```
+
+Токен и URL-хвосты не выводятся в лог. При недоступности PostgreSQL интерфейс
+продолжает использовать последний валидный snapshot или статический fallback.
 
 В клиентский интерфейс попадают только шаги формы и номер созданной задачи. Во
 внутреннюю обработку передаются выбранное название, его URL-хвост, капа и исходный

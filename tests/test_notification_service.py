@@ -31,6 +31,7 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
             closed_at=None,
             bot_key="kalisto",
             ticket_type=TICKET_TYPE_DESTINATION,
+            ticket_number=2,
         )
 
         await service.new_ticket(ticket, "@client")
@@ -40,6 +41,9 @@ class NotificationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Внутренняя пометка", sent_text)
         self.assertNotIn("Telegram ID", sent_text)
         self.assertNotIn("<code>100</code>", sent_text)
+        self.assertIn("#2", sent_text)
+        self.assertNotIn("#7", sent_text)
+        self.assertIn("ticket_7", str(bot.send_message.await_args.kwargs["reply_markup"]))
 
 
 if __name__ == "__main__":

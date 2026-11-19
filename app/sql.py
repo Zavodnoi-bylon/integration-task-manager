@@ -208,6 +208,46 @@ def create_tables():
                     UNIQUE (bot_key, source_chat_id, source_message_id)
                 )
             ''')
+            _ensure_column(conn, "ticket_draft_intake", "consumed_at", "TEXT")
+            _ensure_column(conn, "ticket_drafts", "ticket_type", "TEXT")
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS forward_batches (
+                    batch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bot_key TEXT NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    state TEXT NOT NULL DEFAULT 'collecting',
+                    received_at TEXT NOT NULL,
+                    due_at TEXT NOT NULL,
+                    window_seconds INTEGER NOT NULL,
+                    draft_id INTEGER,
+                    created_at TEXT NOT NULL,
+                    closed_at TEXT,
+                    FOREIGN KEY(draft_id) REFERENCES ticket_drafts(draft_id)
+                )
+            ''')
+            conn.execute('''
+                CREATE UNIQUE INDEX IF NOT EXISTS forward_batches_collecting_idx
+                ON forward_batches(bot_key, author_id, chat_id)
+                WHERE state='collecting'
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS forward_batch_messages (
+                    batch_message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id INTEGER NOT NULL,
+                    bot_key TEXT NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    telegram_message_id INTEGER NOT NULL,
+                    body TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    forward_origin_type TEXT,
+                    forward_origin_name TEXT,
+                    forward_origin_date TEXT,
+                    UNIQUE(bot_key, chat_id, telegram_message_id),
+                    UNIQUE(batch_id, telegram_message_id),
+                    FOREIGN KEY(batch_id) REFERENCES forward_batches(batch_id)
+                )
+            ''')
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_ticket_owner_status "
                 "ON ticket(tg_id_ticket, state_ticket)"
@@ -299,7 +339,8 @@ def save_draft_intake(bot_key: str, author_id: int, chat_id: int,
         ON CONFLICT(bot_key, author_id, chat_id) DO UPDATE SET
             telegram_message_id=excluded.telegram_message_id,
             body=excluded.body,
-            received_at=excluded.received_at
+            received_at=excluded.received_at,
+            consumed_at=NULL
         ''',
         (bot_key, author_id, chat_id, message_id, body.strip(), received_at),
     )
@@ -362,6 +403,199 @@ def create_forwarded_draft(
             if row is None:
                 raise RuntimeError("Unable to load forwarded draft")
             return dict(row)
+    finally:
+        conn.close()
+
+
+def append_forwarded_message(
+    bot_key: str,
+    author_id: int,
+    chat_id: int,
+    message_id: int,
+    body: str,
+    received_at: str,
+    window_seconds: int,
+    forward_origin_type: str | None,
+    forward_origin_name: str | None,
+    forward_origin_date: str | None,
+) -> str:
+    conn = _connect()
+    try:
+        with conn:
+            duplicate = conn.execute(
+                """
+                SELECT 1 FROM forward_batch_messages
+                WHERE bot_key=? AND chat_id=? AND telegram_message_id=?
+                """,
+                (bot_key, chat_id, message_id),
+            ).fetchone()
+            if duplicate is not None:
+                return "duplicate"
+            batch = conn.execute(
+                """
+                SELECT batch_id,due_at FROM forward_batches
+                WHERE bot_key=? AND author_id=? AND chat_id=?
+                  AND state='collecting'
+                """,
+                (bot_key, author_id, chat_id),
+            ).fetchone()
+            state = "appended"
+            if batch is not None and received_at >= batch["due_at"]:
+                conn.execute(
+                    "UPDATE forward_batches SET state='ready' WHERE batch_id=?",
+                    (batch["batch_id"],),
+                )
+                batch = None
+            if batch is None:
+                state = "new"
+                due_at = (
+                    datetime.datetime.strptime(received_at, "%Y-%m-%d %H:%M:%S")
+                    + datetime.timedelta(seconds=window_seconds)
+                ).strftime("%Y-%m-%d %H:%M:%S")
+                cursor = conn.execute(
+                    """
+                    INSERT INTO forward_batches
+                        (bot_key,author_id,chat_id,state,received_at,due_at,
+                         window_seconds,created_at)
+                    VALUES (?,?,?,'collecting',?,?,?,?)
+                    """,
+                    (
+                        bot_key,
+                        author_id,
+                        chat_id,
+                        received_at,
+                        due_at,
+                        window_seconds,
+                        received_at,
+                    ),
+                )
+                batch_id = int(cursor.lastrowid)
+            else:
+                batch_id = int(batch["batch_id"])
+            conn.execute(
+                """
+                INSERT INTO forward_batch_messages
+                    (batch_id,bot_key,chat_id,telegram_message_id,body,received_at,
+                     forward_origin_type,forward_origin_name,forward_origin_date)
+                VALUES (?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    batch_id,
+                    bot_key,
+                    chat_id,
+                    message_id,
+                    body.strip(),
+                    received_at,
+                    forward_origin_type,
+                    forward_origin_name,
+                    forward_origin_date,
+                ),
+            )
+            return state
+    finally:
+        conn.close()
+
+
+def finalize_due_forward_batches(
+    bot_key: str,
+    now: str,
+    limit: int = 20,
+) -> list[dict]:
+    conn = _connect()
+    completed: list[dict] = []
+    try:
+        while len(completed) < limit:
+            with conn:
+                batch = conn.execute(
+                    """
+                    SELECT * FROM forward_batches
+                    WHERE bot_key=? AND state IN ('collecting','ready')
+                      AND due_at <= ?
+                    ORDER BY due_at,batch_id LIMIT 1
+                    """,
+                    (bot_key, now),
+                ).fetchone()
+                if batch is None:
+                    break
+                messages = conn.execute(
+                    """
+                    SELECT * FROM forward_batch_messages WHERE batch_id=?
+                    ORDER BY telegram_message_id,batch_message_id
+                    """,
+                    (batch["batch_id"],),
+                ).fetchall()
+                if not messages:
+                    raise RuntimeError("Forward batch has no messages")
+                source_body = "\n\n".join(row["body"] for row in messages)
+                first = messages[0]
+                intake = conn.execute(
+                    """
+                    SELECT body FROM ticket_draft_intake
+                    WHERE bot_key=? AND author_id=? AND chat_id=?
+                      AND consumed_at IS NULL
+                      AND datetime(received_at) BETWEEN datetime(?, '-10 minutes')
+                                                AND datetime(?)
+                    """,
+                    (
+                        bot_key,
+                        batch["author_id"],
+                        batch["chat_id"],
+                        batch["received_at"],
+                        batch["received_at"],
+                    ),
+                ).fetchone()
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ticket_drafts
+                        (bot_key,author_id,status,source_body,client_comment,
+                         edited_body,source_chat_id,source_message_id,
+                         forward_origin_type,forward_origin_name,forward_origin_date,
+                         created_at,updated_at,ticket_type)
+                    VALUES (?,?,'draft',?,?,?,?,?,?,?,?,?,?,NULL)
+                    """,
+                    (
+                        bot_key,
+                        batch["author_id"],
+                        source_body,
+                        intake["body"] if intake else "",
+                        source_body,
+                        batch["chat_id"],
+                        first["telegram_message_id"],
+                        first["forward_origin_type"],
+                        first["forward_origin_name"],
+                        first["forward_origin_date"],
+                        batch["received_at"],
+                        now,
+                    ),
+                )
+                draft = conn.execute(
+                    """
+                    SELECT draft_id,bot_key AS profile_key,author_id,status,
+                           source_body,client_comment,edited_body,source_chat_id,
+                           source_message_id,created_at
+                    FROM ticket_drafts
+                    WHERE bot_key=? AND source_chat_id=? AND source_message_id=?
+                    """,
+                    (bot_key, batch["chat_id"], first["telegram_message_id"]),
+                ).fetchone()
+                conn.execute(
+                    """
+                    UPDATE forward_batches
+                    SET state='closed',draft_id=?,closed_at=? WHERE batch_id=?
+                    """,
+                    (draft["draft_id"], now, batch["batch_id"]),
+                )
+                if intake is not None:
+                    conn.execute(
+                        """
+                        UPDATE ticket_draft_intake SET consumed_at=?
+                        WHERE bot_key=? AND author_id=? AND chat_id=?
+                          AND consumed_at IS NULL
+                        """,
+                        (now, bot_key, batch["author_id"], batch["chat_id"]),
+                    )
+                completed.append(dict(draft))
+        return completed
     finally:
         conn.close()
 

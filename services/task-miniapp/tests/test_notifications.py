@@ -14,10 +14,12 @@ class NotificationTests(unittest.IsolatedAsyncioTestCase):
         for kind in NotificationKind:
             text = render_notification(kind, {
                 "ticket_id": 42,
+                "ticket_number": 5,
                 "public_reason": "public text",
                 "internal_note": "must-not-leak",
             })
-            self.assertIn("#42", text)
+            self.assertIn("#5", text)
+            self.assertNotIn("#42", text)
             self.assertNotIn("must-not-leak", text)
             self.assertLessEqual(len(text), 4096)
 

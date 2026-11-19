@@ -13,6 +13,7 @@ from .constants import (
     TICKET_TYPES,
 )
 from .models import (
+    ExternalIdentifierPolicy,
     AdvertiserEntry,
     TicketDraftRecord,
     TicketEventRecord,
@@ -28,6 +29,7 @@ __all__ = [
     "EVENT_PUBLIC_MESSAGE",
     "EVENT_STATUS_CHANGED",
     "AdvertiserEntry",
+    "ExternalIdentifierPolicy",
     "CapValue",
     "TicketDraftRecord",
     "ROLE_CLIENT",

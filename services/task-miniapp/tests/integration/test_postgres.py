@@ -5,12 +5,13 @@ import os
 import sys
 import unittest
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
-from dest_miniapp.domain import EventDraft, EventKind, NotificationIntentDraft, NotificationKind, WorkflowAction
+from dest_miniapp.domain import EventDraft, EventKind, InvalidTransition, NotificationIntentDraft, NotificationKind, WorkflowAction
 from dest_miniapp.canonical import PostgresMiniAppGateway
 from dest_miniapp.dto import DraftSaveInput
-from dest_miniapp.gateway import ResourceNotFound
+from dest_miniapp.gateway import AccessDenied, ResourceNotFound, TicketQuery
 from dest_miniapp.models import Actor
 from dest_miniapp.outbox import PostgresOutboxWorker
 from dest_miniapp.postgres import PostgresDatabase, PostgresIdempotencyReservations, PostgresSessionStore
@@ -20,6 +21,8 @@ from dest_miniapp.use_cases import (
     CatalogAdvertiser,
     CreateTicketCommand,
     DestinationFormatResult,
+    DestinationRequestDetails,
+    DestinationResult,
     IdempotencyReplay,
     IdempotencyScope,
     MutationContext,
@@ -49,7 +52,30 @@ class Formatter:
     async def format(self, request):
         self.calls += 1
         await asyncio.sleep(0.05)
-        return DestinationFormatResult("formatted", "formatter-note")
+        assert request.details is not None
+        return DestinationFormatResult(
+            "formatted",
+            "formatter-note",
+            results=(DestinationResult(
+                request.details.naming,
+                request.details.landing_url,
+            ),),
+        )
+
+    def fallback(self, request):
+        raise AssertionError("fallback not expected")
+
+
+class MephistoFormatter:
+    async def format(self, request):
+        return DestinationFormatResult(
+            "formatted",
+            None,
+            results=(DestinationResult(
+                "Advertiser | Brand | ASO | PL | 140 EUR",
+                "https://example.test/destination",
+            ),),
+        )
 
     def fallback(self, request):
         raise AssertionError("fallback not expected")
@@ -91,6 +117,7 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                    ticketing.outbox,ticketing.ticket_events,
                    ticketing.ticket_messages,ticketing.tickets,
                    ticketing.miniapp_sessions,ticketing.miniapp_idempotency,
+                   ticketing.profile_ticket_counters,
                    ticketing.memberships,ticketing.telegram_users RESTART IDENTITY CASCADE"""
             )
             for telegram_id, role, name in (
@@ -132,6 +159,14 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             idempotency_key=UUID("11111111-1111-4111-8111-111111111111"),
             ticket_type="destination", body="source",
             advertiser=CatalogAdvertiser("catalog", "key"), cap=25,
+            cap_mode="daily",
+            details=DestinationRequestDetails(
+                naming="Advertiser | Test | BR | Slots | 10$",
+                geo="BR",
+                rate=Decimal("10"),
+                currency="usd",
+                landing_url="https://example.test/?click={clickid}",
+            ),
         )
         first, second = await asyncio.gather(
             workflow.create_ticket(command), workflow.create_ticket(command)
@@ -166,6 +201,121 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )).fetchone()
         self.assertEqual(role["value"], "ticketing_writer")
 
+    async def test_ticket_numbers_increment_independently_per_profile(self):
+        async with self.db.pool.connection() as connection:
+            for telegram_id, role, name in (
+                (100, "client", "Client"),
+                (200, "technician", "Tech"),
+            ):
+                await connection.execute(
+                    "SELECT ticketing.register_member(%s,%s,NULL,%s,%s,now())",
+                    ("mephisto", telegram_id, name, role),
+                )
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ),
+            advertisers=Catalog(),
+            destination_formatter=Formatter(),
+            idempotency_reservations=PostgresIdempotencyReservations(
+                self.db, lease_seconds=10
+            ),
+        )
+        first_kalisto = await workflow.create_ticket(CreateTicketCommand(
+            "kalisto", Actor(100, "Client", "client"),
+            UUID("00000000-0000-4000-8000-000000000001"), "general", "one",
+        ))
+        first_mephisto = await workflow.create_ticket(CreateTicketCommand(
+            "mephisto", Actor(100, "Client", "client"),
+            UUID("00000000-0000-4000-8000-000000000002"), "general", "two",
+        ))
+        second_kalisto = await workflow.create_ticket(CreateTicketCommand(
+            "kalisto", Actor(100, "Client", "client"),
+            UUID("00000000-0000-4000-8000-000000000003"), "general", "three",
+        ))
+
+        self.assertEqual(first_kalisto.ticket_number, 1)
+        self.assertEqual(first_mephisto.ticket_number, 1)
+        self.assertEqual(second_kalisto.ticket_number, 2)
+        self.assertEqual(
+            len({
+                first_kalisto.ticket_id,
+                first_mephisto.ticket_id,
+                second_kalisto.ticket_id,
+            }),
+            3,
+        )
+
+    async def test_mephisto_comment_history_is_private_and_deduplicated(self):
+        async with self.db.pool.connection() as connection:
+            for telegram_id, role, name in (
+                (100, "client", "Client"),
+                (101, "client", "Other client"),
+                (200, "technician", "Tech"),
+            ):
+                await connection.execute(
+                    "SELECT ticketing.register_member(%s,%s,NULL,%s,%s,now())",
+                    ("mephisto", telegram_id, name, role),
+                )
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ),
+            advertisers=Catalog(),
+            destination_formatter=MephistoFormatter(),
+            idempotency_reservations=PostgresIdempotencyReservations(
+                self.db, lease_seconds=10
+            ),
+        )
+        first = await workflow.create_ticket(CreateTicketCommand(
+            profile_key="mephisto",
+            actor=Actor(100, "Client", "client"),
+            idempotency_key=UUID("00000000-0000-4000-8000-000000000011"),
+            ticket_type="destination",
+            body="offer one",
+            advertiser=CatalogAdvertiser("catalog", "key"),
+            cap=20,
+            cap_mode="lifetime",
+            important_comment="Share only with Dasha",
+        ))
+        second = await workflow.create_ticket(CreateTicketCommand(
+            profile_key="mephisto",
+            actor=Actor(100, "Client", "client"),
+            idempotency_key=UUID("00000000-0000-4000-8000-000000000012"),
+            ticket_type="destination",
+            body="offer two",
+            advertiser=CatalogAdvertiser("catalog", "key"),
+            cap=20,
+            cap_mode="lifetime",
+            important_comment="share   ONLY with Dasha",
+        ))
+        await workflow.create_ticket(CreateTicketCommand(
+            profile_key="mephisto",
+            actor=Actor(101, "Other client", "client"),
+            idempotency_key=UUID("00000000-0000-4000-8000-000000000013"),
+            ticket_type="destination",
+            body="foreign offer",
+            advertiser=CatalogAdvertiser("catalog", "key"),
+            cap=20,
+            cap_mode="lifetime",
+            important_comment="Private comment of another author",
+        ))
+        gateway = PostgresMiniAppGateway(
+            self.db, profile_key="mephisto", profile_name="Mephisto",
+            advertiser_catalog=EmptyCatalog(), postback_service=EmptyPostbacks(),
+        )
+        comments = await gateway.list_destination_comments(
+            profile_key="mephisto", actor=Actor(100, "Client", "client")
+        )
+        self.assertEqual(comments, ["share   ONLY with Dasha"])
+        detail = await gateway.get_ticket_view(
+            profile_key="mephisto",
+            actor=Actor(100, "Client", "client"),
+            ticket_id=second.ticket_id,
+        )
+        self.assertEqual(detail.important_comment, "share   ONLY with Dasha")
+        self.assertNotEqual(first.ticket_id, second.ticket_id)
+
     async def test_forwarded_draft_is_private_to_author_and_reporting_reader(self):
         async with self.db.pool.connection() as connection:
             await connection.execute(
@@ -184,8 +334,10 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             ).fetchone()
             reader_access = await (
                 await connection.execute(
-                    "SELECT has_table_privilege("
-                    "'activity_reader','ticketing.ticket_drafts','SELECT') AS allowed"
+                    "SELECT COALESCE((SELECT has_table_privilege("
+                    "role_account.oid,'ticketing.ticket_drafts','SELECT') "
+                    "FROM pg_roles role_account "
+                    "WHERE role_account.rolname='activity_reader'),false) AS allowed"
                 )
             ).fetchone()
 
@@ -285,6 +437,14 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             idempotency_key=UUID("88888888-8888-4888-8888-888888888888"),
             ticket_type="destination", body="source",
             advertiser=CatalogAdvertiser("catalog", "key"), cap=25,
+            cap_mode="daily",
+            details=DestinationRequestDetails(
+                naming="Advertiser | Test | BR | Slots | 10$",
+                geo="BR",
+                rate=Decimal("10"),
+                currency="usd",
+                landing_url="https://example.test/?click={clickid}",
+            ),
         ))
         async with self.db.pool.connection() as connection:
             await connection.execute(
@@ -313,6 +473,173 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 profile_key="kalisto",
                 actor=Actor(101, "Other client", "client"),
                 ticket_id=created.ticket_id,
+            )
+
+    async def test_buying_flag_is_current_state_without_audit(self):
+        admin_db = PostgresDatabase(DSN, min_size=1, max_size=1)
+        await admin_db.open()
+        async with admin_db.pool.connection() as connection:
+            await connection.execute(
+                "SELECT ticketing.register_member(%s,%s,NULL,%s,%s,now())",
+                ("kalisto", 300, "Supervisor", "supervisor"),
+            )
+            await connection.execute(
+                """
+                INSERT INTO ticketing.supervisor_subordinates (
+                    profile_key,supervisor_user_id,subordinate_user_id
+                )
+                SELECT 'kalisto',supervisor.user_id,subordinate.user_id
+                FROM ticketing.telegram_users supervisor
+                CROSS JOIN ticketing.telegram_users subordinate
+                WHERE supervisor.telegram_user_id=300
+                  AND subordinate.telegram_user_id=100
+                """
+            )
+        await admin_db.close()
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ),
+            advertisers=Catalog(),
+            destination_formatter=Formatter(),
+            idempotency_reservations=PostgresIdempotencyReservations(
+                self.db, lease_seconds=10
+            ),
+        )
+        created = await workflow.create_ticket(CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(100, "Client", "client"),
+            idempotency_key=UUID("12121212-1212-4212-8212-121212121212"),
+            ticket_type="destination",
+            body="source",
+            advertiser=CatalogAdvertiser("catalog", "key"),
+            cap=25,
+            cap_mode="daily",
+            details=DestinationRequestDetails(
+                naming="Advertiser | Test | BR | Slots | 10$",
+                geo="BR",
+                rate=Decimal("10"),
+                currency="usd",
+                landing_url="https://example.test/?click={clickid}",
+            ),
+        ))
+        gateway = PostgresMiniAppGateway(
+            self.db,
+            profile_key="kalisto",
+            profile_name="Kalisto",
+            advertiser_catalog=EmptyCatalog(),
+            postback_service=EmptyPostbacks(),
+        )
+        supervisor = Actor(300, "Supervisor", "supervisor")
+        with self.assertRaises(InvalidTransition):
+            await gateway.set_buying_flag(
+                profile_key="kalisto",
+                actor=supervisor,
+                ticket_id=created.ticket_id,
+                issued=True,
+            )
+        await workflow.transition(TransitionCommand(
+            "kalisto",
+            Actor(200, "Tech", "technician"),
+            created.ticket_id,
+            UUID("13131313-1313-4313-8313-131313131313"),
+            WorkflowAction.COMPLETE_DESTINATION,
+        ))
+        async with self.db.pool.connection() as connection:
+            before = await (await connection.execute(
+                """
+                SELECT
+                  (SELECT count(*) FROM ticketing.ticket_events
+                   WHERE ticket_id=%s) AS events,
+                  (SELECT count(*) FROM ticketing.ticket_messages
+                   WHERE ticket_id=%s) AS messages
+                """,
+                (created.ticket_id, created.ticket_id),
+            )).fetchone()
+            columns = await (await connection.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema='ticketing'
+                  AND table_name='ticket_buying_flags'
+                ORDER BY ordinal_position
+                """
+            )).fetchall()
+        self.assertEqual(
+            [row["column_name"] for row in columns],
+            ["profile_key", "ticket_id"],
+        )
+        self.assertTrue(await gateway.set_buying_flag(
+            profile_key="kalisto",
+            actor=supervisor,
+            ticket_id=created.ticket_id,
+            issued=True,
+        ))
+        detail = await gateway.get_ticket_view(
+            profile_key="kalisto",
+            actor=supervisor,
+            ticket_id=created.ticket_id,
+        )
+        self.assertTrue(detail.issued_to_buying)
+        staff_detail = await gateway.get_ticket_view(
+            profile_key="kalisto",
+            actor=Actor(200, "Tech", "technician"),
+            ticket_id=created.ticket_id,
+        )
+        self.assertFalse(staff_detail.issued_to_buying)
+        issued_page = await gateway.list_tickets(
+            profile_key="kalisto",
+            actor=supervisor,
+            query=TicketQuery(
+                scope="team",
+                status=None,
+                issued_to_buying=True,
+                page=1,
+                page_size=20,
+            ),
+        )
+        self.assertEqual(
+            [item.ticket_id for item in issued_page.items],
+            [created.ticket_id],
+        )
+        async with self.db.pool.connection() as connection:
+            after = await (await connection.execute(
+                """
+                SELECT
+                  (SELECT count(*) FROM ticketing.ticket_events
+                   WHERE ticket_id=%s) AS events,
+                  (SELECT count(*) FROM ticketing.ticket_messages
+                   WHERE ticket_id=%s) AS messages
+                """,
+                (created.ticket_id, created.ticket_id),
+            )).fetchone()
+        self.assertEqual(after, before)
+        await workflow.transition(TransitionCommand(
+            "kalisto",
+            Actor(100, "Client", "client"),
+            created.ticket_id,
+            UUID("14141414-1414-4414-8414-141414141414"),
+            WorkflowAction.REOPEN,
+            "Нужна доработка",
+        ))
+        reopened = await gateway.get_ticket_view(
+            profile_key="kalisto",
+            actor=supervisor,
+            ticket_id=created.ticket_id,
+        )
+        self.assertTrue(reopened.issued_to_buying)
+        self.assertFalse(await gateway.set_buying_flag(
+            profile_key="kalisto",
+            actor=supervisor,
+            ticket_id=created.ticket_id,
+            issued=False,
+        ))
+        with self.assertRaises(AccessDenied):
+            await gateway.set_buying_flag(
+                profile_key="kalisto",
+                actor=Actor(200, "Tech", "technician"),
+                ticket_id=created.ticket_id,
+                issued=True,
             )
 
     async def test_completed_reservation_survives_ambiguous_fail_and_expired_lease_takes_over(self):

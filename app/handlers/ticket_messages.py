@@ -41,8 +41,16 @@ async def public_message_start(
 
     admin_view = ticket_service.is_technician(query.from_user.id)
     await state.set_state(UserStates.waiting_for_ticket_public_message)
-    await state.update_data(ticket_id=ticket_id, admin_view=admin_view)
-    text, keyboard = public_message_prompt(ticket_id, admin_view=admin_view)
+    await state.update_data(
+        ticket_id=ticket_id,
+        ticket_number=ticket.public_number,
+        admin_view=admin_view,
+    )
+    text, keyboard = public_message_prompt(
+        ticket_id,
+        admin_view=admin_view,
+        ticket_number=ticket.public_number,
+    )
     await query.answer()
     await edit_text_if_changed(
         query.message,

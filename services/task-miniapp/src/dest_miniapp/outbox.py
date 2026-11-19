@@ -58,7 +58,8 @@ class PostgresOutboxWorker:
             async with connection.transaction():
                 rows = await (await connection.execute(
                     """
-                    SELECT o.*,u.telegram_user_id,t.status_code,t.review_cycle AS current_cycle
+                    SELECT o.*,u.telegram_user_id,t.status_code,t.ticket_number,
+                           t.review_cycle AS current_cycle
                     FROM ticketing.outbox o
                     JOIN ticketing.telegram_users u ON u.user_id=o.recipient_user_id
                     LEFT JOIN ticketing.tickets t ON t.ticket_id=o.ticket_id
@@ -93,12 +94,15 @@ class PostgresOutboxWorker:
                            lease_expires_at=%s,attempts=attempts+1
                            WHERE outbox_id=%s""", (now, lease, row["outbox_id"])
                     )
+                    payload = dict(row["payload"])
+                    if row["ticket_number"] is not None:
+                        payload["ticket_number"] = int(row["ticket_number"])
                     result.append(OutboxItem(
                         outbox_id=int(row["outbox_id"]),
                         profile_key=row["profile_key"],
                         telegram_user_id=int(row["telegram_user_id"]),
                         notification_type=row["notification_type"],
-                        payload=row["payload"], attempts=int(row["attempts"]) + 1,
+                        payload=payload, attempts=int(row["attempts"]) + 1,
                     ))
                 return result
 

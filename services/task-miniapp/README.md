@@ -11,7 +11,7 @@
 - один общий код Mini App;
 - два изолированных запуска: Kalisto и Mephisto;
 - полный текущий клиентский и технический flow;
-- отдельный read-only бот аналитики, который не входит в этот репозиторий;
+- подписанный короткоживущий переход в отдельный AIO Explorer;
 - перенос в canonical Integration Task Manager только после review.
 
 Начинать с ADR архитектуры, матрицы ролей и HTTP API-контракта в каталоге docs.
@@ -33,7 +33,7 @@ Production deployment из этого репозитория запрещён.
   списки, создание General/Destination, переписка, статусные
   действия, внутренние записи и postback-шаблоны.
 - необязательные приватные черновики Destination из пересланных Telegram-
-  сообщений: клиент проверяет текст, выбирает advertiser и cap и только затем
+  сообщений: клиент проверяет текст, выбирает advertiser, CAP и его категорию и только затем
   передаёт тикет в работу; до отправки черновик не виден staff и аналитике.
 
 Транзакционная модель, границы PostgreSQL и ограничения outbox
@@ -55,8 +55,9 @@ PostgreSQL integration tests выполняются только на отдел
     .venv\Scripts\python -m unittest discover -s tests\integration -v
 
 `BOT_KEY=kalisto` соответствует `@experementa1_bot`, `BOT_KEY=mephisto` —
-`@testmaniken_bot`. `@tiketanalitic_bot` относится к отдельному аналитическому
-контуру и этим приложением не используется. Реальные `.env` не коммитятся.
+`@testmaniken_bot`. Кнопка `Аналитика` выпускает server-side handoff для внешнего
+Explorer; контракт описан в `docs/ANALYTICS_HANDOFF.md`. Реальные `.env` и signing
+secrets не коммитятся.
 
 ## Локальный test deployment
 

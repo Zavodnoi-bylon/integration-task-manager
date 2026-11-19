@@ -28,6 +28,25 @@ TICKETING_DB_NAME = os.getenv("TICKETING_DB_NAME", "activity_trial").strip()
 TICKETING_DB_USER = os.getenv("TICKETING_DB_USER", "ticket_bot").strip()
 TICKETING_DB_PASSWORD = os.getenv("TICKETING_DB_PASSWORD", "")
 
+DESTINATION_CATALOG_DATABASE_URL = os.getenv(
+    "DESTINATION_CATALOG_DATABASE_URL", ""
+).strip()
+if (
+    not DESTINATION_CATALOG_DATABASE_URL
+    and DATABASE_BACKEND == "postgres"
+    and TICKETING_DB_PASSWORD
+):
+    from psycopg.conninfo import make_conninfo
+
+    DESTINATION_CATALOG_DATABASE_URL = make_conninfo(
+        host=TICKETING_DB_HOST,
+        port=TICKETING_DB_PORT,
+        dbname=TICKETING_DB_NAME,
+        user=TICKETING_DB_USER,
+        password=TICKETING_DB_PASSWORD,
+        application_name=f"integration-task-manager-catalog-{BOT_KEY}",
+    )
+
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 DESTINATION_MODEL = os.getenv(
     "OPENROUTER_MODEL",
@@ -41,3 +60,6 @@ DESTINATION_CATALOG_PATH = os.getenv(
     "DESTINATION_CATALOG_PATH",
     "content/destination/advertisers.json",
 ).strip()
+FORWARD_BATCH_WINDOW_SECONDS = int(
+    os.getenv("FORWARD_BATCH_WINDOW_SECONDS", "5")
+)

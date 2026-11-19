@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
+import json
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 
@@ -22,6 +27,14 @@ from dest_miniapp.use_cases import MutationResult
 from test_auth import TOKEN, signed_init_data
 
 
+ANALYTICS_SECRET_BYTES = b"test-analytics-secret-key-32byte!"
+ANALYTICS_SECRET = base64.urlsafe_b64encode(
+    ANALYTICS_SECRET_BYTES
+).rstrip(b"=").decode("ascii")
+ANALYTICS_BOT_UUID = "11111111-1111-4111-8111-111111111111"
+ANALYTICS_PROFILE_ID = "22222222-2222-4222-8222-222222222222"
+
+
 class FakeGateway:
     def __init__(self, *, role: str = "client", active: bool = True) -> None:
         self.role = role
@@ -31,6 +44,9 @@ class FakeGateway:
         self.leak_ticket = False
         self.leak_advertiser = False
         self.leak_postback = False
+        self.last_ticket_query: TicketQuery | None = None
+        self.buying_flags: dict[int, bool] = {}
+        self.destination_comments = ["Only Dasha", "Do not publish in chat"]
         self.drafts = {
             7: {
                 "draft_id": 7,
@@ -42,6 +58,9 @@ class FakeGateway:
                 "advertiser_key": None,
                 "advertiser_name": None,
                 "cap": None,
+                "ticket_type": None,
+                "important_comment": "",
+                "details": None,
                 "forward_origin_name": "Advertiser",
                 "created_at": "2026-11-05T10:00:00Z",
                 "updated_at": "2026-11-05T10:00:00Z",
@@ -69,6 +88,7 @@ class FakeGateway:
         self, *, profile_key: str, actor: Actor, query: TicketQuery
     ) -> dict[str, Any]:
         self.profiles_seen.append(profile_key)
+        self.last_ticket_query = query
         return {"items": [], "total": 0, "page": query.page,
                 "page_size": query.page_size, "has_next": False}
 
@@ -90,6 +110,15 @@ class FakeGateway:
         if actor.is_staff:
             result["internal_history"] = []
         return result
+
+    async def set_buying_flag(
+        self, *, profile_key, actor, ticket_id, issued
+    ):
+        self.profiles_seen.append(profile_key)
+        if ticket_id == 404:
+            raise ResourceNotFound
+        self.buying_flags[ticket_id] = issued
+        return issued
 
     async def list_advertisers(
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
@@ -132,6 +161,10 @@ class FakeGateway:
             for item in self.drafts.values()
         ]
 
+    async def list_destination_comments(self, *, profile_key, actor):
+        self.profiles_seen.append(profile_key)
+        return list(self.destination_comments)
+
     async def get_draft(self, *, profile_key, actor, draft_id):
         self.profiles_seen.append(profile_key)
         if draft_id not in self.drafts:
@@ -157,6 +190,10 @@ class FakeGateway:
                 else None
             ),
             cap=payload.cap,
+            cap_mode=payload.cap_mode,
+            ticket_type=payload.type,
+            important_comment=payload.important_comment,
+            details=(payload.details.model_dump() if payload.details else None),
         )
         self.drafts[draft_id] = draft
         return dict(draft)
@@ -209,6 +246,7 @@ def ticket_detail(ticket_id: int) -> dict[str, Any]:
     now = "2026-11-04T12:00:00Z"
     return {
         "ticket_id": ticket_id,
+        "ticket_number": ticket_id,
         "profile_name": "Kalisto",
         "status": "open",
         "ticket_type": "general",
@@ -219,25 +257,57 @@ def ticket_detail(ticket_id: int) -> dict[str, Any]:
         "created_at": now,
         "updated_at": now,
         "closed_at": None,
+        "issued_to_buying": False,
         "conversation": [],
     }
 
 
-def make_client(*, role: str = "client", active: bool = True, clock=None):
+def kalisto_details() -> dict[str, object]:
+    return {
+        "naming": "Advertiser | Brand | FB | BR | Slots | 100 USD | cap 25",
+        "geo": "BR",
+        "rate": "100.00",
+        "currency": "USD",
+        "landing_url": "https://example.test/?offer=1",
+        "clickid_subid": "",
+        "additional": "",
+    }
+
+
+def make_client(
+    *, role: str = "client", active: bool = True, clock=None,
+    analytics_url: str | None = None,
+    analytics_allowed_user_ids: frozenset[int] | None = None,
+    profile_key: str = "kalisto",
+):
     gateway = FakeGateway(role=role, active=active)
     settings = Settings(
         bot_token=TOKEN,
-        profile_key="kalisto",
-        profile_name="Kalisto",
+        profile_key=profile_key,
+        profile_name="Kalisto" if profile_key == "kalisto" else "Mephisto",
         allowed_origin="https://miniapp.example",
         session_cookie_name="kalisto_session",
+        analytics_url=analytics_url,
+        analytics_issuer="theraw-task-manager" if analytics_url else None,
+        analytics_bot_uuid=ANALYTICS_BOT_UUID if analytics_url else None,
+        analytics_profile_id=ANALYTICS_PROFILE_ID if analytics_url else None,
+        analytics_signing_secret=ANALYTICS_SECRET if analytics_url else None,
+        analytics_allowed_user_ids=(
+            frozenset({42})
+            if analytics_url and analytics_allowed_user_ids is None
+            else (analytics_allowed_user_ids or frozenset())
+        ),
     )
     store = MemorySessionStore(clock=clock)
     gateway.session_store = store
     mutations = StubMutations()
     gateway.mutations = mutations
-    local_help = Path(__file__).resolve().parents[3] / "docs"
-    help_directory = Path("/app/help") if Path("/app/help").is_dir() else local_help
+    packaged_help = Path("/app/help")
+    help_directory = (
+        packaged_help
+        if packaged_help.is_dir()
+        else Path(__file__).resolve().parents[3] / "docs"
+    )
     app = create_app(
         settings=settings,
         gateway=gateway,
@@ -256,7 +326,104 @@ def login(client: TestClient, *, origin: str = "https://miniapp.example"):
     )
 
 
+def _decode_token_part(value: str) -> dict[str, object]:
+    raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    return json.loads(raw)
+
+
 class ApiTests(unittest.TestCase):
+    def test_me_exposes_only_configured_external_links(self) -> None:
+        client, _ = make_client()
+        login(client)
+        self.assertEqual(client.get("/api/me").json()["links"], {})
+
+        linked, _ = make_client(
+            analytics_url="https://t.me/tiketanalitic_bot"
+        )
+        login(linked)
+        self.assertEqual(
+            linked.get("/api/me").json()["links"],
+            {"analytics": "https://t.me/tiketanalitic_bot"},
+        )
+
+    def test_analytics_handoff_is_signed_short_lived_and_role_isolated(self) -> None:
+        for source_role in ("client", "supervisor", "technician", "admin"):
+            with self.subTest(source_role=source_role):
+                client, _ = make_client(
+                    role=source_role,
+                    analytics_url="https://explorer.example/entry",
+                )
+                csrf = login(client).json()["csrf_token"]
+                missing_csrf = client.post(
+                    "/api/analytics/handoff", json={}
+                )
+                self.assertEqual(missing_csrf.status_code, 403)
+                response = client.post(
+                    "/api/analytics/handoff",
+                    json={},
+                    headers={"X-CSRF-Token": csrf},
+                )
+                self.assertEqual(response.status_code, 200)
+                split_url = urlsplit(response.json()["url"])
+                self.assertEqual(split_url.scheme, "https")
+                self.assertEqual(split_url.netloc, "explorer.example")
+                self.assertEqual(split_url.path, "/entry")
+                self.assertEqual(split_url.query, "")
+                token = parse_qs(split_url.fragment)["handoff"][0]
+                encoded_header, encoded_payload, encoded_signature = token.split(".")
+                header = _decode_token_part(encoded_header)
+                payload = _decode_token_part(encoded_payload)
+                expected_signature = hmac.new(
+                    ANALYTICS_SECRET_BYTES,
+                    f"{encoded_header}.{encoded_payload}".encode("ascii"),
+                    hashlib.sha256,
+                ).digest()
+                actual_signature = base64.urlsafe_b64decode(
+                    encoded_signature + "=" * (-len(encoded_signature) % 4)
+                )
+                self.assertTrue(hmac.compare_digest(actual_signature, expected_signature))
+                self.assertEqual(
+                    header,
+                    {"alg": "HS256", "kid": ANALYTICS_BOT_UUID, "typ": "JWT"},
+                )
+                self.assertEqual(payload["iss"], "theraw-task-manager")
+                self.assertEqual(payload["sub"], "telegram:42")
+                self.assertEqual(payload["telegram_user_id"], 42)
+                self.assertEqual(payload["bot_uuid"], ANALYTICS_BOT_UUID)
+                self.assertEqual(payload["profile_id"], ANALYTICS_PROFILE_ID)
+                self.assertEqual(payload["role"], "analytics_viewer")
+                self.assertEqual(payload["exp"] - payload["iat"], 300)
+                self.assertIsInstance(payload["jti"], str)
+                self.assertNotIn("tenant_uuid", payload)
+                self.assertNotIn("display_name", payload)
+                self.assertNotIn("username", payload)
+                self.assertEqual(response.json()["expires_at"], payload["exp"])
+
+    def test_analytics_handoff_is_disabled_without_complete_configuration(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/analytics/handoff",
+            json={},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_analytics_link_and_handoff_require_user_allowlist(self) -> None:
+        client, _ = make_client(
+            analytics_url="https://explorer.example",
+            analytics_allowed_user_ids=frozenset({99}),
+        )
+        csrf = login(client).json()["csrf_token"]
+        self.assertEqual(client.get("/api/me").json()["links"], {})
+        response = client.post(
+            "/api/analytics/handoff",
+            json={},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"], "operation forbidden")
+
     def test_login_sets_hardened_cookie_and_public_response(self) -> None:
         client, _ = make_client()
         response = login(client)
@@ -330,6 +497,108 @@ class ApiTests(unittest.TestCase):
         client, _ = make_client(role="technician")
         login(client)
         self.assertEqual(client.get("/api/tickets?scope=team").status_code, 200)
+
+    def test_supervisor_has_team_queue_without_staff_capabilities(self) -> None:
+        client, _ = make_client(role="supervisor")
+        login(client)
+        me = client.get("/api/me").json()
+        self.assertTrue(me["capabilities"]["team_queue"])
+        self.assertFalse(me["capabilities"]["internal_history"])
+        self.assertFalse(me["capabilities"]["technical_actions"])
+        self.assertTrue(me["capabilities"]["buying_flag"])
+        self.assertEqual(client.get("/api/tickets?scope=team").status_code, 200)
+
+    def test_buying_flag_is_kalisto_supervisor_only(self) -> None:
+        supervisor, gateway = make_client(role="supervisor")
+        csrf = login(supervisor).json()["csrf_token"]
+        response = supervisor.post(
+            "/api/tickets/7/buying-flag",
+            json={"issued": True},
+            headers={"X-CSRF-Token": csrf},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(), {"ticket_id": 7, "issued_to_buying": True}
+        )
+        self.assertTrue(gateway.buying_flags[7])
+
+        for role in ("client", "technician", "admin"):
+            with self.subTest(role=role):
+                client, _ = make_client(role=role)
+                role_csrf = login(client).json()["csrf_token"]
+                self.assertFalse(
+                    client.get("/api/me").json()["capabilities"]["buying_flag"]
+                )
+                denied = client.post(
+                    "/api/tickets/7/buying-flag",
+                    json={"issued": True},
+                    headers={"X-CSRF-Token": role_csrf},
+                )
+                self.assertEqual(denied.status_code, 403)
+
+        mephisto, _ = make_client(role="supervisor", profile_key="mephisto")
+        mephisto_csrf = login(mephisto).json()["csrf_token"]
+        self.assertFalse(
+            mephisto.get("/api/me").json()["capabilities"]["buying_flag"]
+        )
+        self.assertEqual(
+            mephisto.post(
+                "/api/tickets/7/buying-flag",
+                json={"issued": True},
+                headers={"X-CSRF-Token": mephisto_csrf},
+            ).status_code,
+            403,
+        )
+
+    def test_buying_filter_is_forwarded_only_for_kalisto_supervisor(self) -> None:
+        client, gateway = make_client(role="supervisor")
+        login(client)
+        response = client.get("/api/tickets", params={
+            "scope": "team", "status": "completed", "page": 3,
+            "page_size": 50, "search": "  Lucky Star %_  ",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(gateway.last_ticket_query.search, "Lucky Star %_")
+        self.assertEqual(gateway.last_ticket_query.page, 3)
+        self.assertEqual(gateway.last_ticket_query.status, "completed")
+        self.assertEqual(client.get("/api/tickets", params={"search": "x" * 201}).status_code, 422)
+        self.assertEqual(client.get("/api/tickets?page=0").status_code, 422)
+
+    def test_buying_filter_access(self) -> None:
+        client, gateway = make_client(role="supervisor")
+        login(client)
+        response = client.get(
+            "/api/tickets?scope=team&issued_to_buying=true"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(gateway.last_ticket_query.issued_to_buying)
+
+        staff, _ = make_client(role="technician")
+        login(staff)
+        self.assertEqual(
+            staff.get(
+                "/api/tickets?scope=team&issued_to_buying=true"
+            ).status_code,
+            403,
+        )
+
+    def test_buying_flag_requires_csrf_and_strict_boolean(self) -> None:
+        client, _ = make_client(role="supervisor")
+        csrf = login(client).json()["csrf_token"]
+        self.assertEqual(
+            client.post(
+                "/api/tickets/7/buying-flag", json={"issued": True}
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            client.post(
+                "/api/tickets/7/buying-flag",
+                json={"issued": "true"},
+                headers={"X-CSRF-Token": csrf},
+            ).status_code,
+            422,
+        )
 
     def test_role_downgrade_is_applied_to_live_session(self) -> None:
         client, gateway = make_client(role="technician")
@@ -447,7 +716,9 @@ class ApiTests(unittest.TestCase):
                 "type": "destination",
                 "advertiser": {"kind": "catalog", "key": "adv-1"},
                 "cap": 25,
+                "cap_mode": "daily",
                 "body": "Create destination",
+                "details": kalisto_details(),
             },
             headers={
                 "X-CSRF-Token": csrf,
@@ -457,6 +728,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.profile_key, "kalisto")
         self.assertEqual(gateway.mutations.last_command.advertiser.key, "adv-1")
+        self.assertEqual(
+            gateway.mutations.last_command.details.landing_url,
+            "https://example.test/?offer=1",
+        )
 
     def test_destination_accepts_uncap(self) -> None:
         client, gateway = make_client()
@@ -467,7 +742,11 @@ class ApiTests(unittest.TestCase):
                 "type": "destination",
                 "advertiser": {"kind": "catalog", "key": "adv-1"},
                 "cap": "uncap",
+                "cap_mode": "unlim",
                 "body": "Create destination",
+                "details": {**kalisto_details(), "naming": (
+                    "Advertiser | Brand | FB | BR | Slots | 100 USD | uncap"
+                )},
             },
             headers={
                 "X-CSRF-Token": csrf,
@@ -476,6 +755,55 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.cap, "uncap")
+        self.assertEqual(gateway.mutations.last_command.cap_mode, "unlim")
+
+    def test_mephisto_important_comment_stays_out_of_source_body(self) -> None:
+        client, gateway = make_client(profile_key="mephisto")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": 20,
+                "cap_mode": "lifetime",
+                "body": "Offer source for OpenRouter",
+                "important_comment": "Share only with Dasha",
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "26262626-2626-4262-8262-262626262626",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        command = gateway.mutations.last_command
+        self.assertEqual(command.body, "Offer source for OpenRouter")
+        self.assertEqual(command.important_comment, "Share only with Dasha")
+        history = client.get("/api/destination-comments")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json(), gateway.destination_comments)
+
+    def test_kalisto_rejects_mephisto_important_comment(self) -> None:
+        client, _ = make_client(profile_key="kalisto")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": 20,
+                "cap_mode": "lifetime",
+                "body": "",
+                "important_comment": "Must not be accepted",
+                "details": kalisto_details(),
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "27272727-2727-4272-8272-272727272727",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(client.get("/api/destination-comments").status_code, 404)
 
     def test_destination_rejects_ambiguous_cap_values(self) -> None:
         client, _ = make_client()
@@ -491,6 +819,7 @@ class ApiTests(unittest.TestCase):
                     "type": "destination",
                     "advertiser": {"kind": "catalog", "key": "adv-1"},
                     "cap": value,
+                    "cap_mode": "daily",
                     "body": "Create destination",
                 },
                 headers=headers,
@@ -523,10 +852,13 @@ class ApiTests(unittest.TestCase):
         submitted = client.post(
             "/api/drafts/7/submit",
             json={
+                "type": "destination",
                 "advertiser": {"kind": "catalog", "key": "adv-1"},
                 "cap": 25,
+                "cap_mode": "lifetime",
                 "body": "Edited offer",
                 "client_comment": "Edited note",
+                "details": kalisto_details(),
             },
             headers={"X-CSRF-Token": csrf},
         )
@@ -544,28 +876,85 @@ class ApiTests(unittest.TestCase):
         saved = client.post(
             "/api/drafts/7/save",
             json={
+                "type": "destination",
                 "advertiser": {"kind": "catalog", "key": "adv-1"},
                 "cap": "uncap",
+                "cap_mode": "unlim",
                 "body": "Edited offer",
                 "client_comment": "",
+                "details": {**kalisto_details(), "naming": (
+                    "Advertiser | Brand | FB | BR | Slots | 100 USD | uncap"
+                )},
             },
             headers={"X-CSRF-Token": csrf},
         )
         self.assertEqual(saved.status_code, 200)
         self.assertEqual(saved.json()["cap"], "uncap")
+        self.assertEqual(saved.json()["cap_mode"], "unlim")
 
         submitted = client.post(
             "/api/drafts/7/submit",
             json={
+                "type": "destination",
                 "advertiser": {"kind": "catalog", "key": "adv-1"},
                 "cap": "uncap",
+                "cap_mode": "unlim",
                 "body": "Edited offer",
                 "client_comment": "",
+                "details": {**kalisto_details(), "naming": (
+                    "Advertiser | Brand | FB | BR | Slots | 100 USD | uncap"
+                )},
             },
             headers={"X-CSRF-Token": csrf},
         )
         self.assertEqual(submitted.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.cap, "uncap")
+        self.assertEqual(gateway.mutations.last_command.cap_mode, "unlim")
+
+    def test_destination_rejects_mismatched_cap_mode(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        headers = {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": "25252525-2525-4252-8252-252525252525",
+        }
+        for cap, mode in (("uncap", "daily"), (600, "unlim")):
+            response = client.post(
+                "/api/tickets",
+                json={
+                    "type": "destination",
+                    "advertiser": {"kind": "catalog", "key": "adv-1"},
+                    "cap": cap,
+                    "cap_mode": mode,
+                    "body": "Create destination",
+                    "details": kalisto_details(),
+                },
+                headers=headers,
+            )
+            self.assertEqual(response.status_code, 422, (cap, mode))
+
+    def test_forwarded_draft_can_submit_as_general(self) -> None:
+        client, gateway = make_client()
+        csrf = login(client).json()["csrf_token"]
+
+        submitted = client.post(
+            "/api/drafts/7/submit",
+            json={
+                "type": "general",
+                "body": "Обычная задача",
+                "client_comment": "Контекст",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+
+        self.assertEqual(submitted.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.ticket_type, "general")
+        self.assertIsNone(gateway.mutations.last_command.advertiser)
+        self.assertIsNone(gateway.mutations.last_command.cap)
+        self.assertEqual(
+            gateway.mutations.last_command.body,
+            "Контекст\n\nОбычная задача",
+        )
 
     def test_draft_delete_requires_csrf(self) -> None:
         client, gateway = make_client()

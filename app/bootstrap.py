@@ -1,4 +1,7 @@
+import asyncio
 import logging
+from contextlib import suppress
+from datetime import UTC, datetime
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -39,6 +42,7 @@ def build_dispatcher(
     dispatcher["advertiser_catalog"] = AdvertiserCatalog(
         bot_key=settings.bot_key,
         catalog_path=settings.destination_catalog_path,
+        database_url=settings.destination_catalog_database_url,
     )
     dispatcher.include_routers(
         common.router,
@@ -64,4 +68,51 @@ async def run() -> None:
     )
     bot = Bot(token=settings.bot_token)
     dispatcher = build_dispatcher(bot, settings, repository)
-    await dispatcher.start_polling(bot)
+    ticket_service = dispatcher["ticket_service"]
+    stop_batches = asyncio.Event()
+    batch_worker = asyncio.create_task(
+        _run_forward_batch_worker(bot, ticket_service, stop_batches),
+        name=f"forward-batches-{settings.bot_key}",
+    )
+    try:
+        await dispatcher.start_polling(bot)
+    finally:
+        stop_batches.set()
+        with suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(batch_worker, timeout=5)
+        if not batch_worker.done():
+            batch_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await batch_worker
+
+
+async def _run_forward_batch_worker(
+    bot: Bot,
+    ticket_service: TicketService,
+    stop: asyncio.Event,
+) -> None:
+    logger = logging.getLogger(__name__)
+    while not stop.is_set():
+        try:
+            drafts = await asyncio.to_thread(
+                ticket_service.finalize_due_forward_batches,
+                datetime.now(UTC),
+            )
+            for draft in drafts:
+                try:
+                    await bot.send_message(
+                        draft.author_id,
+                        f"Черновик #{draft.draft_id} готов. Откройте Mini App → Создать, "
+                        "выберите тип задачи и проверьте данные.",
+                    )
+                except Exception:
+                    logger.exception(
+                        "Unable to notify the author about draft %s",
+                        draft.draft_id,
+                    )
+        except Exception:
+            logger.exception("Forward batch worker iteration failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=0.5)
+        except TimeoutError:
+            pass

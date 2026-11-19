@@ -128,3 +128,24 @@ class TicketRepository(Protocol):
         forward_origin_date: str | None,
         created_at: str,
     ) -> TicketDraftRecord: ...
+
+    def append_forwarded_message(
+        self,
+        profile_key: str,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        body: str,
+        received_at: str,
+        window_seconds: int,
+        forward_origin_type: str | None,
+        forward_origin_name: str | None,
+        forward_origin_date: str | None,
+    ) -> str: ...
+
+    def finalize_due_forward_batches(
+        self,
+        profile_key: str,
+        now: str,
+        limit: int = 20,
+    ) -> tuple[TicketDraftRecord, ...]: ...

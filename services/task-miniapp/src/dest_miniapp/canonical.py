@@ -17,7 +17,8 @@ from .dto import (
     TicketDraftDetail,
     TicketDraftSummary,
 )
-from .gateway import AdvertiserQuery, ResourceNotFound, TicketQuery
+from .domain import InvalidTransition
+from .gateway import AccessDenied, AdvertiserQuery, ResourceNotFound, TicketQuery
 from .models import Actor, TelegramIdentity
 from .postgres import PostgresDatabase
 from .use_cases import (
@@ -26,6 +27,8 @@ from .use_cases import (
     DestinationFormatResult,
     DestinationFormattingError,
     DestinationFormatterPort,
+    DestinationResult,
+    ExternalIdentifierPolicySpec,
     ResolvedAdvertiser,
 )
 
@@ -47,6 +50,14 @@ class CanonicalAdvertiserCatalogAdapter(AdvertiserCatalogPort):
             name=entry.name,
             suffix=entry.url_parameters or None,
             technician_note=entry.technician_note,
+            external_id_policy=tuple(
+                ExternalIdentifierPolicySpec(
+                    parameter=policy.parameter,
+                    action=policy.action,
+                    output_parameter=policy.output_parameter,
+                )
+                for policy in entry.external_id_policy
+            ),
         )
 
 
@@ -58,22 +69,38 @@ class CanonicalDestinationFormatterAdapter(DestinationFormatterPort):
         try:
             result = await self._service.format_offer(
                 advertiser=request.advertiser_name,
-                source_body=request.source_body,
+                source_body=(
+                    _structured_destination_model_input(request.details)
+                    if request.details is not None
+                    else request.source_body
+                ),
                 cap=request.cap,
+                cap_mode=request.cap_mode,
                 url_parameters=request.suffix or "",
+                external_id_policy=request.external_id_policy,
+                expected_source_urls=(
+                    (request.details.landing_url,) if request.details else None
+                ),
+                server_namings=(
+                    (request.details.naming,) if request.details else None
+                ),
             )
         except Exception as exc:
             if exc.__class__.__name__.endswith(("FormatterError", "ConfigurationError")):
-                raise DestinationFormattingError from exc
+                raise DestinationFormattingError(str(exc)) from exc
             raise
         return DestinationFormatResult(
             formatted_ticket=result.text,
             internal_note=request.technician_note,
+            results=tuple(
+                DestinationResult(item.naming, item.url, item.warnings)
+                for item in result.results
+            ),
         )
 
     def fallback(self, request: DestinationFormatRequest) -> DestinationFormatResult:
         text = (
-            f"Destination | {request.advertiser_name} | cap {request.cap}\n\n"
+            f"{request.details.naming if request.details else 'Destination'}\n\n"
             "Заявка принята в работу."
         )
         return DestinationFormatResult(
@@ -83,6 +110,17 @@ class CanonicalDestinationFormatterAdapter(DestinationFormatterPort):
             ),
             used_fallback=True,
         )
+
+
+def _structured_destination_model_input(
+    details: DestinationRequestDetails,
+) -> str:
+    lines = [f"Landing URL: {details.landing_url}"]
+    if details.clickid_subid:
+        lines.append(f"ClickID / SubID: {details.clickid_subid}")
+    if details.additional:
+        lines.append(f"Additional: {details.additional}")
+    return "\n".join(lines)
 
 
 class PostgresMiniAppGateway:
@@ -201,11 +239,53 @@ class PostgresMiniAppGateway:
         if query.scope == "mine":
             where.append("requester.telegram_user_id=%s")
             params.append(actor.telegram_user_id)
+        elif actor.is_supervisor:
+            where.append(
+                """
+                EXISTS (
+                    SELECT 1
+                    FROM ticketing.supervisor_subordinates ss
+                    JOIN ticketing.memberships supervisor_membership
+                      ON supervisor_membership.profile_key=ss.profile_key
+                     AND supervisor_membership.user_id=ss.supervisor_user_id
+                    JOIN ticketing.telegram_users supervisor_user
+                      ON supervisor_user.user_id=ss.supervisor_user_id
+                    JOIN ticketing.memberships subordinate_membership
+                      ON subordinate_membership.profile_key=ss.profile_key
+                     AND subordinate_membership.user_id=ss.subordinate_user_id
+                    WHERE ss.profile_key=t.profile_key
+                      AND ss.subordinate_user_id=t.requester_user_id
+                      AND ss.active
+                      AND supervisor_membership.active
+                      AND supervisor_membership.role='supervisor'
+                      AND subordinate_membership.active
+                      AND supervisor_user.telegram_user_id=%s
+                )
+                """
+            )
+            params.append(actor.telegram_user_id)
         elif not actor.is_staff:
             raise ResourceNotFound
         if query.status:
             where.append("t.status_code=%s")
             params.append(query.status)
+        if query.search:
+            # Match the same visible title as _summary(), including Destination naming.
+            where.append("""
+                strpos(lower(COALESCE(
+                    NULLIF((SELECT r.naming FROM ticketing.destination_results r
+                        WHERE r.ticket_id=t.ticket_id AND r.profile_key=t.profile_key
+                        ORDER BY r.result_order LIMIT 1), ''),
+                    NULLIF(t.title, ''), left(t.description, 256)
+                )), lower(%s)) > 0
+            """)
+            params.append(query.search)
+        if query.issued_to_buying:
+            where.append(
+                "EXISTS (SELECT 1 FROM ticketing.ticket_buying_flags buying "
+                "WHERE buying.ticket_id=t.ticket_id "
+                "AND buying.profile_key=t.profile_key)"
+            )
         clause = " AND ".join(where)
         async with self._database.pool.connection() as connection:
             total = await (
@@ -223,29 +303,146 @@ class PostgresMiniAppGateway:
                     (*params, query.page_size, (query.page - 1) * query.page_size),
                 )
             ).fetchall()
-        items = [_summary(row, self._profile_name) for row in rows]
+        items = [
+            _summary(
+                row,
+                self._profile_name,
+                include_buying_flag=actor.is_supervisor,
+            )
+            for row in rows
+        ]
         count = int(total["value"])
         return Page(
             items=items, total=count, page=query.page, page_size=query.page_size,
             has_next=query.page * query.page_size < count,
         )
 
+    async def set_buying_flag(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        ticket_id: int,
+        issued: bool,
+    ) -> bool:
+        self._profile(profile_key)
+        if profile_key != "kalisto" or not actor.is_supervisor:
+            raise AccessDenied
+        async with self._database.pool.connection() as connection:
+            async with connection.transaction():
+                row = await (
+                    await connection.execute(
+                        """
+                        SELECT t.status_code,t.ticket_type_code
+                        FROM ticketing.tickets t
+                        JOIN ticketing.telegram_users requester
+                          ON requester.user_id=t.requester_user_id
+                        WHERE t.profile_key=%s AND t.ticket_id=%s
+                          AND (
+                            requester.telegram_user_id=%s
+                            OR EXISTS (
+                                SELECT 1
+                                FROM ticketing.supervisor_subordinates ss
+                                JOIN ticketing.memberships supervisor_membership
+                                  ON supervisor_membership.profile_key=ss.profile_key
+                                 AND supervisor_membership.user_id=ss.supervisor_user_id
+                                JOIN ticketing.telegram_users supervisor_user
+                                  ON supervisor_user.user_id=ss.supervisor_user_id
+                                JOIN ticketing.memberships subordinate_membership
+                                  ON subordinate_membership.profile_key=ss.profile_key
+                                 AND subordinate_membership.user_id=ss.subordinate_user_id
+                                WHERE ss.profile_key=t.profile_key
+                                  AND ss.subordinate_user_id=t.requester_user_id
+                                  AND ss.active
+                                  AND supervisor_membership.active
+                                  AND supervisor_membership.role='supervisor'
+                                  AND subordinate_membership.active
+                                  AND supervisor_user.telegram_user_id=%s
+                            )
+                          )
+                        FOR UPDATE
+                        """,
+                        (
+                            profile_key,
+                            ticket_id,
+                            actor.telegram_user_id,
+                            actor.telegram_user_id,
+                        ),
+                    )
+                ).fetchone()
+                if row is None:
+                    raise ResourceNotFound
+                if row["ticket_type_code"] != "destination":
+                    raise InvalidTransition
+                if issued and row["status_code"] != "completed":
+                    raise InvalidTransition
+                if issued:
+                    await connection.execute(
+                        """
+                        INSERT INTO ticketing.ticket_buying_flags (
+                            profile_key,ticket_id
+                        ) VALUES (%s,%s)
+                        ON CONFLICT (profile_key,ticket_id) DO NOTHING
+                        """,
+                        (profile_key, ticket_id),
+                    )
+                else:
+                    await connection.execute(
+                        """
+                        DELETE FROM ticketing.ticket_buying_flags
+                        WHERE profile_key=%s AND ticket_id=%s
+                        """,
+                        (profile_key, ticket_id),
+                    )
+        return issued
+
     async def get_ticket_view(
         self, *, profile_key: str, actor: Actor, ticket_id: int
     ) -> ClientTicketDetail | StaffTicketDetail:
         self._profile(profile_key)
+        visibility = ""
+        params: list[Any] = [profile_key, ticket_id]
+        if actor.is_supervisor:
+            visibility = """
+                AND (
+                    requester.telegram_user_id=%s
+                    OR EXISTS (
+                        SELECT 1
+                        FROM ticketing.supervisor_subordinates ss
+                        JOIN ticketing.memberships supervisor_membership
+                          ON supervisor_membership.profile_key=ss.profile_key
+                         AND supervisor_membership.user_id=ss.supervisor_user_id
+                        JOIN ticketing.telegram_users supervisor_user
+                          ON supervisor_user.user_id=ss.supervisor_user_id
+                        JOIN ticketing.memberships subordinate_membership
+                          ON subordinate_membership.profile_key=ss.profile_key
+                         AND subordinate_membership.user_id=ss.subordinate_user_id
+                        WHERE ss.profile_key=t.profile_key
+                          AND ss.subordinate_user_id=t.requester_user_id
+                          AND ss.active
+                          AND supervisor_membership.active
+                          AND supervisor_membership.role='supervisor'
+                          AND subordinate_membership.active
+                          AND supervisor_user.telegram_user_id=%s
+                    )
+                )
+            """
+            params.extend((actor.telegram_user_id, actor.telegram_user_id))
+        elif not actor.is_staff:
+            visibility = " AND requester.telegram_user_id=%s"
+            params.append(actor.telegram_user_id)
         async with self._database.pool.connection() as connection:
             row = await (
                 await connection.execute(
-                    _SUMMARY_SQL + " WHERE t.profile_key=%s AND t.ticket_id=%s",
-                    (profile_key, ticket_id),
+                    _SUMMARY_SQL
+                    + " WHERE t.profile_key=%s AND t.ticket_id=%s"
+                    + visibility,
+                    params,
                 )
             ).fetchone()
-            if row is None or (
-                not actor.is_staff
-                and row["requester_telegram_id"] != actor.telegram_user_id
-            ):
+            if row is None:
                 raise ResourceNotFound
+            message_visibility = "" if actor.is_staff else " AND m.visibility='public'"
             messages = await (
                 await connection.execute(
                     """
@@ -254,12 +451,17 @@ class PostgresMiniAppGateway:
                     FROM ticketing.ticket_messages m
                     JOIN ticketing.telegram_users u ON u.user_id=m.author_user_id
                     WHERE m.profile_key=%s AND m.ticket_id=%s
+                    """ + message_visibility + """
                     ORDER BY m.sent_at,m.message_id
                     """,
                     (profile_key, ticket_id),
                 )
             ).fetchall()
-        summary = _summary(row, self._profile_name).model_dump()
+        summary = _summary(
+            row,
+            self._profile_name,
+            include_buying_flag=actor.is_supervisor,
+        ).model_dump()
         public = [_message(item, internal=False) for item in messages
                   if item["visibility"] == "public"]
         base = {
@@ -346,6 +548,40 @@ class PostgresMiniAppGateway:
             raise ResourceNotFound
         return _draft_detail(row)
 
+    async def list_destination_comments(
+        self, *, profile_key: str, actor: Actor
+    ) -> list[str]:
+        self._profile(profile_key)
+        if profile_key != "mephisto":
+            return []
+        async with self._database.pool.connection() as connection:
+            rows = await (
+                await connection.execute(
+                    """
+                    SELECT recent.important_comment
+                    FROM (
+                        SELECT DISTINCT ON (normalized_comment)
+                               t.important_comment, t.created_at, t.ticket_id,
+                               lower(regexp_replace(btrim(t.important_comment),
+                                                    '[[:space:]]+', ' ', 'g'))
+                                   AS normalized_comment
+                        FROM ticketing.tickets t
+                        JOIN ticketing.telegram_users u
+                          ON u.user_id=t.requester_user_id
+                        WHERE t.profile_key=%s
+                          AND u.telegram_user_id=%s
+                          AND t.ticket_type_code='destination'
+                          AND t.important_comment IS NOT NULL
+                        ORDER BY normalized_comment,t.created_at DESC,t.ticket_id DESC
+                    ) recent
+                    ORDER BY recent.created_at DESC,recent.ticket_id DESC
+                    LIMIT 20
+                    """,
+                    (profile_key, actor.telegram_user_id),
+                )
+            ).fetchall()
+        return [row["important_comment"] for row in rows]
+
     async def save_draft(
         self,
         *,
@@ -366,15 +602,34 @@ class PostgresMiniAppGateway:
             if payload.advertiser and payload.advertiser.kind == "new"
             else None
         )
+        details = payload.details
+        important_comment = payload.important_comment.strip() or None
+        if payload.type == "general":
+            advertiser_kind = advertiser_key = advertiser_name = None
+            cap = None
+            cap_unlimited = False
+            cap_mode = None
+            details = None
+            important_comment = None
+        else:
+            cap = payload.cap if isinstance(payload.cap, int) else None
+            cap_unlimited = payload.cap == "uncap"
+            cap_mode = payload.cap_mode
+            if payload.type is None:
+                important_comment = None
         async with self._database.pool.connection() as connection:
             async with connection.transaction():
                 row = await (
                     await connection.execute(
                         """
                         UPDATE ticketing.ticket_drafts d SET
-                            edited_body=%s,client_comment=%s,advertiser_kind=%s,
+                            ticket_type=%s,edited_body=%s,client_comment=%s,
+                            advertiser_kind=%s,
                             advertiser_key=%s,advertiser_name=%s,cap=%s,
-                            cap_unlimited=%s,updated_at=now()
+                            cap_unlimited=%s,cap_mode=%s,naming=%s,geo=%s,rate=%s,currency=%s,
+                            landing_url=%s,clickid_subid=%s,additional=%s,
+                            important_comment=%s,
+                            updated_at=now()
                         FROM ticketing.telegram_users u
                         WHERE d.author_user_id=u.user_id AND d.profile_key=%s
                           AND d.draft_id=%s AND u.telegram_user_id=%s
@@ -382,13 +637,23 @@ class PostgresMiniAppGateway:
                         RETURNING d.draft_id
                         """,
                         (
+                            payload.type,
                             payload.body,
                             payload.client_comment,
                             advertiser_kind,
                             advertiser_key,
                             advertiser_name,
-                            payload.cap if isinstance(payload.cap, int) else None,
-                            payload.cap == "uncap",
+                            cap,
+                            cap_unlimited,
+                            cap_mode,
+                            details.naming if details else None,
+                            details.geo if details else None,
+                            details.rate if details else None,
+                            details.currency if details else None,
+                            details.landing_url if details else None,
+                            details.clickid_subid if details else "",
+                            details.additional if details else "",
+                            important_comment,
                             profile_key,
                             draft_id,
                             actor.telegram_user_id,
@@ -465,9 +730,23 @@ class PostgresMiniAppGateway:
 
 
 _SUMMARY_SQL = """
-SELECT t.ticket_id,t.status_code,t.ticket_type_code,t.title,t.description,
+SELECT t.ticket_id,t.ticket_number,t.status_code,t.ticket_type_code,t.title,t.description,
+       t.important_comment,
        t.created_at,t.updated_at,t.closed_at,requester.telegram_user_id
-       AS requester_telegram_id
+       AS requester_telegram_id,
+       EXISTS (
+           SELECT 1 FROM ticketing.ticket_buying_flags buying
+           WHERE buying.ticket_id=t.ticket_id
+             AND buying.profile_key=t.profile_key
+       ) AS issued_to_buying,
+       COALESCE((
+           SELECT jsonb_agg(
+               jsonb_build_object('naming',r.naming,'url',r.destination_url)
+               ORDER BY r.result_order
+           )
+           FROM ticketing.destination_results r
+           WHERE r.ticket_id=t.ticket_id AND r.profile_key=t.profile_key
+       ), '[]'::jsonb) AS destination_results
 FROM ticketing.tickets t
 JOIN ticketing.telegram_users requester ON requester.user_id=t.requester_user_id
 """
@@ -475,7 +754,8 @@ JOIN ticketing.telegram_users requester ON requester.user_id=t.requester_user_id
 _DRAFT_SQL = """
 SELECT d.draft_id,d.source_body,d.client_comment,d.edited_body,
        d.advertiser_kind,d.advertiser_key,d.advertiser_name,d.cap,
-       d.cap_unlimited,
+       d.cap_unlimited,d.cap_mode,d.ticket_type,d.naming,d.geo,d.rate,d.currency,
+       d.landing_url,d.clickid_subid,d.additional,d.important_comment,
        d.forward_origin_name,d.created_at,d.updated_at
 FROM ticketing.ticket_drafts d
 JOIN ticketing.telegram_users u ON u.user_id=d.author_user_id
@@ -488,14 +768,27 @@ def _actor(row: dict[str, Any]) -> Actor:
     )
 
 
-def _summary(row: dict[str, Any], profile_name: str) -> TicketSummary:
+def _summary(
+    row: dict[str, Any],
+    profile_name: str,
+    *,
+    include_buying_flag: bool = False,
+) -> TicketSummary:
     description = row["description"]
+    results = row.get("destination_results") or []
+    first_naming = results[0]["naming"] if results else None
     return TicketSummary(
-        ticket_id=row["ticket_id"], profile_name=profile_name,
+        ticket_id=row["ticket_id"], ticket_number=row["ticket_number"],
+        profile_name=profile_name,
         status=row["status_code"], ticket_type=row["ticket_type_code"],
-        title=row["title"] or description[:256],
+        title=first_naming or row["title"] or description[:256],
         description_preview=description[:512], created_at=row["created_at"],
         updated_at=row["updated_at"], closed_at=row["closed_at"],
+        issued_to_buying=(
+            bool(row["issued_to_buying"]) if include_buying_flag else False
+        ),
+        important_comment=row["important_comment"],
+        destination_results=results,
     )
 
 
@@ -519,6 +812,20 @@ def _draft_summary(row: dict[str, Any]) -> TicketDraftSummary:
 
 
 def _draft_detail(row: dict[str, Any]) -> TicketDraftDetail:
+    details = None
+    if any(
+        row[key] is not None
+        for key in ("naming", "geo", "rate", "currency", "landing_url")
+    ) or row["clickid_subid"] or row["additional"]:
+        details = {
+            "naming": row["naming"],
+            "geo": row["geo"],
+            "rate": row["rate"],
+            "currency": row["currency"],
+            "landing_url": row["landing_url"],
+            "clickid_subid": row["clickid_subid"],
+            "additional": row["additional"],
+        }
     return TicketDraftDetail(
         **_draft_summary(row).model_dump(),
         source_body=row["source_body"],
@@ -527,5 +834,9 @@ def _draft_detail(row: dict[str, Any]) -> TicketDraftDetail:
         advertiser_key=row["advertiser_key"],
         advertiser_name=row["advertiser_name"],
         cap="uncap" if row["cap_unlimited"] else row["cap"],
+        cap_mode=row["cap_mode"],
         forward_origin_name=row["forward_origin_name"],
+        ticket_type=row["ticket_type"],
+        important_comment=row["important_comment"] or "",
+        details=details,
     )

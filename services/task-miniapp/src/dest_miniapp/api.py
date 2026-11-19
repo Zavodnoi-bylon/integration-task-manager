@@ -12,11 +12,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from .auth import InitDataError, verify_init_data
+from .analytics_handoff import issue_analytics_handoff
 from .dto import (
     AdvertiserSummary,
+    BuyingFlagInput,
+    BuyingFlagResponse,
     CreateTicketInput,
     ClientTicketDetail,
     DestinationTicketCreate,
+    DestinationDraftSubmitInput,
     DraftMutationResponse,
     DraftSaveInput,
     DraftSubmitInput,
@@ -55,6 +59,7 @@ from .use_cases import (
     AddMessageCommand,
     CatalogAdvertiser,
     CreateTicketCommand,
+    DestinationRequestDetails,
     IdempotencyConflict,
     NewAdvertiser,
     TicketMutationService,
@@ -226,28 +231,67 @@ def create_app(
             "display_name": actor.display_name,
             "role": actor.role,
             "profile": {"key": settings.profile_key, "name": settings.profile_name},
+            "links": {
+                "analytics": settings.analytics_url,
+            } if (
+                settings.analytics_url
+                and actor.telegram_user_id in settings.analytics_allowed_user_ids
+            ) else {},
             "capabilities": {
-                "team_queue": actor.is_staff,
+                "team_queue": actor.is_staff or actor.is_supervisor,
+                "buying_flag": (
+                    settings.profile_key == "kalisto" and actor.is_supervisor
+                ),
                 "internal_history": actor.is_staff,
+                "technical_actions": actor.is_staff,
                 "submit_review": actor.is_staff,
                 "complete_destination": actor.is_staff,
             },
         }
+
+    @app.post("/api/analytics/handoff")
+    async def analytics_handoff(
+        _payload: EmptyInput,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ):
+        _require_csrf(auth, csrf_token)
+        if not settings.analytics_url:
+            raise HTTPException(status_code=404, detail="resource not found")
+        if auth.actor.telegram_user_id not in settings.analytics_allowed_user_ids:
+            raise HTTPException(status_code=403, detail="operation forbidden")
+        handoff = issue_analytics_handoff(settings, auth.actor)
+        return {"url": handoff.url, "expires_at": handoff.expires_at}
 
     @app.get("/api/tickets")
     async def tickets(
         auth: Authenticated = Depends(authenticated),
         scope: Annotated[str, Query(pattern="^(mine|team)$")] = "mine",
         status: Annotated[str | None, Query(pattern="^(open|review|completed)$")] = None,
+        issued_to_buying: bool = False,
         page: Annotated[int, Query(ge=1)] = 1,
         page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+        search: Annotated[str, Query(max_length=200)] = "",
     ):
-        if scope == "team" and not auth.actor.is_staff:
+        if scope == "team" and not (
+            auth.actor.is_staff or auth.actor.is_supervisor
+        ):
             raise HTTPException(status_code=403, detail="team scope forbidden")
+        if issued_to_buying and not (
+            settings.profile_key == "kalisto" and auth.actor.is_supervisor
+        ):
+            raise HTTPException(status_code=403, detail="operation forbidden")
         result = await gateway.list_tickets(
             profile_key=settings.profile_key,
             actor=auth.actor,
-            query=TicketQuery(scope=scope, status=status, page=page, page_size=page_size),  # type: ignore[arg-type]
+            query=TicketQuery(
+                scope=scope,
+                status=status,
+                issued_to_buying=issued_to_buying,
+                search=search.strip(),
+                page=page,
+                page_size=page_size,
+            ),  # type: ignore[arg-type]
         )
         return _validate_output(Page[TicketSummary], result)
 
@@ -257,6 +301,15 @@ def create_app(
             profile_key=settings.profile_key, actor=auth.actor
         )
         return _validate_output(TypeAdapter(list[TicketDraftSummary]), result)
+
+    @app.get("/api/destination-comments")
+    async def destination_comments(auth: Authenticated = Depends(authenticated)):
+        if settings.profile_key != "mephisto":
+            raise HTTPException(status_code=404, detail="resource not found")
+        result = await gateway.list_destination_comments(
+            profile_key=settings.profile_key, actor=auth.actor
+        )
+        return _validate_output(TypeAdapter(list[str]), result)
 
     @app.get("/api/drafts/{draft_id}")
     async def draft(
@@ -281,6 +334,7 @@ def create_app(
         if draft_id <= 0:
             raise ResourceNotFound
         _require_csrf(auth, csrf_token)
+        _validate_draft_shape(settings.profile_key, payload)
         result = await gateway.save_draft(
             profile_key=settings.profile_key,
             actor=auth.actor,
@@ -315,33 +369,65 @@ def create_app(
         if draft_id <= 0:
             raise ResourceNotFound
         _require_csrf(auth, csrf_token)
+        _validate_destination_submission(settings.profile_key, payload)
         await gateway.get_draft(
             profile_key=settings.profile_key,
             actor=auth.actor,
             draft_id=draft_id,
         )
+        save_payload = DraftSaveInput(
+            type=payload.type,
+            advertiser=(
+                payload.advertiser
+                if isinstance(payload, DestinationDraftSubmitInput)
+                else None
+            ),
+            cap=(
+                payload.cap if isinstance(payload, DestinationDraftSubmitInput) else None
+            ),
+            cap_mode=(
+                payload.cap_mode
+                if isinstance(payload, DestinationDraftSubmitInput)
+                else None
+            ),
+            body=payload.body,
+            client_comment=payload.client_comment,
+            important_comment=(
+                payload.important_comment
+                if isinstance(payload, DestinationDraftSubmitInput)
+                else ""
+            ),
+            details=(
+                payload.details.model_dump()
+                if isinstance(payload, DestinationDraftSubmitInput)
+                and payload.details is not None
+                else None
+            ),
+        )
+        _validate_draft_shape(settings.profile_key, save_payload)
         saved = _validate_output(
             TicketDraftDetail,
             await gateway.save_draft(
                 profile_key=settings.profile_key,
                 actor=auth.actor,
                 draft_id=draft_id,
-                payload=DraftSaveInput(
-                    advertiser=payload.advertiser,
-                    cap=payload.cap,
-                    body=payload.body,
-                    client_comment=payload.client_comment,
-                ),
+                payload=save_payload,
             ),
-        )
-        advertiser = (
-            CatalogAdvertiser("catalog", payload.advertiser.key)
-            if payload.advertiser.kind == "catalog"
-            else NewAdvertiser("new", payload.advertiser.name)
         )
         source_body = saved.edited_body
         if saved.client_comment:
             source_body = f"{saved.client_comment}\n\n{source_body}"
+        advertiser = None
+        cap = None
+        cap_mode = None
+        if isinstance(payload, DestinationDraftSubmitInput):
+            advertiser = (
+                CatalogAdvertiser("catalog", payload.advertiser.key)
+                if payload.advertiser.kind == "catalog"
+                else NewAdvertiser("new", payload.advertiser.name)
+            )
+            cap = payload.cap
+            cap_mode = payload.cap_mode
         result = await mutations.create_ticket(
             CreateTicketCommand(
                 profile_key=settings.profile_key,
@@ -350,10 +436,21 @@ def create_app(
                     NAMESPACE_URL,
                     f"ticket-draft:{settings.profile_key}:{draft_id}",
                 ),
-                ticket_type="destination",
+                ticket_type=payload.type,
                 body=source_body,
                 advertiser=advertiser,
-                cap=payload.cap,
+                cap=cap,
+                cap_mode=cap_mode,
+                details=(
+                    _command_details(payload.details)
+                    if isinstance(payload, DestinationDraftSubmitInput)
+                    else None
+                ),
+                important_comment=(
+                    saved.important_comment
+                    if isinstance(payload, DestinationDraftSubmitInput)
+                    else None
+                ),
             )
         )
         await gateway.mark_draft_submitted(
@@ -368,6 +465,7 @@ def create_app(
                 "draft_id": draft_id,
                 "status": "submitted",
                 "ticket_id": result.ticket_id,
+                "ticket_number": result.ticket_number,
                 "replayed": result.replayed,
             },
         )
@@ -381,10 +479,13 @@ def create_app(
         idempotency_key: UUID = Header(alias="Idempotency-Key"),
     ):
         _require_csrf(auth, csrf_token)
+        _validate_destination_submission(settings.profile_key, payload)
         advertiser = None
         cap = None
+        cap_mode = None
         if isinstance(payload, DestinationTicketCreate):
             cap = payload.cap
+            cap_mode = payload.cap_mode
             if payload.advertiser.kind == "catalog":
                 advertiser = CatalogAdvertiser("catalog", payload.advertiser.key)
             else:
@@ -398,6 +499,17 @@ def create_app(
                 body=payload.body,
                 advertiser=advertiser,
                 cap=cap,
+                cap_mode=cap_mode,
+                details=(
+                    _command_details(payload.details)
+                    if isinstance(payload, DestinationTicketCreate)
+                    else None
+                ),
+                important_comment=(
+                    payload.important_comment
+                    if isinstance(payload, DestinationTicketCreate)
+                    else None
+                ),
             )
         )
         response.status_code = 200 if result.replayed else 201
@@ -415,6 +527,28 @@ def create_app(
             raise ResourceNotFound from exc
         detail_type = StaffTicketDetail if auth.actor.is_staff else ClientTicketDetail
         return _validate_output(detail_type, result)
+
+    @app.post("/api/tickets/{ticket_id}/buying-flag")
+    async def set_buying_flag(
+        ticket_id: int,
+        payload: BuyingFlagInput,
+        auth: Authenticated = Depends(authenticated),
+        csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    ):
+        _require_positive_ticket_id(ticket_id)
+        _require_csrf(auth, csrf_token)
+        if settings.profile_key != "kalisto" or not auth.actor.is_supervisor:
+            raise HTTPException(status_code=403, detail="operation forbidden")
+        issued = await gateway.set_buying_flag(
+            profile_key=settings.profile_key,
+            actor=auth.actor,
+            ticket_id=ticket_id,
+            issued=payload.issued,
+        )
+        return _validate_output(
+            BuyingFlagResponse,
+            {"ticket_id": ticket_id, "issued_to_buying": issued},
+        )
 
     @app.post("/api/tickets/{ticket_id}/messages")
     async def add_message(
@@ -606,3 +740,113 @@ def _require_csrf(auth: Authenticated, candidate: str | None) -> None:
 def _require_positive_ticket_id(ticket_id: int) -> None:
     if ticket_id <= 0:
         raise HTTPException(status_code=404, detail="resource not found")
+
+
+def _validate_draft_shape(profile_key: str, payload: DraftSaveInput) -> None:
+    if payload.type is None:
+        if (
+            payload.advertiser is not None
+            or payload.cap is not None
+            or payload.cap_mode is not None
+            or payload.details
+            or payload.important_comment
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="select ticket type before destination fields",
+            )
+        return
+    if payload.type == "general":
+        if (
+            payload.advertiser is not None
+            or payload.cap is not None
+            or payload.cap_mode is not None
+            or payload.details
+            or payload.important_comment
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="general draft cannot contain destination fields",
+            )
+        return
+    if payload.cap is not None and payload.cap_mode is not None:
+        _validate_cap_pair(payload.cap, payload.cap_mode)
+    if profile_key == "kalisto":
+        if payload.important_comment:
+            raise HTTPException(
+                status_code=422,
+                detail="important comment is only available in Mephisto",
+            )
+        if payload.advertiser is not None and payload.advertiser.kind != "catalog":
+            raise HTTPException(
+                status_code=422,
+                detail="Kalisto requires a catalog advertiser",
+            )
+    elif payload.details is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="structured Destination fields are only available in Kalisto",
+        )
+
+
+def _validate_destination_submission(profile_key: str, payload: object) -> None:
+    if not isinstance(payload, (DestinationTicketCreate, DestinationDraftSubmitInput)):
+        return
+    _validate_cap_pair(payload.cap, payload.cap_mode)
+    if profile_key == "kalisto":
+        if payload.important_comment:
+            raise HTTPException(
+                status_code=422,
+                detail="important comment is only available in Mephisto",
+            )
+        if payload.advertiser.kind != "catalog":
+            raise HTTPException(
+                status_code=422,
+                detail="Kalisto requires a catalog advertiser",
+            )
+        if payload.details is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Kalisto requires complete structured Destination fields",
+            )
+        return
+    if payload.details is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="structured Destination fields are only available in Kalisto",
+        )
+    if not payload.body.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Mephisto requires the source offer body",
+        )
+
+
+def _validate_cap_pair(cap: object, cap_mode: object) -> None:
+    if cap_mode == "unlim" and cap == "uncap":
+        return
+    if (
+        cap_mode in {"daily", "monthly", "lifetime"}
+        and isinstance(cap, int)
+        and not isinstance(cap, bool)
+        and 1 <= cap <= 1_000_000
+    ):
+        return
+    raise HTTPException(
+        status_code=422,
+        detail="cap value does not match cap mode",
+    )
+
+
+def _command_details(details: object) -> DestinationRequestDetails | None:
+    if details is None:
+        return None
+    return DestinationRequestDetails(
+        naming=details.naming,
+        geo=details.geo,
+        rate=details.rate,
+        currency=details.currency,
+        landing_url=details.landing_url,
+        clickid_subid=details.clickid_subid,
+        additional=details.additional,
+    )

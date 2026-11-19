@@ -190,8 +190,9 @@ def destination_offer_prompt(advertiser: str, cap: CapValue):
     return text, keyboard
 
 
-def ticket_created(ticket_id: int):
-    text = f"Задача зарегистрирована.\n\n<b>Номер:</b> <code>#{ticket_id}</code>."
+def ticket_created(ticket_id: int, ticket_number: int | None = None):
+    public_number = ticket_number or ticket_id
+    text = f"Задача зарегистрирована.\n\n<b>Номер:</b> <code>#{public_number}</code>."
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Открыть задачу", callback_data=f"user_ticket_{ticket_id}")],
         [InlineKeyboardButton(text="🧑‍💻 Главное меню", callback_data="main_menu")],

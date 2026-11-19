@@ -164,9 +164,12 @@ async def add_comment(
         await query.answer("Задача уже не находится в работе", show_alert=True)
         return
     await state.set_state(UserStates.waiting_for_ticket_comment)
-    await state.update_data(ticket_id=ticket_id)
+    await state.update_data(
+        ticket_id=ticket_id,
+        ticket_number=ticket.public_number,
+    )
     await query.answer()
-    text, keyboard = comment_prompt(ticket_id)
+    text, keyboard = comment_prompt(ticket_id, ticket.public_number)
     await edit_text_if_changed(query.message, text, reply_markup=keyboard, parse_mode="HTML")
 
 
@@ -217,7 +220,7 @@ async def save_comment(
         await message.reply("Комментарий не может быть пустым.")
         return
     try:
-        ticket_service.add_comment(
+        ticket = ticket_service.add_comment(
             ticket_id,
             message.from_user.id,
             comment,
@@ -233,6 +236,6 @@ async def save_comment(
         await message.reply("Задача уже не находится в работе.")
         return
 
-    text, keyboard = comment_saved(ticket_id, comment)
+    text, keyboard = comment_saved(ticket_id, comment, ticket.public_number)
     await message.reply(text, reply_markup=keyboard, parse_mode="HTML")
     await state.clear()

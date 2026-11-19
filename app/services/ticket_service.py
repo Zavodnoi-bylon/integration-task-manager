@@ -139,6 +139,50 @@ class TicketService:
             self.repository.timestamp(created_at),
         )
 
+    def append_forwarded_message(
+        self,
+        author_id: int,
+        chat_id: int,
+        message_id: int,
+        source_body: str,
+        received_at: TimestampInput,
+        *,
+        forward_origin_type: str | None = None,
+        forward_origin_name: str | None = None,
+        forward_origin_date: TimestampInput = None,
+    ) -> str:
+        clean = source_body.strip()
+        if not clean:
+            raise ValueError("Forwarded message has no text")
+        return self.repository.append_forwarded_message(
+            self.settings.bot_key,
+            author_id,
+            chat_id,
+            message_id,
+            clean,
+            self.repository.timestamp(received_at),
+            self.settings.forward_batch_window_seconds,
+            forward_origin_type,
+            forward_origin_name,
+            (
+                self.repository.timestamp(forward_origin_date)
+                if forward_origin_date is not None
+                else None
+            ),
+        )
+
+    def finalize_due_forward_batches(
+        self,
+        now: TimestampInput = None,
+        *,
+        limit: int = 20,
+    ) -> tuple[TicketDraftRecord, ...]:
+        return self.repository.finalize_due_forward_batches(
+            self.settings.bot_key,
+            self.repository.timestamp(now),
+            limit,
+        )
+
     def get_ticket(self, ticket_id: int) -> TicketRecord:
         ticket = self.repository.get_ticket(self.settings.bot_key, ticket_id)
         if ticket is None:

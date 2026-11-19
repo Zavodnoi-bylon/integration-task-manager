@@ -74,7 +74,7 @@ def ticket_card(
     actor_names: Mapping[int, str] | None = None,
     viewer_id: int | None = None,
 ):
-    text = f"<b>Задача <code>#{ticket.ticket_id}</code></b>\n\n"
+    text = f"<b>Задача <code>#{ticket.public_number}</code></b>\n\n"
     if admin_view:
         ticket_type = (
             "Destination"
@@ -152,7 +152,7 @@ def user_ticket_list(page: TicketPage, *, completed: bool):
 
     buttons = [
         [InlineKeyboardButton(
-            text=f"#{ticket.ticket_id} · {short_text(ticket.body)}",
+            text=f"#{ticket.public_number} · {short_text(ticket.body)}",
             callback_data=f"user_ticket_{ticket.ticket_id}",
         )]
         for ticket in page.items
@@ -194,7 +194,7 @@ def technician_ticket_list(page: TicketPage, *, completed: bool, other_total: in
     callback_prefix = "completed_ticket" if completed else "ticket"
     buttons = [
         [InlineKeyboardButton(
-            text=f"#{ticket.ticket_id} · {short_text(ticket.body)}",
+            text=f"#{ticket.public_number} · {short_text(ticket.body)}",
             callback_data=f"{callback_prefix}_{ticket.ticket_id}",
         )]
         for ticket in page.items
@@ -220,37 +220,45 @@ def technician_ticket_list(page: TicketPage, *, completed: bool, other_total: in
     return text, InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def comment_prompt(ticket_id: int):
+def comment_prompt(ticket_id: int, ticket_number: int | None = None):
+    public_number = ticket_number or ticket_id
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"ticket_{ticket_id}")]
     ])
     return (
-        f"<b>Внутренняя заметка к задаче <code>#{ticket_id}</code></b>\n\n"
+        f"<b>Внутренняя заметка к задаче <code>#{public_number}</code></b>\n\n"
         "Эту запись увидят только администраторы и технарь.",
         keyboard,
     )
 
 
-def comment_saved(ticket_id: int, comment: str):
+def comment_saved(ticket_id: int, comment: str, ticket_number: int | None = None):
+    public_number = ticket_number or ticket_id
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Добавить ещё", callback_data=f"add_comment_{ticket_id}")],
         [InlineKeyboardButton(text="✅ Завершить задачу", callback_data=f"complete_{ticket_id}")],
         [InlineKeyboardButton(text="⬅️ К задаче", callback_data=f"ticket_{ticket_id}")],
     ])
     return (
-        f"<b>Внутренняя заметка к задаче <code>#{ticket_id}</code> сохранена.</b>\n\n"
+        f"<b>Внутренняя заметка к задаче <code>#{public_number}</code> сохранена.</b>\n\n"
         f"{html(comment)}",
         keyboard,
     )
 
 
-def public_message_prompt(ticket_id: int, *, admin_view: bool):
+def public_message_prompt(
+    ticket_id: int,
+    *,
+    admin_view: bool,
+    ticket_number: int | None = None,
+):
+    public_number = ticket_number or ticket_id
     back = f"ticket_{ticket_id}" if admin_view else f"user_ticket_{ticket_id}"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Назад", callback_data=back)]
     ])
     return (
-        f"<b>Сообщение в задачу <code>#{ticket_id}</code></b>\n\n"
+        f"<b>Сообщение в задачу <code>#{public_number}</code></b>\n\n"
         "Отправьте текст. Он будет виден клиенту и поддержке.",
         keyboard,
     )

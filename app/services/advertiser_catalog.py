@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from app.domain import AdvertiserEntry
+from app.domain import AdvertiserEntry, ExternalIdentifierPolicy
 
 
 class AdvertiserCatalog:
@@ -39,12 +39,51 @@ class AdvertiserCatalog:
             normalized_names.add(normalized)
             keys.add(key)
             note = str(row.get("technician_note") or "").strip() or None
+            policy_rows = row.get("external_id_policy") or []
+            if not isinstance(policy_rows, list):
+                raise ValueError(
+                    f"external_id_policy must be a list for {bot_key}: {name}"
+                )
+            policies: list[ExternalIdentifierPolicy] = []
+            policy_parameters: set[str] = set()
+            for policy_row in policy_rows:
+                if not isinstance(policy_row, dict):
+                    raise ValueError(f"Invalid external ID policy for {bot_key}: {name}")
+                parameter = str(policy_row.get("parameter") or "").strip()
+                action = str(policy_row.get("action") or "").strip()
+                output_parameter = (
+                    str(policy_row.get("output_parameter") or "").strip() or None
+                )
+                if not parameter or any(char in parameter for char in "&=?#"):
+                    raise ValueError(
+                        f"Invalid external ID parameter for {bot_key}: {name}"
+                    )
+                if action not in {"replace_visit_uuid", "remove"}:
+                    raise ValueError(
+                        f"Invalid external ID action for {bot_key}: {name}"
+                    )
+                if action == "remove" and output_parameter is not None:
+                    raise ValueError(
+                        f"Remove policy cannot rename a parameter for {bot_key}: {name}"
+                    )
+                normalized_parameter = parameter.casefold()
+                if normalized_parameter in policy_parameters:
+                    raise ValueError(
+                        f"Duplicate external ID policy for {bot_key}: {name}"
+                    )
+                policy_parameters.add(normalized_parameter)
+                policies.append(ExternalIdentifierPolicy(
+                    parameter=parameter,
+                    action=action,
+                    output_parameter=output_parameter,
+                ))
             entries.append(AdvertiserEntry(
                 key=key,
                 name=name,
                 url_parameters=str(row.get("url_parameters") or "").strip(),
                 technician_note=note,
                 priority=max(0, int(row.get("priority") or 0)),
+                external_id_policy=tuple(policies),
             ))
 
         if not entries:

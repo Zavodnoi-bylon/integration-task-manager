@@ -38,8 +38,10 @@ class BackendUnavailable(GatewayError):
 class TicketQuery:
     scope: Literal["mine", "team"]
     status: Literal["open", "review", "completed"] | None
+    issued_to_buying: bool
     page: int
     page_size: int
+    search: str = ""
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,15 @@ class MiniAppGateway(Protocol):
         """Return a visible view; absent/foreign/cross-profile all raise ResourceNotFound."""
         ...
 
+    async def set_buying_flag(
+        self,
+        *,
+        profile_key: str,
+        actor: Actor,
+        ticket_id: int,
+        issued: bool,
+    ) -> bool: ...
+
     async def list_advertisers(
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
     ) -> Page[AdvertiserSummary]: ...
@@ -86,6 +97,10 @@ class MiniAppGateway(Protocol):
     async def list_drafts(
         self, *, profile_key: str, actor: Actor
     ) -> list[TicketDraftSummary]: ...
+
+    async def list_destination_comments(
+        self, *, profile_key: str, actor: Actor
+    ) -> list[str]: ...
 
     async def get_draft(
         self, *, profile_key: str, actor: Actor, draft_id: int

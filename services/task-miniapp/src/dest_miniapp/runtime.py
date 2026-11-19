@@ -66,7 +66,9 @@ def _canonical_services():
     )
     return (
         AdvertiserCatalog(
-            bot_key=profile, catalog_path=canonical.destination_catalog_path
+            bot_key=profile,
+            catalog_path=canonical.destination_catalog_path,
+            database_url=os.getenv("DATABASE_URL", ""),
         ),
         DestinationService(
             api_key=canonical.openrouter_api_key,
@@ -91,6 +93,21 @@ def create_application():
             allowed_origin=_required("ALLOWED_ORIGIN"),
             session_cookie_name=os.getenv(
                 "SESSION_COOKIE_NAME", f"{profile}_miniapp_session"
+            ),
+            analytics_url=os.getenv("ANALYTICS_URL", "").strip() or None,
+            analytics_issuer=os.getenv("ANALYTICS_ISSUER", "").strip() or None,
+            analytics_bot_uuid=(
+                os.getenv("ANALYTICS_BOT_UUID", "").strip() or None
+            ),
+            analytics_profile_id=(
+                os.getenv("ANALYTICS_PROFILE_ID", "").strip() or None
+            ),
+            analytics_signing_secret=(
+                os.getenv("ANALYTICS_SIGNING_SECRET", "").strip() or None
+            ),
+            analytics_allowed_user_ids=_ids("ANALYTICS_ALLOWED_USER_IDS"),
+            analytics_handoff_ttl_seconds=int(
+                os.getenv("ANALYTICS_HANDOFF_TTL_SECONDS", "300")
             ),
             init_data_max_age_seconds=int(
                 os.getenv("INIT_DATA_MAX_AGE_SECONDS", "300")

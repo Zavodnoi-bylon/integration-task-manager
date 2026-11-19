@@ -24,12 +24,20 @@ class UserRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ExternalIdentifierPolicy:
+    parameter: str
+    action: str
+    output_parameter: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AdvertiserEntry:
     key: str
     name: str
     url_parameters: str
     technician_note: str | None
     priority: int
+    external_id_policy: tuple[ExternalIdentifierPolicy, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +53,11 @@ class TicketRecord:
     closed_at: str | None
     bot_key: str
     ticket_type: str = "general"
+    ticket_number: int | None = None
+
+    @property
+    def public_number(self) -> int:
+        return self.ticket_number or self.ticket_id
 
     @classmethod
     def from_mapping(cls, row: Mapping) -> TicketRecord:
@@ -62,6 +75,11 @@ class TicketRecord:
             closed_at=(str(row["closed_at"]) if row.get("closed_at") else None),
             bot_key=str(row.get("bot_key") or "default"),
             ticket_type=str(row.get("ticket_type") or "general"),
+            ticket_number=(
+                int(row["ticket_number"])
+                if row.get("ticket_number") is not None
+                else None
+            ),
         )
 
 
