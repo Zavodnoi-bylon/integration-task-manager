@@ -84,6 +84,18 @@ class UiAssetTests(unittest.TestCase):
         self.assertNotIn('const newOption = isKalisto() ? ""', self.js)
         self.assertNotIn("Выберите рекламодателя из списка", self.js)
 
+    def test_new_advertiser_is_first_selectable_option(self) -> None:
+        self.assertIn(
+            "'<option value=\"\">Выбрать…</option>' + newOption + "
+            "state.advertisers.map",
+            self.js,
+        )
+        self.assertIn(
+            "'<option value=\"\">Выбрать…</option>' + newOption + "
+            "state.draftAdvertisers.map",
+            self.js,
+        )
+
     def test_long_urls_and_unbroken_text_wrap_inside_mobile_containers(self) -> None:
         for selector in (".destination-url", ".message p", ".faq-body"):
             self.assertRegex(
