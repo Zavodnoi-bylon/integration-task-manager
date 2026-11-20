@@ -659,7 +659,7 @@
       const known = new Set(state.draftAdvertisers.map((item) => item.key));
       state.draftAdvertisers.push(...data.items.filter((item) => !known.has(item.key)));
       const newOption = '<option value="__new__">+ Новый рекламодатель</option>';
-      select.innerHTML = '<option value="">Выбрать…</option>' + newOption + state.draftAdvertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("");
+      select.innerHTML = '<option value="" disabled selected hidden>Выбрать…</option>' + newOption + state.draftAdvertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("");
       if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
       select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
@@ -688,7 +688,7 @@
       const known = new Set(state.advertisers.map((item) => item.key));
       state.advertisers.push(...data.items.filter((item) => !known.has(item.key)));
       const newOption = '<option value="__new__">+ Новый рекламодатель</option>';
-      select.innerHTML = '<option value="">Выбрать…</option>' + newOption + state.advertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("");
+      select.innerHTML = '<option value="" disabled selected hidden>Выбрать…</option>' + newOption + state.advertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("");
       if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
       if (!state.advertisers.length) select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';

@@ -86,15 +86,22 @@ class UiAssetTests(unittest.TestCase):
 
     def test_new_advertiser_is_first_selectable_option(self) -> None:
         self.assertIn(
-            "'<option value=\"\">Выбрать…</option>' + newOption + "
+            "'<option value=\"\" disabled selected hidden>Выбрать…</option>' + newOption + "
             "state.advertisers.map",
             self.js,
         )
         self.assertIn(
-            "'<option value=\"\">Выбрать…</option>' + newOption + "
+            "'<option value=\"\" disabled selected hidden>Выбрать…</option>' + newOption + "
             "state.draftAdvertisers.map",
             self.js,
         )
+
+    def test_advertiser_placeholder_is_not_a_selectable_option(self) -> None:
+        placeholder = '<option value="" disabled selected hidden>Выбрать…</option>'
+        self.assertEqual(self.js.count(placeholder), 2)
+        self.assertIn(placeholder, self.html)
+        self.assertNotIn('<option value="">Выбрать…</option>', self.js)
+        self.assertNotIn('<option value="">Выбрать…</option>', self.html)
 
     def test_long_urls_and_unbroken_text_wrap_inside_mobile_containers(self) -> None:
         for selector in (".destination-url", ".message p", ".faq-body"):
