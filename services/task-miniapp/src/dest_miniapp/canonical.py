@@ -617,8 +617,6 @@ class PostgresMiniAppGateway:
         self, *, profile_key: str, actor: Actor
     ) -> list[str]:
         self._profile(profile_key)
-        if profile_key != "mephisto":
-            return []
         async with self._database.pool.connection() as connection:
             rows = await (
                 await connection.execute(

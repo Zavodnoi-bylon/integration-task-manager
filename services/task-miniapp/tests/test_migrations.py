@@ -157,6 +157,18 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("'passthrough'", sql)
         self.assertNotIn("UPDATE ticketing.", sql)
 
+    def test_important_comments_are_enabled_for_both_profiles(self):
+        sql = Path("migrations/0016_profile_important_comments.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("DROP CONSTRAINT tickets_important_comment_ck", sql)
+        self.assertIn("DROP CONSTRAINT ticket_drafts_important_comment_ck", sql)
+        self.assertEqual(sql.count("ticket_type_code = 'destination'"), 1)
+        self.assertEqual(sql.count("ticket_type = 'destination'"), 1)
+        self.assertNotIn("profile_key = 'mephisto'", sql)
+        self.assertIn("RENAME TO tickets_comment_history_idx", sql)
+        self.assertNotIn("UPDATE ticketing.", sql)
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

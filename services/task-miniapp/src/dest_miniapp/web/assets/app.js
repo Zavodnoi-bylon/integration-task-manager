@@ -37,7 +37,7 @@
       state.me = await api("/api/me");
       state.scope = state.me.capabilities.team_queue ? "team" : "mine";
       renderIdentity();
-      if (!isKalisto()) await loadImportantComments();
+      await loadImportantComments();
       showWorkspace();
       await loadTickets();
     } catch (error) {
@@ -396,6 +396,7 @@
       payload.advertiser = advertiser === "__new__" ? { kind: "new", name: $("#new-advertiser").value.trim() } : { kind: "catalog", key: advertiser };
       payload.cap = capSelection.cap;
       payload.cap_mode = capSelection.cap_mode;
+      payload.important_comment = $("#important-comment").value.trim();
       if (!payload.advertiser.name && advertiser === "__new__") {
         missing.push(requiredField($("#new-advertiser"), "название рекламодателя"));
       }
@@ -403,8 +404,6 @@
         payload.body = "";
         payload.details = kalistoDetails("destination-");
         missing.push(...missingKalistoFields("destination-", payload.details));
-      } else {
-        payload.important_comment = $("#important-comment").value.trim();
       }
       if (missing.length) return showRequiredFields(missing);
     }
@@ -581,7 +580,6 @@
   }
 
   async function loadImportantComments() {
-    if (isKalisto()) return;
     try {
       state.importantComments = await api("/api/destination-comments");
     } catch (_) {
@@ -825,12 +823,15 @@
     $("#destination-fields").classList.toggle("hidden", !destination);
     const structured = destination && isKalisto();
     $("#kalisto-destination-fields").classList.toggle("hidden", !structured);
-    if (structured) $("#destination-cap-anchor").after($("#cap-fields"));
+    if (structured) {
+      $("#destination-cap-anchor").after($("#cap-fields"));
+      $("#destination-landing").after($("#important-comment-field"));
+    }
     else {
       $("#destination-fields").append($("#cap-fields"));
       $("#destination-fields").append($("#important-comment-field"));
     }
-    $("#important-comment-field").classList.toggle("hidden", !destination || isKalisto());
+    $("#important-comment-field").classList.toggle("hidden", !destination);
     syncCapInput("#cap-input", "cap-mode");
     $("#ticket-body-field").classList.toggle("hidden", structured);
     $("#ticket-body").required = !structured;
@@ -843,12 +844,15 @@
     const destination = type === "destination";
     $("#draft-destination-fields").classList.toggle("hidden", !destination);
     $("#draft-kalisto-destination-fields").classList.toggle("hidden", !(destination && isKalisto()));
-    if (destination && isKalisto()) $("#draft-cap-anchor").after($("#draft-cap-fields"));
+    if (destination && isKalisto()) {
+      $("#draft-cap-anchor").after($("#draft-cap-fields"));
+      $("#draft-landing").after($("#draft-important-comment-field"));
+    }
     else {
       $("#draft-destination-fields").append($("#draft-cap-fields"));
       $("#draft-destination-fields").append($("#draft-important-comment-field"));
     }
-    $("#draft-important-comment-field").classList.toggle("hidden", !destination || isKalisto());
+    $("#draft-important-comment-field").classList.toggle("hidden", !destination);
     syncCapInput("#draft-cap", "draft-cap-mode");
     if (destination && !state.draftAdvertisers.length) loadDraftAdvertisers(true);
   }

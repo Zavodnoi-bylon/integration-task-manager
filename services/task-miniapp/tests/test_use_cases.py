@@ -395,6 +395,7 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
             cap=25,
             cap_mode="lifetime",
             details=details,
+            important_comment="Сделать тест реги",
         ))
 
         aggregate = uow.aggregates[0]
@@ -402,6 +403,9 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(aggregate.destination_request.details, details)
         self.assertEqual(aggregate.destination_request.processing_status, "validated")
         self.assertEqual(aggregate.destination_results[0].naming, naming)
+        self.assertEqual(aggregate.important_comment, "Сделать тест реги")
+        self.assertNotIn("Сделать тест реги", formatter.requests[0].source_body)
+        self.assertNotIn("Сделать тест реги", aggregate.source_public_message)
         self.assertIn("Landing URL: https://example.test/?offer=1", aggregate.source_public_message)
         self.assertIn("Original source:\nForwarded source evidence", aggregate.source_public_message)
 

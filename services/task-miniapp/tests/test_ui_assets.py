@@ -185,7 +185,7 @@ class UiAssetTests(unittest.TestCase):
         )
         self.assertIn(".detail-action-row", self.css)
 
-    def test_mephisto_important_comment_is_optional_reusable_and_wrapped(self) -> None:
+    def test_profile_important_comment_is_optional_reusable_and_wrapped(self) -> None:
         for field_id in (
             "important-comment",
             "important-comment-history",
@@ -202,7 +202,19 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('if (newAdvertiser) lines.push("<p>Новый рекл</p>");', self.js)
         self.assertIn('if (!lines.length) return "";', self.js)
         self.assertIn('class="important-comment"', self.js)
-        self.assertIn("!destination || isKalisto()", self.js)
+        self.assertIn(
+            '$("#important-comment-field").classList.toggle("hidden", !destination);',
+            self.js,
+        )
+        self.assertIn(
+            '$("#draft-important-comment-field").classList.toggle("hidden", !destination);',
+            self.js,
+        )
+        self.assertEqual(self.html.count('placeholder="Сделать тест реги"'), 2)
+        self.assertNotIn(">Параметры clickid/subid<", self.html)
+        self.assertNotIn(">Дополнительно<", self.html)
+        self.assertIn('<input id="destination-clickid" type="hidden">', self.html)
+        self.assertIn('<input id="destination-additional" type="hidden">', self.html)
         self.assertRegex(
             self.css,
             re.compile(

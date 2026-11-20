@@ -377,8 +377,6 @@ class TicketWorkflow:
         if command.profile_key == "kalisto":
             if command.details is None:
                 raise ValueError("Kalisto requires structured destination details")
-            if command.important_comment:
-                raise ValueError("important comment is only available for Mephisto")
         elif command.details is not None:
             raise ValueError("structured destination details are only valid for Kalisto")
         important_comment = (command.important_comment or "").strip() or None

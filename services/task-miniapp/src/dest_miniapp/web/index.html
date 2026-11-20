@@ -101,10 +101,8 @@
                 <div id="destination-cap-anchor"></div>
                 <label class="field-label" for="destination-landing">Основной ленд</label>
                 <textarea id="destination-landing" maxlength="16384" rows="3"></textarea>
-                <label class="field-label" for="destination-clickid">Параметры clickid/subid</label>
-                <textarea id="destination-clickid" maxlength="16384" rows="2" placeholder="Необязательно"></textarea>
-                <label class="field-label" for="destination-additional">Дополнительно</label>
-                <textarea id="destination-additional" maxlength="16384" rows="3" placeholder="Необязательно"></textarea>
+                <input id="destination-clickid" type="hidden">
+                <input id="destination-additional" type="hidden">
               </div>
               <div class="form-stack compact" id="cap-fields">
                 <label class="field-label" for="cap-input">CAP</label>
@@ -122,7 +120,7 @@
               <div class="hidden form-stack compact" id="important-comment-field">
                 <label class="field-label" for="important-comment">Важный комментарий</label>
                 <select class="hidden comment-history" id="important-comment-history" aria-label="Прежние важные комментарии"></select>
-                <textarea id="important-comment" maxlength="2000" rows="4" placeholder="Необязательно. Например: шер только на меня и Дашу, в чат не выдавать"></textarea>
+                <textarea id="important-comment" maxlength="2000" rows="4" placeholder="Сделать тест реги"></textarea>
               </div>
             </div>
             <div class="form-stack compact" id="ticket-body-field">
@@ -207,10 +205,8 @@
           <div id="draft-cap-anchor"></div>
           <label class="field-label" for="draft-landing">Основной ленд</label>
           <textarea id="draft-landing" maxlength="16384" rows="3"></textarea>
-          <label class="field-label" for="draft-clickid">Параметры clickid/subid</label>
-          <textarea id="draft-clickid" maxlength="16384" rows="2" placeholder="Необязательно"></textarea>
-          <label class="field-label" for="draft-additional">Дополнительно</label>
-          <textarea id="draft-additional" maxlength="16384" rows="3" placeholder="Необязательно"></textarea>
+          <input id="draft-clickid" type="hidden">
+          <input id="draft-additional" type="hidden">
         </div>
         <div class="form-stack compact" id="draft-cap-fields">
           <label class="field-label" for="draft-cap">CAP</label>
@@ -228,7 +224,7 @@
         <div class="hidden form-stack compact" id="draft-important-comment-field">
           <label class="field-label" for="draft-important-comment">Важный комментарий</label>
           <select class="hidden comment-history" id="draft-important-comment-history" aria-label="Прежние важные комментарии"></select>
-          <textarea id="draft-important-comment" maxlength="2000" rows="4" placeholder="Необязательно. Например: шер только на меня и Дашу, в чат не выдавать"></textarea>
+          <textarea id="draft-important-comment" maxlength="2000" rows="4" placeholder="Сделать тест реги"></textarea>
         </div>
       </div>
       <div class="draft-actions">

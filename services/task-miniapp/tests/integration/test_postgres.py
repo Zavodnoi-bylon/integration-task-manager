@@ -269,6 +269,49 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["naming"], naming)
         self.assertEqual(row["destination_url"], landing_url)
 
+    async def test_kalisto_important_comment_is_persisted_and_reusable(self):
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ),
+            advertisers=Catalog(),
+            destination_formatter=Formatter(),
+            idempotency_reservations=PostgresIdempotencyReservations(self.db),
+        )
+        comment = "Сделать тест реги"
+        created = await workflow.create_ticket(CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(100, "Client", "client"),
+            idempotency_key=UUID("15151515-1515-4515-8515-151515151515"),
+            ticket_type="destination",
+            body="",
+            advertiser=CatalogAdvertiser("catalog", "key"),
+            cap=20,
+            cap_mode="daily",
+            details=DestinationRequestDetails(
+                naming="Advertiser | FB | BR | Slots | 20 USD",
+                geo="BR",
+                rate=Decimal("20"),
+                currency="USD",
+                landing_url="https://example.test/offer",
+            ),
+            important_comment=comment,
+        ))
+        gateway = PostgresMiniAppGateway(
+            self.db, profile_key="kalisto", profile_name="Kalisto",
+            advertiser_catalog=EmptyCatalog(), postback_service=EmptyPostbacks(),
+        )
+        comments = await gateway.list_destination_comments(
+            profile_key="kalisto", actor=Actor(100, "Client", "client")
+        )
+        detail = await gateway.get_ticket_view(
+            profile_key="kalisto",
+            actor=Actor(100, "Client", "client"),
+            ticket_id=created.ticket_id,
+        )
+        self.assertEqual(comments, [comment])
+        self.assertEqual(detail.important_comment, comment)
+
     async def test_concurrent_destination_create_is_single_flight_and_atomic(self):
         async with self.db.pool.connection() as connection:
             await connection.execute(

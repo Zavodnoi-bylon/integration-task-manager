@@ -720,7 +720,7 @@ class ApiTests(unittest.TestCase):
                     if profile == "kalisto":
                         self.assertIn("Kalisto", markdown)
                         self.assertIn("Выдано баингу", markdown)
-                        self.assertNotIn("Важный комментарий", markdown)
+                        self.assertIn("Важный комментарий", markdown)
                         self.assertIn("Новый рекламодатель", markdown)
                     else:
                         self.assertIn("TheRaw", markdown)
@@ -881,8 +881,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(history.status_code, 200)
         self.assertEqual(history.json(), gateway.destination_comments)
 
-    def test_kalisto_rejects_mephisto_important_comment(self) -> None:
-        client, _ = make_client(profile_key="kalisto")
+    def test_kalisto_accepts_important_comment_outside_structured_details(self) -> None:
+        client, gateway = make_client(profile_key="kalisto")
         csrf = login(client).json()["csrf_token"]
         response = client.post(
             "/api/tickets",
@@ -892,7 +892,7 @@ class ApiTests(unittest.TestCase):
                 "cap": 20,
                 "cap_mode": "lifetime",
                 "body": "",
-                "important_comment": "Must not be accepted",
+                "important_comment": "Сделать тест реги",
                 "details": kalisto_details(),
             },
             headers={
@@ -900,8 +900,14 @@ class ApiTests(unittest.TestCase):
                 "Idempotency-Key": "27272727-2727-4272-8272-272727272727",
             },
         )
-        self.assertEqual(response.status_code, 422)
-        self.assertEqual(client.get("/api/destination-comments").status_code, 404)
+        self.assertEqual(response.status_code, 201)
+        command = gateway.mutations.last_command
+        self.assertEqual(command.important_comment, "Сделать тест реги")
+        self.assertEqual(command.details.clickid_subid, "")
+        self.assertEqual(command.details.additional, "")
+        history = client.get("/api/destination-comments")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json(), gateway.destination_comments)
 
     def test_destination_rejects_ambiguous_cap_values(self) -> None:
         client, _ = make_client()
@@ -980,6 +986,7 @@ class ApiTests(unittest.TestCase):
                 "cap_mode": "unlim",
                 "body": "Edited offer",
                 "client_comment": "",
+                "important_comment": "Сделать тест реги",
                 "details": {**kalisto_details(), "naming": (
                     "Advertiser | Brand | FB | BR | Slots | 100 USD | uncap"
                 )},
@@ -989,6 +996,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(saved.status_code, 200)
         self.assertEqual(saved.json()["cap"], "uncap")
         self.assertEqual(saved.json()["cap_mode"], "unlim")
+        self.assertEqual(saved.json()["important_comment"], "Сделать тест реги")
 
         submitted = client.post(
             "/api/drafts/7/submit",
@@ -999,6 +1007,7 @@ class ApiTests(unittest.TestCase):
                 "cap_mode": "unlim",
                 "body": "Edited offer",
                 "client_comment": "",
+                "important_comment": "Сделать тест реги",
                 "details": {**kalisto_details(), "naming": (
                     "Advertiser | Brand | FB | BR | Slots | 100 USD | uncap"
                 )},
@@ -1008,6 +1017,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(submitted.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.cap, "uncap")
         self.assertEqual(gateway.mutations.last_command.cap_mode, "unlim")
+        self.assertEqual(
+            gateway.mutations.last_command.important_comment,
+            "Сделать тест реги",
+        )
 
     def test_destination_rejects_mismatched_cap_mode(self) -> None:
         client, _ = make_client()

@@ -305,8 +305,6 @@ def create_app(
 
     @app.get("/api/destination-comments")
     async def destination_comments(auth: Authenticated = Depends(authenticated)):
-        if settings.profile_key != "mephisto":
-            raise HTTPException(status_code=404, detail="resource not found")
         result = await gateway.list_destination_comments(
             profile_key=settings.profile_key, actor=auth.actor
         )
@@ -795,13 +793,7 @@ def _validate_draft_shape(profile_key: str, payload: DraftSaveInput) -> None:
         return
     if payload.cap is not None and payload.cap_mode is not None:
         _validate_cap_pair(payload.cap, payload.cap_mode)
-    if profile_key == "kalisto":
-        if payload.important_comment:
-            raise HTTPException(
-                status_code=422,
-                detail="important comment is only available in Mephisto",
-            )
-    elif payload.details is not None:
+    if profile_key != "kalisto" and payload.details is not None:
         raise HTTPException(
             status_code=422,
             detail="structured Destination fields are only available in Kalisto",
@@ -813,11 +805,6 @@ def _validate_destination_submission(profile_key: str, payload: object) -> None:
         return
     _validate_cap_pair(payload.cap, payload.cap_mode)
     if profile_key == "kalisto":
-        if payload.important_comment:
-            raise HTTPException(
-                status_code=422,
-                detail="important comment is only available in Mephisto",
-            )
         if payload.details is None:
             raise HTTPException(
                 status_code=422,
