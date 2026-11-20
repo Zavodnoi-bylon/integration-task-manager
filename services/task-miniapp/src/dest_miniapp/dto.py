@@ -66,6 +66,7 @@ class ClientTicketDetail(TicketSummary):
 
 
 class StaffTicketDetail(ClientTicketDetail):
+    new_advertiser: bool
     internal_history: list[InternalConversationMessage]
 
 

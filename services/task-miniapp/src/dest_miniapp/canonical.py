@@ -474,7 +474,11 @@ class PostgresMiniAppGateway:
             return ClientTicketDetail.model_validate(base)
         internal = [_message(item, internal=True) for item in messages
                     if item["visibility"] == "internal"]
-        return StaffTicketDetail.model_validate({**base, "internal_history": internal})
+        return StaffTicketDetail.model_validate({
+            **base,
+            "new_advertiser": bool(row["new_advertiser"]),
+            "internal_history": internal,
+        })
 
     async def list_advertisers(
         self, *, profile_key: str, actor: Actor, query: AdvertiserQuery
@@ -792,7 +796,7 @@ class PostgresMiniAppGateway:
 
 _SUMMARY_SQL = """
 SELECT t.ticket_id,t.ticket_number,t.status_code,t.ticket_type_code,t.title,t.description,
-       t.important_comment,
+       t.important_comment,t.new_advertiser,
        t.created_at,t.updated_at,t.closed_at,requester.telegram_user_id
        AS requester_telegram_id,
        EXISTS (

@@ -801,11 +801,6 @@ def _validate_draft_shape(profile_key: str, payload: DraftSaveInput) -> None:
                 status_code=422,
                 detail="important comment is only available in Mephisto",
             )
-        if payload.advertiser is not None and payload.advertiser.kind != "catalog":
-            raise HTTPException(
-                status_code=422,
-                detail="Kalisto requires a catalog advertiser",
-            )
     elif payload.details is not None:
         raise HTTPException(
             status_code=422,
@@ -822,11 +817,6 @@ def _validate_destination_submission(profile_key: str, payload: object) -> None:
             raise HTTPException(
                 status_code=422,
                 detail="important comment is only available in Mephisto",
-            )
-        if payload.advertiser.kind != "catalog":
-            raise HTTPException(
-                status_code=422,
-                detail="Kalisto requires a catalog advertiser",
             )
         if payload.details is None:
             raise HTTPException(

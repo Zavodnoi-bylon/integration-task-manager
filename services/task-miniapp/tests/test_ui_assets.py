@@ -74,6 +74,16 @@ class UiAssetTests(unittest.TestCase):
         self.assertIn('toast("Список рекламодателей обновлён")', self.js)
         self.assertIn(".catalog-refresh-button", self.css)
 
+    def test_new_advertiser_is_available_to_both_profiles(self) -> None:
+        self.assertEqual(
+            self.js.count(
+                "const newOption = '<option value=\"__new__\">+ Новый рекламодатель</option>';"
+            ),
+            2,
+        )
+        self.assertNotIn('const newOption = isKalisto() ? ""', self.js)
+        self.assertNotIn("Выберите рекламодателя из списка", self.js)
+
     def test_long_urls_and_unbroken_text_wrap_inside_mobile_containers(self) -> None:
         for selector in (".destination-url", ".message p", ".faq-body"):
             self.assertRegex(
@@ -185,7 +195,12 @@ class UiAssetTests(unittest.TestCase):
             self.assertIn(f'id="{field_id}"', self.html)
         self.assertIn('api("/api/destination-comments")', self.js)
         self.assertIn('payload.important_comment = $("#important-comment").value.trim()', self.js)
-        self.assertIn('if (!comment) return "";', self.js)
+        self.assertIn(
+            "importantMarkup(ticket.important_comment, ticket.new_advertiser)",
+            self.js,
+        )
+        self.assertIn('if (newAdvertiser) lines.push("<p>Новый рекл</p>");', self.js)
+        self.assertIn('if (!lines.length) return "";', self.js)
         self.assertIn('class="important-comment"', self.js)
         self.assertIn("!destination || isKalisto()", self.js)
         self.assertRegex(

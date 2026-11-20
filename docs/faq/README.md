@@ -12,8 +12,10 @@ not the active Mini App help source. Keep future updates in these profile direct
 
 User-visible differences:
 
-- Kalisto: structured Destination fields and catalog advertiser selection;
-  buying flags for users with the corresponding team capability.
-- Mephisto/TheRaw: source offer text, new advertisers, optional important comments.
+- Kalisto: structured Destination fields, catalog or new advertiser selection;
+  new-advertiser passthrough and buying flags for users with the corresponding
+  team capability.
+- Mephisto/TheRaw: source offer text, new advertisers processed by the existing
+  formatter flow, optional important comments.
 - Both: title search, 50-row pagination, permissions, CAP categories, private drafts,
   General review, Destination completion, Postbacks and separately allowed analytics.

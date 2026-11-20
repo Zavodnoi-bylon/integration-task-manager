@@ -26,6 +26,7 @@ from dest_miniapp.use_cases import (
     IdempotencyReplay,
     IdempotencyScope,
     MutationContext,
+    NewAdvertiser,
     PreparedTicketAggregate,
     ResolvedAdvertiser,
     TicketWorkflow,
@@ -214,6 +215,59 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             ),
             {"status": "succeeded"},
         )
+
+    async def test_kalisto_new_advertiser_is_persisted_as_passthrough(self):
+        formatter = Formatter()
+        workflow = TicketWorkflow(
+            PostgresTicketMutationUow(
+                self.db, technical_actor_telegram_id=200
+            ),
+            advertisers=Catalog(),
+            destination_formatter=formatter,
+            idempotency_reservations=PostgresIdempotencyReservations(self.db),
+        )
+        naming = "New Brand | FB | BR | Slots | 20 USD"
+        landing_url = "https://new.example/?click={clickid}&sub={web}"
+        created = await workflow.create_ticket(CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(100, "Client", "client"),
+            idempotency_key=UUID("14141414-1414-4414-8414-141414141414"),
+            ticket_type="destination",
+            body="",
+            advertiser=NewAdvertiser("new", "New Brand"),
+            cap=20,
+            cap_mode="daily",
+            details=DestinationRequestDetails(
+                naming=naming,
+                geo="BR",
+                rate=Decimal("20"),
+                currency="USD",
+                landing_url=landing_url,
+            ),
+        ))
+        self.assertEqual(formatter.calls, 0)
+        async with self.db.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    """
+                    SELECT t.new_advertiser,r.advertiser_key,r.processing_status,
+                           result.naming,result.destination_url
+                    FROM ticketing.tickets t
+                    JOIN ticketing.destination_requests r
+                      ON r.ticket_id=t.ticket_id AND r.profile_key=t.profile_key
+                    JOIN ticketing.destination_results result
+                      ON result.ticket_id=t.ticket_id
+                     AND result.profile_key=t.profile_key
+                    WHERE t.ticket_id=%s
+                    """,
+                    (created.ticket_id,),
+                )
+            ).fetchone()
+        self.assertTrue(row["new_advertiser"])
+        self.assertEqual(row["advertiser_key"], "__new__")
+        self.assertEqual(row["processing_status"], "passthrough")
+        self.assertEqual(row["naming"], naming)
+        self.assertEqual(row["destination_url"], landing_url)
 
     async def test_concurrent_destination_create_is_single_flight_and_atomic(self):
         async with self.db.pool.connection() as connection:

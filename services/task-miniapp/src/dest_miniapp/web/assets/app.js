@@ -290,7 +290,7 @@
     const publicMessages = ticket.conversation?.map((item) => messageHtml(item, false)).join("") || '<div class="empty">Переписки пока нет.</div>';
     const internal = ticket.internal_history?.length ? `<section class="internal-box"><h3>Внутренняя история</h3>${ticket.internal_history.map((item) => messageHtml(item, true)).join("")}</section>` : "";
     const destination = ticket.ticket_type === "destination" && ticket.destination_results?.length
-      ? `<div class="destination-results">${ticket.destination_results.map((item, index) => `<section class="destination-result"><h2>${escapeHtml(item.naming)}</h2><h3>Destination:</h3><p class="destination-url">${escapeHtml(item.url)}</p>${index === 0 ? importantCommentMarkup(ticket.important_comment) : ""}</section>`).join("")}</div>`
+      ? `<div class="destination-results">${ticket.destination_results.map((item, index) => `<section class="destination-result"><h2>${escapeHtml(item.naming)}</h2><h3>Destination:</h3><p class="destination-url">${escapeHtml(item.url)}</p>${index === 0 ? importantMarkup(ticket.important_comment, ticket.new_advertiser) : ""}</section>`).join("")}</div>`
       : `<p class="detail-description">${escapeHtml(ticket.description)}</p>`;
     $("#ticket-detail").innerHTML = `
       <header class="detail-head">
@@ -313,9 +313,12 @@
     $$("[data-buying-flag]").forEach((button) => button.addEventListener("click", () => setBuyingFlag(button.dataset.buyingFlag === "true")));
   }
 
-  function importantCommentMarkup(comment) {
-    if (!comment) return "";
-    return `<div class="important-comment"><h3>Важно:</h3><p>${escapeHtml(comment)}</p></div>`;
+  function importantMarkup(comment, newAdvertiser) {
+    const lines = [];
+    if (comment) lines.push(`<p>${escapeHtml(comment)}</p>`);
+    if (newAdvertiser) lines.push("<p>Новый рекл</p>");
+    if (!lines.length) return "";
+    return `<div class="important-comment"><h3>Важно:</h3>${lines.join("")}</div>`;
   }
 
   function buyingFlagButton(ticket) {
@@ -559,9 +562,6 @@
     if (requireComplete && !payload.advertiser) throw friendlyError(422, "Выберите рекламодателя");
     if (requireComplete && !capSelection.complete) throw friendlyError(422, "Укажите CAP и его категорию");
     if (isKalisto()) {
-      if (payload.advertiser && payload.advertiser.kind !== "catalog") {
-        throw friendlyError(422, "Выберите рекламодателя из списка");
-      }
       const text = (id) => $(id).value.trim();
       const rate = Number(text("#draft-rate"));
       payload.details = {
@@ -660,11 +660,11 @@
       const data = await api(`/api/advertisers?${params}`);
       const known = new Set(state.draftAdvertisers.map((item) => item.key));
       state.draftAdvertisers.push(...data.items.filter((item) => !known.has(item.key)));
-      const newOption = isKalisto() ? "" : '<option value="__new__">+ Новый рекламодатель</option>';
+      const newOption = '<option value="__new__">+ Новый рекламодатель</option>';
       select.innerHTML = '<option value="">Выбрать…</option>' + state.draftAdvertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + newOption;
       if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
-      select.innerHTML = isKalisto() ? '<option value="">Недоступно</option>' : '<option value="__new__">Новый рекламодатель</option>';
+      select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
     } finally {
       state.draftAdvertiserLoading = false;
     }
@@ -689,11 +689,11 @@
       const data = await api(`/api/advertisers?${params}`);
       const known = new Set(state.advertisers.map((item) => item.key));
       state.advertisers.push(...data.items.filter((item) => !known.has(item.key)));
-      const newOption = isKalisto() ? "" : '<option value="__new__">+ Новый рекламодатель</option>';
+      const newOption = '<option value="__new__">+ Новый рекламодатель</option>';
       select.innerHTML = '<option value="">Выбрать…</option>' + state.advertisers.map((item) => `<option value="${escapeAttr(item.key)}">${escapeHtml(item.name)}</option>`).join("") + newOption;
       if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     } catch (error) {
-      if (!state.advertisers.length) select.innerHTML = isKalisto() ? '<option value="">Недоступно</option>' : '<option value="__new__">Новый рекламодатель</option>';
+      if (!state.advertisers.length) select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
     } finally {
       state.advertiserLoading = false;
     }

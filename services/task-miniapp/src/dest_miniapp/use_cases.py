@@ -179,7 +179,7 @@ class PreparedDestinationRequest:
     cap: CapValue
     cap_mode: CapMode
     source_body: str
-    processing_status: Literal["validated", "fallback"]
+    processing_status: Literal["validated", "fallback", "passthrough"]
 
 
 @dataclass(frozen=True)
@@ -196,6 +196,7 @@ class PreparedTicketAggregate:
     destination_request: PreparedDestinationRequest | None = None
     destination_results: tuple[DestinationResult, ...] = ()
     important_comment: str | None = None
+    new_advertiser: bool = False
 
 
 class AdvertiserCatalogPort(Protocol):
@@ -374,8 +375,6 @@ class TicketWorkflow:
             )
         assert command.cap_mode is not None
         if command.profile_key == "kalisto":
-            if not isinstance(command.advertiser, CatalogAdvertiser):
-                raise ValueError("Kalisto requires a catalog advertiser")
             if command.details is None:
                 raise ValueError("Kalisto requires structured destination details")
             if command.important_comment:
@@ -391,8 +390,8 @@ class TicketWorkflow:
         else:
             advertiser = ResolvedAdvertiser(
                 name=command.advertiser.name,
-                technician_note="Новый рекл",
             )
+        is_new_advertiser = isinstance(command.advertiser, NewAdvertiser)
         source_body = (
             _kalisto_source_message(
                 advertiser.name,
@@ -416,29 +415,47 @@ class TicketWorkflow:
             external_id_policy=advertiser.external_id_policy,
         )
         fallback_diagnostic = None
-        try:
-            formatted = await self._destination_formatter.format(request)
-            if not formatted.results:
-                raise DestinationFormattingError("formatter returned no validated results")
-            if command.details is not None and (
-                len(formatted.results) != 1
-                or formatted.results[0].naming != command.details.naming
-            ):
-                raise DestinationFormattingError("formatter changed the immutable naming")
-        except DestinationFormattingError as exc:
-            formatted = self._destination_formatter.fallback(request)
-            fallback_diagnostic = str(exc).strip() or "destination validation failed"
+        passthrough = command.profile_key == "kalisto" and is_new_advertiser
+        if passthrough:
+            assert command.details is not None
+            formatted = _kalisto_passthrough(command.details)
+        else:
+            try:
+                formatted = await self._destination_formatter.format(request)
+                if not formatted.results:
+                    raise DestinationFormattingError(
+                        "formatter returned no validated results"
+                    )
+                if command.details is not None and (
+                    len(formatted.results) != 1
+                    or formatted.results[0].naming != command.details.naming
+                ):
+                    raise DestinationFormattingError(
+                        "formatter changed the immutable naming"
+                    )
+            except DestinationFormattingError as exc:
+                formatted = self._destination_formatter.fallback(request)
+                fallback_diagnostic = (
+                    str(exc).strip() or "destination validation failed"
+                )
         prepared_request = None
         if command.details is not None:
-            assert isinstance(command.advertiser, CatalogAdvertiser)
             prepared_request = PreparedDestinationRequest(
-                advertiser_key=command.advertiser.key,
+                advertiser_key=(
+                    command.advertiser.key
+                    if isinstance(command.advertiser, CatalogAdvertiser)
+                    else "__new__"
+                ),
                 advertiser_name=advertiser.name,
                 details=command.details,
                 cap=command.cap,
                 cap_mode=command.cap_mode,
                 source_body=source_body,
-                processing_status="fallback" if formatted.used_fallback else "validated",
+                processing_status=(
+                    "passthrough"
+                    if passthrough
+                    else "fallback" if formatted.used_fallback else "validated"
+                ),
             )
         return PreparedTicketAggregate(
             ticket_type="destination",
@@ -474,6 +491,7 @@ class TicketWorkflow:
             destination_request=prepared_request,
             destination_results=formatted.results,
             important_comment=important_comment,
+            new_advertiser=is_new_advertiser,
         )
 
     async def _prepare_create_aggregate(
@@ -559,6 +577,18 @@ def _kalisto_source_message(
     if original_body.strip():
         lines.extend(("", "Original source:", original_body.strip()))
     return "\n".join(lines)
+
+
+def _kalisto_passthrough(
+    details: DestinationRequestDetails,
+) -> DestinationFormatResult:
+    return DestinationFormatResult(
+        formatted_ticket=(
+            f"{details.naming}\n\nDestination:\n{details.landing_url}"
+        ),
+        internal_note=None,
+        results=(DestinationResult(details.naming, details.landing_url),),
+    )
 
 
 def _valid_cap(value: object, mode: object) -> bool:

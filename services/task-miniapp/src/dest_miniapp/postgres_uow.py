@@ -67,11 +67,11 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                         INSERT INTO ticketing.tickets
                             (profile_key,ticket_number,requester_user_id,status_code,
                              ticket_type_code,description,title,important_comment,
-                             request_key,source,
+                             new_advertiser,request_key,source,
                              created_at,updated_at,metadata)
                         VALUES (
                             %s,ticketing.next_ticket_number(%s),%s,'open',%s,%s,%s,%s,
-                            %s,'ui',%s,%s,%s
+                            %s,%s,'ui',%s,%s,%s
                         )
                         RETURNING ticket_id,ticket_number,review_cycle
                         """,
@@ -80,6 +80,7 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                             aggregate.ticket_type,
                             aggregate.formatted_ticket, aggregate.title,
                             aggregate.important_comment,
+                            aggregate.new_advertiser,
                             idempotency.namespace,
                             now, now, Jsonb({
                                 "advertiser_name": aggregate.advertiser_name,

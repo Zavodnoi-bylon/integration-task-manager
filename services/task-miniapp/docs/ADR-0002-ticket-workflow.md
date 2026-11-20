@@ -59,8 +59,10 @@ ticket itself. Destination source message is stable:
 
     <original client body>
 
-New advertisers add internal note `Новый рекл`. Catalog and formatter/fallback
-notes are merged without dropping either note or duplicating identical text.
+New advertisers set a typed ticket flag. Staff sees `Новый рекл` in the result
+warning block; the flag does not create or duplicate an internal-history message.
+For Kalisto, a new advertiser bypasses the formatter and preserves the submitted
+naming and landing URL exactly. Mephisto keeps the formatter/fallback flow.
 
 ## State machines
 

@@ -44,6 +44,7 @@ class FakeGateway:
         self.leak_ticket = False
         self.leak_advertiser = False
         self.leak_postback = False
+        self.new_advertiser = False
         self.advertiser_refresh_status = "idle"
         self.last_ticket_query: TicketQuery | None = None
         self.buying_flags: dict[int, bool] = {}
@@ -110,6 +111,7 @@ class FakeGateway:
             result["backend_metadata"] = {"secret": True}
         if actor.is_staff:
             result["internal_history"] = []
+            result["new_advertiser"] = self.new_advertiser
         return result
 
     async def set_buying_flag(
@@ -719,7 +721,7 @@ class ApiTests(unittest.TestCase):
                         self.assertIn("Kalisto", markdown)
                         self.assertIn("Выдано баингу", markdown)
                         self.assertNotIn("Важный комментарий", markdown)
-                        self.assertNotIn("Новый рекламодатель", markdown)
+                        self.assertIn("Новый рекламодатель", markdown)
                     else:
                         self.assertIn("TheRaw", markdown)
                         self.assertIn("Важный комментарий", markdown)
@@ -816,6 +818,42 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(gateway.mutations.last_command.cap, "uncap")
         self.assertEqual(gateway.mutations.last_command.cap_mode, "unlim")
+
+    def test_kalisto_accepts_new_advertiser_with_structured_details(self) -> None:
+        client, gateway = make_client(profile_key="kalisto")
+        csrf = login(client).json()["csrf_token"]
+        response = client.post(
+            "/api/tickets",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "new", "name": "New Brand"},
+                "cap": 20,
+                "cap_mode": "lifetime",
+                "body": "",
+                "details": kalisto_details(),
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "25252525-2525-4252-8252-252525252525",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(gateway.mutations.last_command.advertiser.name, "New Brand")
+
+    def test_new_advertiser_warning_is_staff_only(self) -> None:
+        staff, gateway = make_client(role="technician")
+        login(staff)
+        gateway.new_advertiser = True
+        staff_response = staff.get("/api/tickets/1")
+        self.assertEqual(staff_response.status_code, 200)
+        self.assertTrue(staff_response.json()["new_advertiser"])
+
+        client, client_gateway = make_client(role="client")
+        login(client)
+        client_gateway.new_advertiser = True
+        client_response = client.get("/api/tickets/1")
+        self.assertEqual(client_response.status_code, 200)
+        self.assertNotIn("new_advertiser", client_response.json())
 
     def test_mephisto_important_comment_stays_out_of_source_body(self) -> None:
         client, gateway = make_client(profile_key="mephisto")

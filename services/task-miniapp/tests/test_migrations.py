@@ -148,6 +148,15 @@ class MigrationTests(unittest.TestCase):
         self.assertNotIn("telegram_user_id", sql)
         self.assertNotIn("aio_token", sql)
 
+    def test_new_advertiser_flag_is_typed_and_passthrough_is_explicit(self):
+        sql = Path("migrations/0015_new_advertiser_flag.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("new_advertiser boolean NOT NULL DEFAULT false", sql)
+        self.assertIn("ticket_type_code = 'destination'", sql)
+        self.assertIn("'passthrough'", sql)
+        self.assertNotIn("UPDATE ticketing.", sql)
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

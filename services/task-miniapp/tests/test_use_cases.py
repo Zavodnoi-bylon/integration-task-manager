@@ -323,8 +323,48 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             uow.aggregates[0].internal_note,
-            "Новый рекл\n\nmodel-internal",
+            "model-internal",
         )
+        self.assertTrue(uow.aggregates[0].new_advertiser)
+
+    async def test_kalisto_new_advertiser_bypasses_formatter(self) -> None:
+        uow = RecordingUnitOfWork(
+            TicketSnapshot(7, "kalisto", "destination", "open", 10)
+        )
+        formatter = StubFormatter()
+        workflow = make_workflow(uow, formatter=formatter)
+        details = DestinationRequestDetails(
+            naming="New Brand | FB | BR | Slots | 20 USD",
+            geo="BR",
+            rate=Decimal("20"),
+            currency="USD",
+            landing_url=(
+                "https://new.example/offer?click={clickid}&sub={web}"
+            ),
+        )
+        await workflow.create_ticket(CreateTicketCommand(
+            profile_key="kalisto",
+            actor=Actor(10, "Author", "client"),
+            idempotency_key=UUID("dededede-dede-4ede-8ede-dededededede"),
+            ticket_type="destination",
+            body="",
+            advertiser=NewAdvertiser("new", "New Brand"),
+            cap=30,
+            cap_mode="daily",
+            details=details,
+        ))
+
+        self.assertEqual(formatter.requests, [])
+        aggregate = uow.aggregates[0]
+        self.assertTrue(aggregate.new_advertiser)
+        self.assertEqual(aggregate.destination_results[0].naming, details.naming)
+        self.assertEqual(aggregate.destination_results[0].url, details.landing_url)
+        self.assertEqual(
+            aggregate.destination_request.processing_status,
+            "passthrough",
+        )
+        self.assertEqual(aggregate.destination_request.advertiser_key, "__new__")
+        self.assertIsNone(aggregate.internal_note)
 
     async def test_kalisto_persists_complete_structured_request(self) -> None:
         uow = RecordingUnitOfWork(
