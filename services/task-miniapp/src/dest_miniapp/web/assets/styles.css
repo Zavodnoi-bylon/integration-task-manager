@@ -257,8 +257,6 @@ button:disabled { opacity: .5; cursor: wait; }
 .summary-metrics span { color: var(--muted); font-size: 11px; }
 .summary-metrics strong { margin-top: 4px; font-size: 25px; font-variant-numeric: tabular-nums; }
 .summary-metrics small { color: var(--green); font-size: 10px; }
-.summary-coverage { padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: var(--surface); font-size: 11px; }
-.summary-coverage.warning { color: #f3c680; border-color: #644c2d; background: #261f15; }
 .summary-section-head span { color: var(--muted); font-size: 11px; }
 .summary-table { min-width: 0; max-width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .summary-table-head, .summary-table-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) 60px 42px 42px; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 9px 8px; }

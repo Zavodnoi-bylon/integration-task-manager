@@ -254,8 +254,10 @@ class UiAssetTests(unittest.TestCase):
             self.assertIn(f'name !== "{state_name}"', self.js)
         self.assertIn("timeoutMs: 12000", self.js)
         self.assertIn('error.name === "AbortError"', self.js)
-        self.assertIn("coverage.history_complete_for_cohort", self.js)
         self.assertIn("coverage.mart_refreshed_at", self.js)
+        self.assertNotIn('id="summary-coverage"', self.html)
+        self.assertNotIn("История REG/FTD", self.js)
+        self.assertNotIn("CAP target", self.html)
         self.assertRegex(
             self.css,
             re.compile(

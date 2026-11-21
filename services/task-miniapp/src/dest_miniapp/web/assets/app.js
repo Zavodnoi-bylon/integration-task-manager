@@ -358,7 +358,7 @@
     $("#summary-not-launched").textContent = formatNumber(data.metrics.not_launched);
     $("#summary-reg-sum").textContent = formatNumber(data.metrics.reg_sum);
     $("#summary-ftd-sum").textContent = formatNumber(data.metrics.ftd_sum);
-    renderSummaryCoverage(data.coverage);
+    renderSummaryFreshness(data.coverage);
     renderSummaryRows(rows);
     showSummaryState("content");
   }
@@ -371,14 +371,7 @@
     select.value = selected;
   }
 
-  function renderSummaryCoverage(coverage) {
-    const node = $("#summary-coverage");
-    const history = coverage.conversion_history_from
-      ? `История REG/FTD доступна с ${summaryDate(coverage.conversion_history_from)}.`
-      : "Начало истории REG/FTD не определено.";
-    node.textContent = `${history} ${coverage.note}`;
-    node.classList.toggle("warning", !coverage.history_complete_for_cohort);
-    node.classList.remove("hidden");
+  function renderSummaryFreshness(coverage) {
     const refreshed = coverage.mart_refreshed_at
       ? `Витрина обновлена ${formatSummaryTime(coverage.mart_refreshed_at)}`
       : "Время обновления витрины неизвестно";
@@ -433,10 +426,6 @@
     const from = formatter.format(new Date(`${dateFrom}T00:00:00`));
     const to = formatter.format(new Date(`${dateTo}T00:00:00`));
     return dateFrom === dateTo ? from : `${from} — ${to}`;
-  }
-
-  function summaryDate(value) {
-    return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${value}T00:00:00`));
   }
 
   function summaryShortDate(value) {
