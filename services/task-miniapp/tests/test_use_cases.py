@@ -335,6 +335,9 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         workflow = make_workflow(uow, formatter=formatter)
         details = DestinationRequestDetails(
             naming="New Brand | FB | BR | Slots | 20 USD",
+            offer_name="New Brand",
+            platform="FB",
+            approach="Slots",
             geo="BR",
             rate=Decimal("20"),
             currency="USD",
@@ -377,6 +380,9 @@ class UseCaseTests(unittest.IsolatedAsyncioTestCase):
         )
         details = DestinationRequestDetails(
             naming=naming,
+            offer_name="Brand",
+            platform="FB",
+            approach="Slots",
             geo="BR",
             rate=Decimal("100.00"),
             currency="USD",

@@ -169,6 +169,17 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("RENAME TO tickets_comment_history_idx", sql)
         self.assertNotIn("UPDATE ticketing.", sql)
 
+    def test_kalisto_naming_components_preserve_legacy_requests(self):
+        sql = Path("migrations/0017_kalisto_naming_components.sql").read_text(
+            encoding="utf-8"
+        )
+        for marker in ("offer_name", "platform", "approach"):
+            self.assertIn(marker, sql)
+        self.assertIn("offer_name IS NULL", sql)
+        self.assertIn("offer_name IS NOT NULL", sql)
+        self.assertIn("DROP CONSTRAINT ticket_drafts_general_fields_ck", sql)
+        self.assertNotIn("UPDATE ticketing.", sql)
+
     def test_discovery_rejects_duplicate_versions(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

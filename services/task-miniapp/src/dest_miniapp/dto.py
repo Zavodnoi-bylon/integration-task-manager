@@ -114,6 +114,9 @@ CapMode = Literal["unlim", "daily", "monthly", "lifetime"]
 
 class KalistoDestinationDetails(StrictInput):
     naming: str = Field(min_length=1, max_length=512)
+    offer_name: str = Field(min_length=1, max_length=256)
+    platform: str = Field(min_length=1, max_length=128)
+    approach: str = Field(min_length=1, max_length=256)
     geo: str = Field(min_length=1, max_length=128)
     rate: Decimal = Field(gt=0, max_digits=18, decimal_places=4)
     currency: str = Field(min_length=1, max_length=32)
@@ -124,6 +127,9 @@ class KalistoDestinationDetails(StrictInput):
 
 class KalistoDestinationDraftDetails(StrictInput):
     naming: str | None = Field(default=None, min_length=1, max_length=512)
+    offer_name: str | None = Field(default=None, min_length=1, max_length=256)
+    platform: str | None = Field(default=None, min_length=1, max_length=128)
+    approach: str | None = Field(default=None, min_length=1, max_length=256)
     geo: str | None = Field(default=None, min_length=1, max_length=128)
     rate: Decimal | None = Field(
         default=None, gt=0, max_digits=18, decimal_places=4

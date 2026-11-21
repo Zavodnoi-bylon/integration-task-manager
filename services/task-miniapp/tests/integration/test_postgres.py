@@ -239,6 +239,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             cap_mode="daily",
             details=DestinationRequestDetails(
                 naming=naming,
+                offer_name="New Brand",
+                platform="own",
+                approach="Slots",
                 geo="BR",
                 rate=Decimal("20"),
                 currency="USD",
@@ -251,6 +254,7 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await connection.execute(
                     """
                     SELECT t.new_advertiser,r.advertiser_key,r.processing_status,
+                           r.offer_name,r.platform,r.approach,
                            result.naming,result.destination_url
                     FROM ticketing.tickets t
                     JOIN ticketing.destination_requests r
@@ -266,6 +270,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(row["new_advertiser"])
         self.assertEqual(row["advertiser_key"], "__new__")
         self.assertEqual(row["processing_status"], "passthrough")
+        self.assertEqual(row["offer_name"], "New Brand")
+        self.assertEqual(row["platform"], "own")
+        self.assertEqual(row["approach"], "Slots")
         self.assertEqual(row["naming"], naming)
         self.assertEqual(row["destination_url"], landing_url)
 
@@ -290,6 +297,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             cap_mode="daily",
             details=DestinationRequestDetails(
                 naming="Advertiser | FB | BR | Slots | 20 USD",
+                offer_name="Advertiser",
+                platform="FB",
+                approach="Slots",
                 geo="BR",
                 rate=Decimal("20"),
                 currency="USD",
@@ -337,6 +347,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             cap_mode="daily",
             details=DestinationRequestDetails(
                 naming="Advertiser | Test | BR | Slots | 10$",
+                offer_name="Test",
+                platform="own",
+                approach="Slots",
                 geo="BR",
                 rate=Decimal("10"),
                 currency="usd",
@@ -615,6 +628,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             cap_mode="daily",
             details=DestinationRequestDetails(
                 naming="Advertiser | Test | BR | Slots | 10$",
+                offer_name="Test",
+                platform="own",
+                approach="Slots",
                 geo="BR",
                 rate=Decimal("10"),
                 currency="usd",
@@ -692,6 +708,9 @@ class PostgresIntegrationTests(unittest.IsolatedAsyncioTestCase):
             cap_mode="daily",
             details=DestinationRequestDetails(
                 naming="Advertiser | Test | BR | Slots | 10$",
+                offer_name="Test",
+                platform="own",
+                approach="Slots",
                 geo="BR",
                 rate=Decimal("10"),
                 currency="usd",

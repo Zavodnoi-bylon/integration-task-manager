@@ -51,6 +51,9 @@ class NewAdvertiser:
 @dataclass(frozen=True)
 class DestinationRequestDetails:
     naming: str
+    offer_name: str
+    platform: str
+    approach: str
     geo: str
     rate: Decimal
     currency: str
@@ -377,6 +380,15 @@ class TicketWorkflow:
         if command.profile_key == "kalisto":
             if command.details is None:
                 raise ValueError("Kalisto requires structured destination details")
+            if any(
+                not value.strip()
+                for value in (
+                    command.details.offer_name,
+                    command.details.platform,
+                    command.details.approach,
+                )
+            ):
+                raise ValueError("Kalisto requires complete naming components")
         elif command.details is not None:
             raise ValueError("structured destination details are only valid for Kalisto")
         important_comment = (command.important_comment or "").strip() or None
@@ -563,7 +575,10 @@ def _kalisto_source_message(
     lines = [
         f"Advertiser: {advertiser_name}",
         f"Naming: {details.naming}",
+        f"Offer: {details.offer_name}",
+        f"Platform: {details.platform}",
         f"GEO: {details.geo}",
+        f"Approach: {details.approach}",
         f"Rate: {details.rate} {details.currency}",
         f"Cap: {_render_cap(cap, cap_mode)}",
         f"Landing URL: {details.landing_url}",

@@ -278,6 +278,9 @@ def ticket_detail(ticket_id: int) -> dict[str, Any]:
 def kalisto_details() -> dict[str, object]:
     return {
         "naming": "Advertiser | Brand | FB | BR | Slots | 100 USD | cap 25",
+        "offer_name": "Brand",
+        "platform": "FB",
+        "approach": "Slots",
         "geo": "BR",
         "rate": "100.00",
         "currency": "USD",
@@ -794,6 +797,31 @@ class ApiTests(unittest.TestCase):
             gateway.mutations.last_command.details.landing_url,
             "https://example.test/?offer=1",
         )
+        self.assertEqual(gateway.mutations.last_command.details.offer_name, "Brand")
+        self.assertEqual(gateway.mutations.last_command.details.platform, "FB")
+        self.assertEqual(gateway.mutations.last_command.details.approach, "Slots")
+
+    def test_kalisto_destination_requires_all_naming_components(self) -> None:
+        client, _ = make_client()
+        csrf = login(client).json()["csrf_token"]
+        details = kalisto_details()
+        details.pop("approach")
+        response = client.post(
+            "/api/tickets",
+            json={
+                "type": "destination",
+                "advertiser": {"kind": "catalog", "key": "adv-1"},
+                "cap": 25,
+                "cap_mode": "daily",
+                "body": "",
+                "details": details,
+            },
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "24242424-2424-4242-8242-242424242424",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
 
     def test_destination_accepts_uncap(self) -> None:
         client, gateway = make_client()

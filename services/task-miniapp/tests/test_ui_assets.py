@@ -144,6 +144,29 @@ class UiAssetTests(unittest.TestCase):
         )
         self.assertIn('[aria-invalid="true"]', self.css)
 
+    def test_kalisto_naming_is_generated_but_can_be_overridden(self) -> None:
+        for field_id in (
+            "destination-offer",
+            "destination-platform",
+            "destination-approach",
+            "draft-offer",
+            "draft-platform",
+            "draft-approach",
+        ):
+            self.assertIn(f'id="{field_id}"', self.html)
+        self.assertEqual(self.html.count("Итоговый нейминг"), 2)
+        self.assertEqual(self.html.count("Собрать заново"), 2)
+        self.assertIn('function buildKalistoNaming(context)', self.js)
+        self.assertIn(
+            '[advertiser, offerPlatform, geo, approach, cap, rateWithCurrency]',
+            self.js,
+        )
+        self.assertIn('state.namingManual[context]', self.js)
+        self.assertIn('resetAutoNaming("create")', self.js)
+        self.assertIn('resetAutoNaming("draft")', self.js)
+        self.assertIn('offer_name: value("offer")', self.js)
+        self.assertIn('approach: value("approach")', self.js)
+
     def test_public_number_is_displayed_but_internal_id_stays_in_routes(self) -> None:
         self.assertIn(
             "return ticket.ticket_number || ticket.ticket_id;",

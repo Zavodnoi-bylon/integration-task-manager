@@ -99,10 +99,11 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                         """
                         INSERT INTO ticketing.destination_requests
                             (ticket_id,profile_key,advertiser_key,advertiser_name,
-                             naming,geo,rate,currency,cap,cap_unlimited,cap_mode,landing_url,
+                             naming,offer_name,platform,approach,geo,rate,currency,
+                             cap,cap_unlimited,cap_mode,landing_url,
                              clickid_subid,additional,source_body,processing_status,
                              created_at)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         """,
                         (
                             ticket_id,
@@ -110,6 +111,9 @@ class PostgresTicketMutationUow(TicketMutationUnitOfWork):
                             request.advertiser_key,
                             request.advertiser_name,
                             details.naming,
+                            details.offer_name,
+                            details.platform,
+                            details.approach,
                             details.geo,
                             details.rate,
                             details.currency,

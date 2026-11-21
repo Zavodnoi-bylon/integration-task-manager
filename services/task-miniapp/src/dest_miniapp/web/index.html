@@ -89,16 +89,23 @@
               <input class="hidden" id="new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
               <button class="secondary-button catalog-refresh-button" id="advertiser-refresh" type="button">Обновить список рекламодателей</button>
               <div class="hidden form-stack compact" id="kalisto-destination-fields">
-                <label class="field-label" for="destination-naming">Нейминг</label>
-                <input id="destination-naming" maxlength="512">
+                <label class="field-label" for="destination-offer">Оффер</label>
+                <input id="destination-offer" maxlength="256" placeholder="Название оффера">
+                <label class="field-label" for="destination-platform">Платформа</label>
+                <input id="destination-platform" maxlength="128" placeholder="Например: own">
                 <label class="field-label" for="destination-geo">GEO</label>
                 <input id="destination-geo" maxlength="128">
+                <label class="field-label" for="destination-approach">Подход</label>
+                <input id="destination-approach" maxlength="256" placeholder="Например: ASO cross iOS">
                 <label class="field-label" for="destination-rate">Ставка</label>
                 <div class="inline-fields">
                   <input id="destination-rate" type="number" min="0.0001" step="0.0001" inputmode="decimal">
                   <input id="destination-currency" maxlength="32" placeholder="Валюта">
                 </div>
                 <div id="destination-cap-anchor"></div>
+                <label class="field-label" for="destination-naming">Итоговый нейминг</label>
+                <input id="destination-naming" maxlength="512">
+                <button class="secondary-button hidden" id="destination-naming-reset" type="button">Собрать заново</button>
                 <label class="field-label" for="destination-landing">Основной ленд</label>
                 <textarea id="destination-landing" maxlength="16384" rows="3"></textarea>
                 <input id="destination-clickid" type="hidden">
@@ -193,16 +200,23 @@
         <input class="hidden" id="draft-new-advertiser" maxlength="256" placeholder="Название нового рекламодателя">
         <button class="secondary-button catalog-refresh-button" id="draft-advertiser-refresh" type="button">Обновить список рекламодателей</button>
         <div class="hidden form-stack compact" id="draft-kalisto-destination-fields">
-          <label class="field-label" for="draft-naming">Нейминг</label>
-          <input id="draft-naming" maxlength="512">
+          <label class="field-label" for="draft-offer">Оффер</label>
+          <input id="draft-offer" maxlength="256" placeholder="Название оффера">
+          <label class="field-label" for="draft-platform">Платформа</label>
+          <input id="draft-platform" maxlength="128" placeholder="Например: own">
           <label class="field-label" for="draft-geo">GEO</label>
           <input id="draft-geo" maxlength="128">
+          <label class="field-label" for="draft-approach">Подход</label>
+          <input id="draft-approach" maxlength="256" placeholder="Например: ASO cross iOS">
           <label class="field-label" for="draft-rate">Ставка</label>
           <div class="inline-fields">
             <input id="draft-rate" type="number" min="0.0001" step="0.0001" inputmode="decimal">
             <input id="draft-currency" maxlength="32" placeholder="Валюта">
           </div>
           <div id="draft-cap-anchor"></div>
+          <label class="field-label" for="draft-naming">Итоговый нейминг</label>
+          <input id="draft-naming" maxlength="512">
+          <button class="secondary-button hidden" id="draft-naming-reset" type="button">Собрать заново</button>
           <label class="field-label" for="draft-landing">Основной ленд</label>
           <textarea id="draft-landing" maxlength="16384" rows="3"></textarea>
           <input id="draft-clickid" type="hidden">

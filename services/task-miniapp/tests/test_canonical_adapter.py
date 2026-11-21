@@ -37,6 +37,9 @@ class CanonicalDestinationFormatterAdapterTests(unittest.IsolatedAsyncioTestCase
         naming = "1Win | 1Win [own] | IN | Cross | 100/buyer test | 45$"
         details = DestinationRequestDetails(
             naming=naming,
+            offer_name="1Win",
+            platform="own",
+            approach="Cross",
             geo="IN",
             rate=Decimal("45"),
             currency="usd",

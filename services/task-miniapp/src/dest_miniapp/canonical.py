@@ -689,7 +689,8 @@ class PostgresMiniAppGateway:
                             ticket_type=%s,edited_body=%s,client_comment=%s,
                             advertiser_kind=%s,
                             advertiser_key=%s,advertiser_name=%s,cap=%s,
-                            cap_unlimited=%s,cap_mode=%s,naming=%s,geo=%s,rate=%s,currency=%s,
+                            cap_unlimited=%s,cap_mode=%s,naming=%s,
+                            offer_name=%s,platform=%s,approach=%s,geo=%s,rate=%s,currency=%s,
                             landing_url=%s,clickid_subid=%s,additional=%s,
                             important_comment=%s,
                             updated_at=now()
@@ -710,6 +711,9 @@ class PostgresMiniAppGateway:
                             cap_unlimited,
                             cap_mode,
                             details.naming if details else None,
+                            details.offer_name if details else None,
+                            details.platform if details else None,
+                            details.approach if details else None,
                             details.geo if details else None,
                             details.rate if details else None,
                             details.currency if details else None,
@@ -831,7 +835,8 @@ def _advertiser_refresh_status(row: Any | None) -> dict[str, str]:
 _DRAFT_SQL = """
 SELECT d.draft_id,d.source_body,d.client_comment,d.edited_body,
        d.advertiser_kind,d.advertiser_key,d.advertiser_name,d.cap,
-       d.cap_unlimited,d.cap_mode,d.ticket_type,d.naming,d.geo,d.rate,d.currency,
+       d.cap_unlimited,d.cap_mode,d.ticket_type,d.naming,d.offer_name,d.platform,
+       d.approach,d.geo,d.rate,d.currency,
        d.landing_url,d.clickid_subid,d.additional,d.important_comment,
        d.forward_origin_name,d.created_at,d.updated_at
 FROM ticketing.ticket_drafts d
@@ -892,10 +897,16 @@ def _draft_detail(row: dict[str, Any]) -> TicketDraftDetail:
     details = None
     if any(
         row[key] is not None
-        for key in ("naming", "geo", "rate", "currency", "landing_url")
+        for key in (
+            "naming", "offer_name", "platform", "approach", "geo", "rate",
+            "currency", "landing_url",
+        )
     ) or row["clickid_subid"] or row["additional"]:
         details = {
             "naming": row["naming"],
+            "offer_name": row["offer_name"],
+            "platform": row["platform"],
+            "approach": row["approach"],
             "geo": row["geo"],
             "rate": row["rate"],
             "currency": row["currency"],

@@ -20,6 +20,7 @@
     draftAdvertisers: [],
     draftAdvertiserLoading: false,
     importantComments: [],
+    namingManual: { create: false, draft: false },
   };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -109,25 +110,47 @@
     $$("input[name='draft-ticket-type']").forEach((input) => input.addEventListener("change", toggleDraftType));
     $("#advertiser-select").addEventListener("change", () => {
       $("#new-advertiser").classList.toggle("hidden", $("#advertiser-select").value !== "__new__");
+      syncAutoNaming("create");
     });
+    $("#new-advertiser").addEventListener("input", () => syncAutoNaming("create"));
     $("#advertiser-search").addEventListener("input", () => {
       clearTimeout(state.advertiserSearchTimer);
       state.advertiserSearchTimer = setTimeout(() => loadAdvertisers(true), 300);
     });
     $("#advertiser-refresh").addEventListener("click", () => refreshAdvertisers("create"));
-    $$("input[name='cap-mode']").forEach((input) => input.addEventListener("change", () => syncCapInput("#cap-input", "cap-mode")));
+    $$("input[name='cap-mode']").forEach((input) => input.addEventListener("change", () => {
+      syncCapInput("#cap-input", "cap-mode");
+      syncAutoNaming("create");
+    }));
+    ["offer", "platform", "geo", "approach", "rate", "currency"].forEach((name) => {
+      $(`#destination-${name}`).addEventListener("input", () => syncAutoNaming("create"));
+    });
+    $("#cap-input").addEventListener("input", () => syncAutoNaming("create"));
+    $("#destination-naming").addEventListener("input", () => markNamingManual("create"));
+    $("#destination-naming-reset").addEventListener("click", () => resetAutoNaming("create"));
     $("#create-form").addEventListener("submit", createTicket);
     $("#create-form").addEventListener("input", clearFieldError);
     $("#create-form").addEventListener("change", clearFieldError);
     $("#draft-advertiser-select").addEventListener("change", () => {
       $("#draft-new-advertiser").classList.toggle("hidden", $("#draft-advertiser-select").value !== "__new__");
+      syncAutoNaming("draft");
     });
+    $("#draft-new-advertiser").addEventListener("input", () => syncAutoNaming("draft"));
     $("#draft-advertiser-search").addEventListener("input", () => {
       clearTimeout(state.draftAdvertiserSearchTimer);
       state.draftAdvertiserSearchTimer = setTimeout(() => loadDraftAdvertisers(true), 300);
     });
     $("#draft-advertiser-refresh").addEventListener("click", () => refreshAdvertisers("draft"));
-    $$("input[name='draft-cap-mode']").forEach((input) => input.addEventListener("change", () => syncCapInput("#draft-cap", "draft-cap-mode")));
+    $$("input[name='draft-cap-mode']").forEach((input) => input.addEventListener("change", () => {
+      syncCapInput("#draft-cap", "draft-cap-mode");
+      syncAutoNaming("draft");
+    }));
+    ["offer", "platform", "geo", "approach", "rate", "currency"].forEach((name) => {
+      $(`#draft-${name}`).addEventListener("input", () => syncAutoNaming("draft"));
+    });
+    $("#draft-cap").addEventListener("input", () => syncAutoNaming("draft"));
+    $("#draft-naming").addEventListener("input", () => markNamingManual("draft"));
+    $("#draft-naming-reset").addEventListener("click", () => resetAutoNaming("draft"));
     $("#draft-save").addEventListener("click", saveCurrentDraft);
     $("#draft-submit").addEventListener("click", submitCurrentDraft);
     $("#draft-delete").addEventListener("click", deleteCurrentDraft);
@@ -412,6 +435,7 @@
     try {
       const result = await api("/api/tickets", { method: "POST", body: payload });
       event.target.reset();
+      state.namingManual.create = false;
       syncCapInput("#cap-input", "cap-mode");
       toggleCreateType();
       toast(`Тикет #${publicTicketNumber(result)} создан`);
@@ -424,10 +448,64 @@
     return state.me?.profile?.key === "kalisto";
   }
 
+  function buildKalistoNaming(context) {
+    const draft = context === "draft";
+    const prefix = draft ? "draft-" : "destination-";
+    const advertiserSelect = $(draft ? "#draft-advertiser-select" : "#advertiser-select");
+    const newAdvertiser = $(draft ? "#draft-new-advertiser" : "#new-advertiser");
+    const advertiser = advertiserSelect.value === "__new__"
+      ? newAdvertiser.value.trim()
+      : advertiserSelect.value
+        ? (advertiserSelect.selectedOptions[0]?.textContent || "").trim()
+        : "";
+    const offer = $(`#${prefix}offer`).value.trim();
+    const platform = $(`#${prefix}platform`).value.trim();
+    const geo = $(`#${prefix}geo`).value.trim();
+    const approach = $(`#${prefix}approach`).value.trim();
+    const rate = $(`#${prefix}rate`).value.trim();
+    const currency = $(`#${prefix}currency`).value.trim();
+    const capSelection = readCap(
+      draft ? "#draft-cap" : "#cap-input",
+      draft ? "draft-cap-mode" : "cap-mode",
+    );
+    const offerPlatform = offer || platform
+      ? `${offer}${platform ? ` [${platform}]` : ""}`.trim()
+      : "";
+    const cap = capSelection.complete
+      ? (capSelection.cap === "uncap" ? "unlim" : String(capSelection.cap))
+      : "";
+    const rateWithCurrency = [rate, currency].filter(Boolean).join(" ");
+    return [advertiser, offerPlatform, geo, approach, cap, rateWithCurrency]
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  function syncAutoNaming(context) {
+    const draft = context === "draft";
+    const input = $(draft ? "#draft-naming" : "#destination-naming");
+    const reset = $(draft ? "#draft-naming-reset" : "#destination-naming-reset");
+    if (!state.namingManual[context]) input.value = buildKalistoNaming(context);
+    reset.classList.toggle("hidden", !state.namingManual[context]);
+  }
+
+  function markNamingManual(context) {
+    const input = $(context === "draft" ? "#draft-naming" : "#destination-naming");
+    state.namingManual[context] = input.value.trim() !== buildKalistoNaming(context);
+    syncAutoNaming(context);
+  }
+
+  function resetAutoNaming(context) {
+    state.namingManual[context] = false;
+    syncAutoNaming(context);
+  }
+
   function kalistoDetails(prefix) {
     const value = (name) => $(`#${prefix}${name}`).value.trim();
     const details = {
       naming: value("naming"),
+      offer_name: value("offer"),
+      platform: value("platform"),
+      approach: value("approach"),
       geo: value("geo"),
       rate: Number(value("rate")),
       currency: value("currency"),
@@ -441,7 +519,10 @@
   function missingKalistoFields(prefix, details) {
     return [
       [requiredField($(`#${prefix}naming`), "нейминг"), !details.naming],
+      [requiredField($(`#${prefix}offer`), "оффер"), !details.offer_name],
+      [requiredField($(`#${prefix}platform`), "платформа"), !details.platform],
       [requiredField($(`#${prefix}geo`), "GEO"), !details.geo],
+      [requiredField($(`#${prefix}approach`), "подход"), !details.approach],
       [requiredField($(`#${prefix}rate`), "ставка"), !Number.isFinite(details.rate) || details.rate <= 0],
       [requiredField($(`#${prefix}currency`), "валюта"), !details.currency],
       [requiredField($(`#${prefix}landing`), "основной ленд"), !details.landing_url],
@@ -491,13 +572,20 @@
       }
       $("#draft-new-advertiser").classList.toggle("hidden", $("#draft-advertiser-select").value !== "__new__");
       const details = draft.details || {};
+      $("#draft-offer").value = details.offer_name || "";
+      $("#draft-platform").value = details.platform || "";
       $("#draft-naming").value = details.naming || "";
       $("#draft-geo").value = details.geo || "";
+      $("#draft-approach").value = details.approach || "";
       $("#draft-rate").value = details.rate || "";
       $("#draft-currency").value = details.currency || "";
       $("#draft-landing").value = details.landing_url || "";
       $("#draft-clickid").value = details.clickid_subid || "";
       $("#draft-additional").value = details.additional || "";
+      state.namingManual.draft = Boolean(
+        details.naming && details.naming !== buildKalistoNaming("draft")
+      );
+      syncAutoNaming("draft");
       toggleDraftType();
       $("#draft-dialog").showModal();
     } catch (error) { toast(error.message); }
@@ -506,6 +594,7 @@
   function closeDraft() {
     $("#draft-dialog").close();
     state.currentDraft = null;
+    state.namingManual.draft = false;
   }
 
   function missingDraftSubmitFields() {
@@ -565,6 +654,9 @@
       const rate = Number(text("#draft-rate"));
       payload.details = {
         naming: text("#draft-naming") || null,
+        offer_name: text("#draft-offer") || null,
+        platform: text("#draft-platform") || null,
+        approach: text("#draft-approach") || null,
         geo: text("#draft-geo") || null,
         rate: rate || null,
         currency: text("#draft-currency") || null,
@@ -572,7 +664,7 @@
         clickid_subid: text("#draft-clickid"),
         additional: text("#draft-additional"),
       };
-      if (requireComplete && (!payload.details.naming || !payload.details.geo || !payload.details.rate || !payload.details.currency || !payload.details.landing_url)) {
+      if (requireComplete && (!payload.details.naming || !payload.details.offer_name || !payload.details.platform || !payload.details.approach || !payload.details.geo || !payload.details.rate || !payload.details.currency || !payload.details.landing_url)) {
         throw friendlyError(422, "Заполните обязательные поля");
       }
     }
@@ -665,6 +757,7 @@
       select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
     } finally {
       state.draftAdvertiserLoading = false;
+      if (isKalisto()) syncAutoNaming("draft");
     }
   }
 
@@ -694,6 +787,7 @@
       if (!state.advertisers.length) select.innerHTML = '<option value="__new__">Новый рекламодатель</option>';
     } finally {
       state.advertiserLoading = false;
+      if (isKalisto()) syncAutoNaming("create");
     }
   }
 
@@ -826,6 +920,7 @@
     if (structured) {
       $("#destination-cap-anchor").after($("#cap-fields"));
       $("#destination-landing").after($("#important-comment-field"));
+      syncAutoNaming("create");
     }
     else {
       $("#destination-fields").append($("#cap-fields"));
@@ -847,6 +942,7 @@
     if (destination && isKalisto()) {
       $("#draft-cap-anchor").after($("#draft-cap-fields"));
       $("#draft-landing").after($("#draft-important-comment-field"));
+      syncAutoNaming("draft");
     }
     else {
       $("#draft-destination-fields").append($("#draft-cap-fields"));

@@ -844,6 +844,9 @@ def _command_details(details: object) -> DestinationRequestDetails | None:
         return None
     return DestinationRequestDetails(
         naming=details.naming,
+        offer_name=details.offer_name,
+        platform=details.platform,
+        approach=details.approach,
         geo=details.geo,
         rate=details.rate,
         currency=details.currency,
