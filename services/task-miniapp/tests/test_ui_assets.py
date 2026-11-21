@@ -187,13 +187,15 @@ class UiAssetTests(unittest.TestCase):
             self.html.index('id="help-content"'),
         )
 
-    def test_analytics_link_is_optional_and_mobile_safe(self) -> None:
-        self.assertIn('id="analytics-button"', self.html)
+    def test_explorer_handoff_is_only_in_summary_and_mobile_safe(self) -> None:
+        self.assertNotIn('id="analytics-button"', self.html)
+        self.assertIn('id="summary-open-explorer"', self.html)
         self.assertIn('state.me.links?.analytics', self.js)
         self.assertIn('api("/api/analytics/handoff"', self.js)
         self.assertIn('tg.openLink(url)', self.js)
         self.assertNotIn('tg.openTelegramLink(url)', self.js)
-        self.assertIn(".bottom-nav.analytics-enabled", self.css)
+        self.assertNotIn(".bottom-nav.analytics-enabled", self.css)
+        self.assertIn(".bottom-nav.summary-enabled", self.css)
         self.assertIn("repeat(4, minmax(0, 1fr))", self.css)
         self.assertRegex(
             self.css,
@@ -202,6 +204,65 @@ class UiAssetTests(unittest.TestCase):
                 r"[^}]*text-overflow:\s*ellipsis",
                 re.DOTALL,
             ),
+        )
+
+    def test_theraw_summary_uses_internal_navigation_and_back(self) -> None:
+        self.assertIn('id="summary-page"', self.html)
+        self.assertIn('id="summary-button"', self.html)
+        self.assertIn('id="summary-open-explorer"', self.html)
+        self.assertIn("state.me?.capabilities?.analytics_compact", self.js)
+        self.assertIn('navigate("summary")', self.js)
+        self.assertIn('state.page === "summary"', self.js)
+        self.assertIn('else if (state.page === "summary") navigate("tickets")', self.js)
+        self.assertIn('$("#summary-open-explorer").addEventListener("click", openAnalytics)', self.js)
+        self.assertIn('api("/api/analytics/handoff"', self.js)
+        self.assertNotIn('window.open(', self.js)
+
+    def test_theraw_summary_has_only_agreed_kpis_and_destination_table(self) -> None:
+        for period in ("today", "week", "month", "custom"):
+            self.assertIn(f'data-summary-period="{period}"', self.html)
+        for element_id in (
+            "summary-created",
+            "summary-launched",
+            "summary-not-launched",
+            "summary-reg-sum",
+            "summary-ftd-sum",
+            "summary-advertiser",
+            "summary-status",
+            "summary-destination-list",
+            "summary-updated",
+        ):
+            self.assertIn(f'id="{element_id}"', self.html)
+        for label in ("ID", "Dest", "Создан", "REG", "FTD"):
+            self.assertIn(f"<span>{label}</span>", self.html)
+        for status in ("all", "launched", "not_launched", "with_ftd"):
+            self.assertIn(f'value="{status}"', self.html)
+        self.assertIn('/api/analytics/compact/summary?${summaryParams}', self.js)
+        self.assertIn('/api/analytics/compact/destinations?${listParams}', self.js)
+        self.assertNotIn('data-summary-list="geo"', self.html)
+        self.assertNotIn("top_geos", self.js)
+        self.assertNotIn("is_demo", self.js)
+
+    def test_theraw_summary_has_loading_empty_error_and_mobile_guards(self) -> None:
+        for element_id in ("summary-loading", "summary-empty", "summary-error"):
+            self.assertIn(f'id="{element_id}"', self.html)
+        for state_name in ("loading", "empty", "error", "content"):
+            self.assertIn(f'name !== "{state_name}"', self.js)
+        self.assertIn("timeoutMs: 12000", self.js)
+        self.assertIn('error.name === "AbortError"', self.js)
+        self.assertIn("coverage.history_complete_for_cohort", self.js)
+        self.assertIn("coverage.mart_refreshed_at", self.js)
+        self.assertRegex(
+            self.css,
+            re.compile(
+                r"\.analytics-summary\s*\{[^}]*min-width:\s*0"
+                r"[^}]*overflow-x:\s*hidden",
+                re.DOTALL,
+            ),
+        )
+        self.assertIn(
+            ".summary-periods { grid-template-columns: repeat(2, minmax(0, 1fr)); }",
+            self.css,
         )
 
     def test_buying_flag_is_role_scoped_and_has_no_history_ui(self) -> None:

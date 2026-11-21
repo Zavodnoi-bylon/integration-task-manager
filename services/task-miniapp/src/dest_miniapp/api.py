@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import date
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -12,8 +13,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from .auth import InitDataError, verify_init_data
-from .analytics_handoff import issue_analytics_handoff
+from .analytics_compact import (
+    CompactAnalyticsClient,
+    CompactAnalyticsError,
+    HttpCompactAnalyticsClient,
+)
+from .analytics_handoff import issue_analytics_handoff, issue_analytics_token
 from .dto import (
+    AnalyticsCompactDestinationsOutput,
+    AnalyticsCompactSummaryOutput,
     AdvertiserRefreshStatus,
     AdvertiserSummary,
     BuyingFlagInput,
@@ -86,6 +94,7 @@ def create_app(
     gateway: MiniAppGateway,
     sessions: SessionStore,
     mutations: TicketMutationService,
+    compact_analytics: CompactAnalyticsClient | None = None,
     help_directory: Path | None = None,
     lifespan: Any = None,
 ) -> FastAPI:
@@ -97,6 +106,11 @@ def create_app(
     )
     web_root = Path(__file__).with_name("web")
     help_root = help_directory or web_root / "help"
+    compact_client = compact_analytics
+    if compact_client is None and settings.analytics_compact_base_url:
+        compact_client = HttpCompactAnalyticsClient(
+            settings.analytics_compact_base_url
+        )
     app.mount("/assets", StaticFiles(directory=web_root / "assets"), name="assets")
     app.add_middleware(
         CORSMiddleware,
@@ -239,6 +253,11 @@ def create_app(
                 and actor.telegram_user_id in settings.analytics_allowed_user_ids
             ) else {},
             "capabilities": {
+                "analytics_compact": (
+                    settings.analytics_compact_enabled
+                    and compact_client is not None
+                    and actor.telegram_user_id in settings.analytics_allowed_user_ids
+                ),
                 "team_queue": actor.is_staff or actor.is_supervisor,
                 "buying_flag": (
                     settings.profile_key == "kalisto" and actor.is_supervisor
@@ -263,6 +282,60 @@ def create_app(
             raise HTTPException(status_code=403, detail="operation forbidden")
         handoff = issue_analytics_handoff(settings, auth.actor)
         return {"url": handoff.url, "expires_at": handoff.expires_at}
+
+    @app.get(
+        "/api/analytics/compact/summary",
+        response_model=AnalyticsCompactSummaryOutput,
+    )
+    async def analytics_compact_summary(
+        date_from: Annotated[date, Query(alias="from")],
+        date_to: Annotated[date, Query(alias="to")],
+        advertisers: Annotated[list[str] | None, Query()] = None,
+        auth: Authenticated = Depends(authenticated),
+    ) -> AnalyticsCompactSummaryOutput:
+        client = _require_compact_analytics(settings, compact_client, auth)
+        params = _compact_period_params(date_from, date_to, advertisers)
+        issued = issue_analytics_token(settings, auth.actor)
+        try:
+            return await client.summary(token=issued.token, params=params)
+        except CompactAnalyticsError as exc:
+            raise HTTPException(
+                status_code=exc.status_code, detail=exc.detail
+            ) from None
+
+    @app.get(
+        "/api/analytics/compact/destinations",
+        response_model=AnalyticsCompactDestinationsOutput,
+    )
+    async def analytics_compact_destinations(
+        date_from: Annotated[date, Query(alias="from")],
+        date_to: Annotated[date, Query(alias="to")],
+        advertisers: Annotated[list[str] | None, Query()] = None,
+        status: Literal["all", "launched", "not_launched", "with_ftd"] = "all",
+        sort: Literal["created_at", "reg_sum", "ftd_sum"] = "created_at",
+        direction: Literal["asc", "desc"] = "desc",
+        page: Annotated[int, Query(ge=1)] = 1,
+        page_size: Annotated[int, Query(ge=1, le=100)] = 50,
+        auth: Authenticated = Depends(authenticated),
+    ) -> AnalyticsCompactDestinationsOutput:
+        client = _require_compact_analytics(settings, compact_client, auth)
+        params = _compact_period_params(date_from, date_to, advertisers)
+        params.extend(
+            (
+                ("status", status),
+                ("sort", sort),
+                ("direction", direction),
+                ("page", str(page)),
+                ("page_size", str(page_size)),
+            )
+        )
+        issued = issue_analytics_token(settings, auth.actor)
+        try:
+            return await client.destinations(token=issued.token, params=params)
+        except CompactAnalyticsError as exc:
+            raise HTTPException(
+                status_code=exc.status_code, detail=exc.detail
+            ) from None
 
     @app.get("/api/tickets")
     async def tickets(
@@ -757,6 +830,43 @@ def _validate_output(model, value):  # type: ignore[no-untyped-def]
 def _require_csrf(auth: Authenticated, candidate: str | None) -> None:
     if not csrf_matches(auth.session, candidate):
         raise HTTPException(status_code=403, detail="invalid CSRF token")
+
+
+def _require_compact_analytics(
+    settings: Settings,
+    client: CompactAnalyticsClient | None,
+    auth: Authenticated,
+) -> CompactAnalyticsClient:
+    if not settings.analytics_compact_enabled or client is None:
+        raise HTTPException(status_code=404, detail="resource not found")
+    if auth.actor.telegram_user_id not in settings.analytics_allowed_user_ids:
+        raise HTTPException(status_code=403, detail="operation forbidden")
+    return client
+
+
+def _compact_period_params(
+    date_from: date,
+    date_to: date,
+    advertisers: list[str] | None,
+) -> list[tuple[str, str]]:
+    if date_from > date_to:
+        raise HTTPException(
+            status_code=400, detail="invalid analytics period or filters"
+        )
+    if (date_to - date_from).days > 365:
+        raise HTTPException(
+            status_code=400, detail="invalid analytics period or filters"
+        )
+    selected = advertisers or []
+    if len(selected) > 50 or any(
+        not value.strip() or len(value) > 256 for value in selected
+    ):
+        raise HTTPException(
+            status_code=400, detail="invalid analytics period or filters"
+        )
+    params = [("from", date_from.isoformat()), ("to", date_to.isoformat())]
+    params.extend(("advertisers", value.strip()) for value in selected)
+    return params
 
 
 def _require_positive_ticket_id(ticket_id: int) -> None:

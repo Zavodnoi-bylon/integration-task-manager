@@ -13,7 +13,12 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 
+from dest_miniapp.analytics_compact import CompactAnalyticsError
 from dest_miniapp.api import create_app
+from dest_miniapp.dto import (
+    AnalyticsCompactDestinationsOutput,
+    AnalyticsCompactSummaryOutput,
+)
 from dest_miniapp.gateway import (
     AccessDenied,
     AdvertiserQuery,
@@ -33,6 +38,92 @@ ANALYTICS_SECRET = base64.urlsafe_b64encode(
 ).rstrip(b"=").decode("ascii")
 ANALYTICS_BOT_UUID = "11111111-1111-4111-8111-111111111111"
 ANALYTICS_PROFILE_ID = "22222222-2222-4222-8222-222222222222"
+
+
+class FakeCompactAnalytics:
+    def __init__(self, state: str = "success") -> None:
+        self.state = state
+        self.tokens: list[str] = []
+        self.params: list[list[tuple[str, str]]] = []
+
+    async def summary(self, *, token: str, params: list[tuple[str, str]]):
+        self._record(token, params)
+        if self.state == "error":
+            raise CompactAnalyticsError(503, "analytics temporarily unavailable")
+        empty = self.state == "empty"
+        return AnalyticsCompactSummaryOutput.model_validate({
+            "tenant": "theraw",
+            "period": {
+                "from": "2026-11-01",
+                "to": "2026-11-21",
+                "basis": "destination_created_at",
+                "timezone": "Europe/Moscow",
+            },
+            "filters": {"advertisers": []},
+            "metrics": {
+                "created": 0 if empty else 12,
+                "launched": 0 if empty else 7,
+                "not_launched": 0 if empty else 5,
+                "with_ftd": 0 if empty else 3,
+                "reg_sum": 0 if empty else 34,
+                "ftd_sum": 0 if empty else 6,
+            },
+            "available_filters": {
+                "advertisers": ["Example Advertiser"],
+                "created_from": "2025-01-01",
+                "created_to": "2026-11-20",
+            },
+            "coverage": {
+                "conversion_history_from": "2026-01-01",
+                "history_complete_for_cohort": True,
+                "status": "complete_for_creation_cohort",
+                "catalog_fetched_at": "2026-11-20T21:52:00Z",
+                "conversion_latest_event_at": "2026-11-21T13:00:00Z",
+                "mart_refreshed_at": "2026-11-21T13:01:00Z",
+                "cap_target_available": False,
+                "note": "REG/FTD считаются с начала доступной истории конверсий; CAP target в Explorer пока отсутствует.",
+            },
+            "empty": empty,
+        })
+
+    async def destinations(self, *, token: str, params: list[tuple[str, str]]):
+        self._record(token, params)
+        if self.state == "error":
+            raise CompactAnalyticsError(503, "analytics temporarily unavailable")
+        empty = self.state == "empty"
+        return AnalyticsCompactDestinationsOutput.model_validate({
+            "tenant": "theraw",
+            "period": {
+                "from": "2026-11-01",
+                "to": "2026-11-21",
+                "basis": "destination_created_at",
+                "timezone": "Europe/Moscow",
+            },
+            "filters": {"advertisers": [], "status": "all"},
+            "sort": {"field": "created_at", "direction": "desc"},
+            "rows": [] if empty else [{
+                "destination_id": "054406",
+                "destination": "Destination name",
+                "created_date": "2026-11-20",
+                "created_at": "2026-11-20T17:13:45Z",
+                "advertiser": "Example Advertiser",
+                "reg_sum": 10,
+                "ftd_sum": 2,
+                "launched": True,
+                "with_ftd": True,
+                "is_archived": False,
+                "latest_event_at": "2026-11-21T12:00:00Z",
+            }],
+            "page": 1,
+            "page_size": 50,
+            "total": 0 if empty else 1,
+            "has_more": False,
+            "empty": empty,
+        })
+
+    def _record(self, token: str, params: list[tuple[str, str]]) -> None:
+        self.tokens.append(token)
+        self.params.append(params)
 
 
 class FakeGateway:
@@ -294,24 +385,34 @@ def make_client(
     *, role: str = "client", active: bool = True, clock=None,
     analytics_url: str | None = None,
     analytics_allowed_user_ids: frozenset[int] | None = None,
+    analytics_compact_enabled: bool = False,
+    compact_analytics: FakeCompactAnalytics | None = None,
     profile_key: str = "kalisto",
 ):
     gateway = FakeGateway(role=role, active=active)
+    configured_analytics_url = analytics_url or (
+        "https://explorer.example" if analytics_compact_enabled else None
+    )
     settings = Settings(
         bot_token=TOKEN,
         profile_key=profile_key,
         profile_name="Kalisto" if profile_key == "kalisto" else "Mephisto",
         allowed_origin="https://miniapp.example",
         session_cookie_name="kalisto_session",
-        analytics_url=analytics_url,
-        analytics_issuer="theraw-task-manager" if analytics_url else None,
-        analytics_bot_uuid=ANALYTICS_BOT_UUID if analytics_url else None,
-        analytics_profile_id=ANALYTICS_PROFILE_ID if analytics_url else None,
-        analytics_signing_secret=ANALYTICS_SECRET if analytics_url else None,
+        analytics_url=configured_analytics_url,
+        analytics_issuer="theraw-task-manager" if configured_analytics_url else None,
+        analytics_bot_uuid=ANALYTICS_BOT_UUID if configured_analytics_url else None,
+        analytics_profile_id=ANALYTICS_PROFILE_ID if configured_analytics_url else None,
+        analytics_signing_secret=ANALYTICS_SECRET if configured_analytics_url else None,
         analytics_allowed_user_ids=(
             frozenset({42})
-            if analytics_url and analytics_allowed_user_ids is None
+            if configured_analytics_url
+            and analytics_allowed_user_ids is None
             else (analytics_allowed_user_ids or frozenset())
+        ),
+        analytics_compact_enabled=analytics_compact_enabled,
+        analytics_compact_base_url=(
+            "https://explorer.example" if analytics_compact_enabled else None
         ),
     )
     store = MemorySessionStore(clock=clock)
@@ -329,6 +430,7 @@ def make_client(
         gateway=gateway,
         sessions=store,
         mutations=mutations,
+        compact_analytics=compact_analytics,
         help_directory=help_directory,
     )
     return TestClient(app, base_url="https://testserver"), gateway
@@ -439,6 +541,122 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["detail"], "operation forbidden")
+
+    def test_compact_analytics_is_feature_flagged_and_allowlisted(self) -> None:
+        disabled, _ = make_client()
+        login(disabled)
+        self.assertFalse(
+            disabled.get("/api/me").json()["capabilities"]["analytics_compact"]
+        )
+        self.assertEqual(
+            disabled.get(
+                "/api/analytics/compact/summary?from=2026-11-01&to=2026-11-21"
+            ).status_code, 404,
+        )
+
+        upstream = FakeCompactAnalytics()
+        client, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=upstream,
+        )
+        login(client)
+        self.assertTrue(
+            client.get("/api/me").json()["capabilities"]["analytics_compact"]
+        )
+        response = client.get(
+            "/api/analytics/compact/summary?from=2026-11-01&to=2026-11-21"
+            "&advertisers=Example%20Advertiser&tenant_uuid=forged"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["tenant"], "theraw")
+        self.assertEqual(payload["metrics"]["created"], 12)
+        self.assertIn(("advertisers", "Example Advertiser"), upstream.params[0])
+        self.assertNotIn(("tenant_uuid", "forged"), upstream.params[0])
+
+        forbidden, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=FakeCompactAnalytics(),
+            analytics_allowed_user_ids=frozenset({99}),
+        )
+        login(forbidden)
+        self.assertFalse(
+            forbidden.get("/api/me").json()["capabilities"]["analytics_compact"]
+        )
+        self.assertEqual(
+            forbidden.get(
+                "/api/analytics/compact/summary?from=2026-11-01&to=2026-11-21"
+            ).status_code, 403,
+        )
+
+    def test_compact_analytics_has_empty_error_and_period_validation(self) -> None:
+        empty, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=FakeCompactAnalytics("empty"),
+        )
+        login(empty)
+        payload = empty.get(
+            "/api/analytics/compact/summary?from=2026-11-21&to=2026-11-21"
+        ).json()
+        self.assertTrue(payload["empty"])
+        self.assertEqual(payload["metrics"]["created"], 0)
+
+        error, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=FakeCompactAnalytics("error"),
+        )
+        login(error)
+        failed = error.get(
+            "/api/analytics/compact/summary?from=2026-11-01&to=2026-11-21"
+        )
+        self.assertEqual(failed.status_code, 503)
+        self.assertEqual(
+            failed.json()["detail"],
+            "analytics temporarily unavailable",
+        )
+
+        invalid, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=FakeCompactAnalytics(),
+        )
+        login(invalid)
+        self.assertEqual(
+            invalid.get(
+                "/api/analytics/compact/summary?from=2026-11-21&to=2026-11-01"
+            ).status_code,
+            400,
+        )
+        self.assertEqual(
+            invalid.get("/api/analytics/compact/summary").status_code,
+            422,
+        )
+
+    def test_compact_proxy_mints_fresh_tokens_and_forwards_only_whitelisted_fields(self) -> None:
+        upstream = FakeCompactAnalytics()
+        client, _ = make_client(
+            analytics_compact_enabled=True,
+            compact_analytics=upstream,
+        )
+        login(client)
+        summary = client.get(
+            "/api/analytics/compact/summary?from=2026-11-01&to=2026-11-21"
+        )
+        rows = client.get(
+            "/api/analytics/compact/destinations?from=2026-11-01&to=2026-11-21"
+            "&status=not_launched&sort=ftd_sum&direction=asc&page=2&page_size=25"
+        )
+        self.assertEqual(summary.status_code, 200)
+        self.assertEqual(rows.status_code, 200)
+        self.assertEqual(len(upstream.tokens), 2)
+        self.assertNotEqual(upstream.tokens[0], upstream.tokens[1])
+        for token in upstream.tokens:
+            payload = _decode_token_part(token.split(".")[1])
+            self.assertEqual(payload["role"], "analytics_viewer")
+            self.assertNotIn("tenant_uuid", payload)
+        self.assertIn(("status", "not_launched"), upstream.params[1])
+        self.assertIn(("page_size", "25"), upstream.params[1])
+        self.assertNotIn("Authorization", rows.text)
+        self.assertNotIn(upstream.tokens[1], rows.text)
 
     def test_login_sets_hardened_cookie_and_public_response(self) -> None:
         client, _ = make_client()

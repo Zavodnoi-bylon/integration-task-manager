@@ -33,6 +33,15 @@ def _ids(name: str) -> frozenset[int]:
     )
 
 
+def _flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name, "true" if default else "false").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} must be a boolean")
+
+
 def _canonical_services():
     root = Path(os.getenv("CANONICAL_APP_PATH", "/opt/integration-task-manager"))
     if not (root / "app").is_dir():
@@ -108,6 +117,10 @@ def create_application():
             analytics_allowed_user_ids=_ids("ANALYTICS_ALLOWED_USER_IDS"),
             analytics_handoff_ttl_seconds=int(
                 os.getenv("ANALYTICS_HANDOFF_TTL_SECONDS", "300")
+            ),
+            analytics_compact_enabled=_flag("ANALYTICS_COMPACT_ENABLED"),
+            analytics_compact_base_url=(
+                os.getenv("ANALYTICS_COMPACT_BASE_URL", "").strip() or None
             ),
             init_data_max_age_seconds=int(
                 os.getenv("INIT_DATA_MAX_AGE_SECONDS", "300")

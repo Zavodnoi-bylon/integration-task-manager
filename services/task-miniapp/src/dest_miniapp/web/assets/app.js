@@ -21,6 +21,11 @@
     draftAdvertiserLoading: false,
     importantComments: [],
     namingManual: { create: false, draft: false },
+    summaryPeriod: "week",
+    summaryData: null,
+    summaryRows: null,
+    summaryRequest: 0,
+    summaryPage: 1,
   };
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -76,7 +81,30 @@
     $$("#bottom-nav button[data-page]").forEach((button) => button.addEventListener("click", () => {
       navigate(button.dataset.page);
     }));
-    $("#analytics-button").addEventListener("click", openAnalytics);
+    $("#summary-button").addEventListener("click", () => navigate("summary"));
+    $("#summary-open-explorer").addEventListener("click", openAnalytics);
+    $$('[data-summary-period]').forEach((button) => button.addEventListener("click", () => selectSummaryPeriod(button.dataset.summaryPeriod)));
+    $("#summary-custom-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      state.summaryPage = 1;
+      loadSummary();
+    });
+    $("#summary-advertiser").addEventListener("change", () => {
+      state.summaryPage = 1;
+      loadSummary();
+    });
+    $("#summary-status").addEventListener("change", () => {
+      state.summaryPage = 1;
+      loadSummary();
+    });
+    $("#summary-retry").addEventListener("click", loadSummary);
+    $("#summary-prev").addEventListener("click", () => {
+      if (state.summaryPage > 1) { state.summaryPage -= 1; loadSummary(); }
+    });
+    $("#summary-next").addEventListener("click", () => {
+      state.summaryPage += 1;
+      loadSummary();
+    });
     $$("#scope-switch button").forEach((button) => button.addEventListener("click", async () => {
       state.scope = button.dataset.scope;
       state.ticketPage = 1;
@@ -164,8 +192,11 @@
   function renderIdentity() {
     $("#profile-name").textContent = state.me.profile.name;
     const analyticsUrl = state.me.links?.analytics || "";
-    $("#analytics-button").classList.toggle("hidden", !analyticsUrl);
-    $("#bottom-nav").classList.toggle("analytics-enabled", Boolean(analyticsUrl));
+    const analyticsAvailable = Boolean(analyticsUrl);
+    const compactAvailable = Boolean(state.me.capabilities.analytics_compact);
+    $("#summary-button").classList.toggle("hidden", !compactAvailable);
+    $("#summary-open-explorer").classList.toggle("hidden", !analyticsAvailable);
+    $("#bottom-nav").classList.toggle("summary-enabled", compactAvailable);
     $("#scope-switch").classList.toggle("hidden", !state.me.capabilities.team_queue);
     $("#buying-filter").classList.toggle("hidden", !state.me.capabilities.buying_flag);
     $$("#scope-switch button").forEach((button) => button.classList.toggle("active", button.dataset.scope === state.scope));
@@ -173,7 +204,7 @@
 
   async function openAnalytics() {
     if (!state.me?.links?.analytics) return;
-    const button = $("#analytics-button");
+    const button = $("#summary-open-explorer");
     button.disabled = true;
     try {
       const handoff = await api("/api/analytics/handoff", {
@@ -212,16 +243,18 @@
     state.page = page;
     state.currentTicket = null;
     $("#bottom-nav").classList.remove("hidden");
-    ["tickets", "create", "tools", "detail"].forEach((name) => {
+    ["tickets", "create", "tools", "detail", "summary"].forEach((name) => {
       $(`#${name}-page`).classList.toggle("hidden", name !== page);
     });
-    $$("#bottom-nav button").forEach((button) => button.classList.toggle("active", button.dataset.page === page));
-    $("#back-button").classList.add("hidden");
-    tg?.BackButton?.hide();
+    $$("#bottom-nav button").forEach((button) => button.classList.toggle("active", button.dataset.page === page || (button.id === "summary-button" && page === "summary")));
+    const hasBack = page === "summary";
+    $("#back-button").classList.toggle("hidden", !hasBack);
+    if (hasBack) tg?.BackButton?.show(); else tg?.BackButton?.hide();
     const copy = {
       tickets: ["Все задачи", "Тикеты, переписка и история работы"],
       create: ["Новый тикет", "Обычная задача или Destination"],
       tools: ["Инструменты", "Шаблоны и данны команды"],
+      summary: ["Сводка", "Операционная аналитика TheRaw"],
     };
     if (copy[page]) {
       $("#page-title").innerHTML = `${escapeHtml(copy[page][0])}<span>.</span>`;
@@ -236,12 +269,181 @@
       loadHelp();
       loadPostbacks();
     }
+    if (page === "summary") loadSummary();
   }
 
   function goBack() {
     if (state.page === "detail") navigate("tickets");
+    else if (state.page === "summary") navigate("tickets");
     else navigate("tickets");
   }
+
+  function selectSummaryPeriod(period) {
+    state.summaryPeriod = period;
+    state.summaryPage = 1;
+    $$('[data-summary-period]').forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.summaryPeriod === period));
+    });
+    const custom = period === "custom";
+    $("#summary-custom-form").classList.toggle("hidden", !custom);
+    if (custom) {
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 6);
+      $("#summary-date-from").value ||= localDateValue(weekAgo);
+      $("#summary-date-to").value ||= localDateValue(today);
+      return;
+    }
+    loadSummary();
+  }
+
+  async function loadSummary() {
+    if (!state.me?.capabilities?.analytics_compact) return;
+    const request = ++state.summaryRequest;
+    showSummaryState("loading");
+    const range = selectedSummaryRange();
+    if (!range) return showSummaryError("Укажите начало и конец периода.");
+    const [dateFrom, dateTo] = range;
+    const summaryParams = new URLSearchParams({ from: dateFrom, to: dateTo });
+    const advertiser = $("#summary-advertiser").value;
+    if (advertiser) summaryParams.append("advertisers", advertiser);
+    const listParams = new URLSearchParams(summaryParams);
+    listParams.set("status", $("#summary-status").value);
+    listParams.set("sort", "created_at");
+    listParams.set("direction", "desc");
+    listParams.set("page", String(state.summaryPage));
+    listParams.set("page_size", "50");
+    try {
+      const [summary, rows] = await Promise.all([
+        api(`/api/analytics/compact/summary?${summaryParams}`, { timeoutMs: 12000 }),
+        api(`/api/analytics/compact/destinations?${listParams}`, { timeoutMs: 12000 }),
+      ]);
+      if (request !== state.summaryRequest) return;
+      state.summaryData = summary;
+      state.summaryRows = rows;
+      renderSummary();
+    } catch (error) {
+      if (request !== state.summaryRequest) return;
+      showSummaryError(error.message || "Не удалось загрузить сводку.");
+    }
+  }
+
+  function showSummaryState(name) {
+    $("#summary-loading").classList.toggle("hidden", name !== "loading");
+    $("#summary-empty").classList.toggle("hidden", name !== "empty");
+    $("#summary-error").classList.toggle("hidden", name !== "error");
+    $("#summary-content").classList.toggle("hidden", name !== "content");
+  }
+
+  function showSummaryError(message) {
+    $("#summary-error-message").textContent = message;
+    showSummaryState("error");
+  }
+
+  function renderSummary() {
+    const data = state.summaryData;
+    const rows = state.summaryRows;
+    $("#summary-range-label").textContent = summaryRange(data.period.from, data.period.to);
+    updateSummaryAdvertisers(data.available_filters.advertisers);
+    if (data.empty) {
+      showSummaryState("empty");
+      return;
+    }
+    $("#summary-created").textContent = formatNumber(data.metrics.created);
+    $("#summary-launched").textContent = formatNumber(data.metrics.launched);
+    $("#summary-not-launched").textContent = formatNumber(data.metrics.not_launched);
+    $("#summary-reg-sum").textContent = formatNumber(data.metrics.reg_sum);
+    $("#summary-ftd-sum").textContent = formatNumber(data.metrics.ftd_sum);
+    renderSummaryCoverage(data.coverage);
+    renderSummaryRows(rows);
+    showSummaryState("content");
+  }
+
+  function updateSummaryAdvertisers(items) {
+    const select = $("#summary-advertiser");
+    const selected = select.value;
+    const choices = selected && !items.includes(selected) ? [selected, ...items] : items;
+    select.innerHTML = '<option value="">Все рекламодатели</option>' + choices.map((name) => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join("");
+    select.value = selected;
+  }
+
+  function renderSummaryCoverage(coverage) {
+    const node = $("#summary-coverage");
+    const history = coverage.conversion_history_from
+      ? `История REG/FTD доступна с ${summaryDate(coverage.conversion_history_from)}.`
+      : "Начало истории REG/FTD не определено.";
+    node.textContent = `${history} ${coverage.note}`;
+    node.classList.toggle("warning", !coverage.history_complete_for_cohort);
+    node.classList.remove("hidden");
+    const refreshed = coverage.mart_refreshed_at
+      ? `Витрина обновлена ${formatSummaryTime(coverage.mart_refreshed_at)}`
+      : "Время обновления витрины неизвестно";
+    const latest = coverage.conversion_latest_event_at
+      ? `последняя конверсия ${formatSummaryTime(coverage.conversion_latest_event_at)}`
+      : "конверсий пока нет";
+    $("#summary-updated").textContent = `${refreshed} · ${latest}`;
+  }
+
+  function renderSummaryRows(data) {
+    $("#summary-total").textContent = `Всего: ${formatNumber(data.total)}`;
+    $("#summary-destination-list").innerHTML = data.rows.length
+      ? data.rows.map(summaryDestinationRow).join("")
+      : '<div class="summary-list-empty">По выбранному статусу дестов нет.</div>';
+    const pages = Math.max(1, Math.ceil(data.total / data.page_size));
+    $("#summary-page-info").textContent = `${data.page} / ${pages}`;
+    $("#summary-prev").disabled = data.page <= 1;
+    $("#summary-next").disabled = !data.has_more;
+  }
+
+  function summaryDestinationRow(item) {
+    const status = item.launched ? "Запущен" : "Не запущен";
+    return `<div class="summary-table-row">
+      <strong class="summary-dest-id">${escapeHtml(item.destination_id)}</strong>
+      <div class="summary-dest-name"><strong>${escapeHtml(item.destination)}</strong><span class="${item.launched ? "launched" : "not-launched"}">${status}</span></div>
+      <time>${summaryShortDate(item.created_date)}</time>
+      <strong class="summary-number">${formatNumber(item.reg_sum)}</strong>
+      <strong class="summary-number">${formatNumber(item.ftd_sum)}</strong>
+    </div>`;
+  }
+
+  function selectedSummaryRange() {
+    if (state.summaryPeriod === "custom") {
+      const dateFrom = $("#summary-date-from").value;
+      const dateTo = $("#summary-date-to").value;
+      return dateFrom && dateTo ? [dateFrom, dateTo] : null;
+    }
+    const today = new Date();
+    const start = new Date(today);
+    if (state.summaryPeriod === "week") start.setDate(today.getDate() - 6);
+    if (state.summaryPeriod === "month") start.setDate(1);
+    return [localDateValue(start), localDateValue(today)];
+  }
+
+  function localDateValue(value) {
+    const offset = value.getTimezoneOffset() * 60000;
+    return new Date(value.getTime() - offset).toISOString().slice(0, 10);
+  }
+
+  function summaryRange(dateFrom, dateTo) {
+    const formatter = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+    const from = formatter.format(new Date(`${dateFrom}T00:00:00`));
+    const to = formatter.format(new Date(`${dateTo}T00:00:00`));
+    return dateFrom === dateTo ? from : `${from} — ${to}`;
+  }
+
+  function summaryDate(value) {
+    return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+  }
+
+  function summaryShortDate(value) {
+    return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" }).format(new Date(`${value}T00:00:00`));
+  }
+
+  function formatSummaryTime(value) {
+    return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  }
+
+  function formatNumber(value) { return new Intl.NumberFormat("ru-RU").format(value); }
 
   async function loadTickets() {
     clearTimeout(state.ticketSearchTimer);
@@ -1025,12 +1227,25 @@
       headers["X-CSRF-Token"] = state.csrf;
       headers["Idempotency-Key"] = crypto.randomUUID();
     }
-    const response = await fetch(path, {
-      method: options.method || "GET",
-      credentials: "include",
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
+    const controller = options.timeoutMs ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), options.timeoutMs) : null;
+    let response;
+    try {
+      response = await fetch(path, {
+        method: options.method || "GET",
+        credentials: "include",
+        headers,
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        signal: controller?.signal,
+      });
+    } catch (error) {
+      if (error.name === "AbortError") {
+        throw friendlyError(408, "Сводка не ответила вовремя. Повторите запрос.");
+      }
+      throw error;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
     if (!response.ok) {
       let detail = "Ошибка запроса";
       try { detail = humanError((await response.json()).detail); } catch (_) { /* empty */ }
@@ -1049,6 +1264,12 @@
       "state or idempotency conflict": "Тикет уже изменился. Обновите карточку.",
       "public reason is required": "Нужно указать причину.",
       "resource not found": "Тикет не найден или недоступен.",
+      "analytics temporarily unavailable": "Сводка временно недоступна. Повторите позже.",
+      "analytics returned an invalid response": "Explorer вернул некорректные данные.",
+      "analytics handoff was rejected": "Explorer не принял авторизацию. Повторите позже.",
+      "invalid analytics period or filters": "Проверьте период и фильтры сводки.",
+      "analytics session changed; reopen from the bot": "Профиль Explorer изменился. Откройте Mini App заново.",
+      "invalid analytics filter value": "Недопустимое значение фильтра сводки.",
     };
     return map[detail] || detail;
   }

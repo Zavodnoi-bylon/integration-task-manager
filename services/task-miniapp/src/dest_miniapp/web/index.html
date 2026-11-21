@@ -151,6 +151,76 @@
           </div>
         </div>
 
+        <div class="hidden" id="summary-page">
+          <section class="analytics-summary" aria-labelledby="analytics-summary-title">
+            <div class="summary-appbar">
+              <strong id="analytics-summary-title">TheRaw · Сводка</strong>
+              <button class="secondary-button summary-explorer" id="summary-open-explorer" type="button">Открыть Explorer</button>
+            </div>
+            <div class="summary-periods" aria-label="Период аналитики">
+              <button type="button" data-summary-period="today" aria-pressed="false">Сегодня</button>
+              <button type="button" data-summary-period="week" aria-pressed="true">7 дней</button>
+              <button type="button" data-summary-period="month" aria-pressed="false">Этот месяц</button>
+              <button type="button" data-summary-period="custom" aria-pressed="false">Период</button>
+            </div>
+            <form class="summary-custom hidden" id="summary-custom-form">
+              <label>С <input type="date" id="summary-date-from" required></label>
+              <label>По <input type="date" id="summary-date-to" required></label>
+              <button class="secondary-button" type="submit">Показать</button>
+            </form>
+            <div class="summary-filters">
+              <label>Рекламодатель
+                <select id="summary-advertiser"><option value="">Все рекламодатели</option></select>
+              </label>
+              <label>Статус
+                <select id="summary-status">
+                  <option value="all">Все</option>
+                  <option value="launched">Запущен</option>
+                  <option value="not_launched">Не запущен</option>
+                  <option value="with_ftd">С FTD</option>
+                </select>
+              </label>
+            </div>
+            <div class="summary-range"><span id="summary-range-label"></span><span>МСК</span></div>
+
+            <div class="summary-state" id="summary-loading" role="status">
+              <div class="spinner"></div><p>Загружаем сводку…</p>
+            </div>
+            <div class="summary-state hidden" id="summary-empty">
+              <p>За выбранный период данных нет.</p>
+            </div>
+            <div class="summary-state hidden" id="summary-error" role="alert">
+              <p id="summary-error-message">Не удалось загрузить сводку.</p>
+              <button class="secondary-button" id="summary-retry" type="button">Повторить</button>
+            </div>
+
+            <div class="summary-content hidden" id="summary-content">
+              <div class="summary-metrics" aria-live="polite">
+                <article><span>Заведено дестов</span><strong id="summary-created">0</strong><small>за период</small></article>
+                <article><span>Запущено</span><strong id="summary-launched">0</strong><small>есть REG</small></article>
+                <article><span>Не запущено</span><strong id="summary-not-launched">0</strong><small>REG = 0</small></article>
+                <article><span>REG sum</span><strong id="summary-reg-sum">0</strong><small>по дестам</small></article>
+                <article><span>FTD sum</span><strong id="summary-ftd-sum">0</strong><small>без CAP target</small></article>
+              </div>
+              <div class="summary-coverage hidden" id="summary-coverage" role="note"></div>
+              <div class="summary-section-head">
+                <strong>Десты за период</strong>
+                <span id="summary-total"></span>
+              </div>
+              <div class="summary-table" aria-label="Десты за период">
+                <div class="summary-table-head" aria-hidden="true"><span>ID</span><span>Dest</span><span>Создан</span><span>REG</span><span>FTD</span></div>
+                <div id="summary-destination-list"></div>
+              </div>
+              <nav class="summary-pagination" aria-label="Страницы дестов">
+                <button class="secondary-button" id="summary-prev" type="button">Назад</button>
+                <span id="summary-page-info"></span>
+                <button class="secondary-button" id="summary-next" type="button">Далее</button>
+              </nav>
+              <p class="summary-updated" id="summary-updated"></p>
+            </div>
+          </section>
+        </div>
+
         <div class="hidden" id="detail-page">
           <article class="ticket-detail" id="ticket-detail"></article>
         </div>
@@ -161,7 +231,7 @@
       <button class="active" data-page="tickets">Задачи</button>
       <button data-page="create">Создать</button>
       <button data-page="tools">Инструменты</button>
-      <button class="hidden" id="analytics-button" type="button">Аналитика</button>
+      <button class="hidden" id="summary-button" type="button">Сводка</button>
     </nav>
   </div>
 

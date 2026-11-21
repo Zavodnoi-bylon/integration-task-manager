@@ -7,6 +7,13 @@ from dest_miniapp.settings import ConfigurationError, Settings
 
 
 SECRET = base64.urlsafe_b64encode(b"0" * 32).rstrip(b"=").decode("ascii")
+HANDOFF = {
+    "analytics_url": "https://explorer.example",
+    "analytics_issuer": "theraw-task-manager",
+    "analytics_bot_uuid": "11111111-1111-4111-8111-111111111111",
+    "analytics_profile_id": "22222222-2222-4222-8222-222222222222",
+    "analytics_signing_secret": SECRET,
+}
 
 
 def settings(**overrides) -> Settings:
@@ -67,6 +74,43 @@ class AnalyticsSettingsTests(unittest.TestCase):
             ConfigurationError, "Invalid analytics allowed user ID"
         ):
             settings(analytics_allowed_user_ids=frozenset({0, 42}))
+
+    def test_compact_analytics_is_disabled_by_default(self) -> None:
+        configured = settings()
+        self.assertFalse(configured.analytics_compact_enabled)
+        self.assertIsNone(configured.analytics_compact_base_url)
+
+    def test_compact_analytics_requires_handoff_base_url_and_allowlist(self) -> None:
+        with self.assertRaisesRegex(ConfigurationError, "base URL"):
+            settings(
+                analytics_compact_enabled=True,
+                analytics_allowed_user_ids=frozenset({42}),
+                **HANDOFF,
+            )
+        with self.assertRaisesRegex(ConfigurationError, "explicit user allowlist"):
+            settings(
+                analytics_compact_enabled=True,
+                analytics_compact_base_url="https://explorer.example",
+                **HANDOFF,
+            )
+        configured = settings(
+            analytics_compact_enabled=True,
+            analytics_compact_base_url="https://explorer.example",
+            analytics_allowed_user_ids=frozenset({42}),
+            **HANDOFF,
+        )
+        self.assertTrue(configured.analytics_compact_enabled)
+
+    def test_compact_base_url_rejects_insecure_or_user_controlled_parts(self) -> None:
+        for url in (
+            "http://explorer.example",
+            "https://user:pass@explorer.example",
+            "https://explorer.example?tenant=theraw",
+        ):
+            with self.subTest(url=url), self.assertRaisesRegex(
+                ConfigurationError, "ANALYTICS_COMPACT_BASE_URL"
+            ):
+                settings(analytics_compact_base_url=url)
 
 
 if __name__ == "__main__":

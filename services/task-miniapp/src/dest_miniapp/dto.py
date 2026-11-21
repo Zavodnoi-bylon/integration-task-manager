@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Generic, Literal, TypeVar
 
@@ -91,6 +91,89 @@ class PostbackDetail(PostbackSummary):
 class HelpContent(StrictOutput):
     audience: Literal["client", "staff"]
     markdown: str = Field(min_length=1, max_length=65_536)
+
+
+class AnalyticsCompactPeriod(StrictOutput):
+    date_from: date = Field(alias="from")
+    date_to: date = Field(alias="to")
+    basis: Literal["destination_created_at"]
+    timezone: Literal["Europe/Moscow"]
+
+
+class AnalyticsCompactMetrics(StrictOutput):
+    created: int = Field(ge=0)
+    launched: int = Field(ge=0)
+    not_launched: int = Field(ge=0)
+    with_ftd: int = Field(ge=0)
+    reg_sum: int = Field(ge=0)
+    ftd_sum: int = Field(ge=0)
+
+
+class AnalyticsCompactFilters(StrictOutput):
+    advertisers: list[str]
+
+
+class AnalyticsCompactListFilters(AnalyticsCompactFilters):
+    status: Literal["all", "launched", "not_launched", "with_ftd"]
+
+
+class AnalyticsCompactAvailableFilters(StrictOutput):
+    advertisers: list[str]
+    created_from: date | None = None
+    created_to: date | None = None
+
+
+class AnalyticsCompactCoverage(StrictOutput):
+    conversion_history_from: date | None = None
+    history_complete_for_cohort: bool
+    status: str = Field(min_length=1, max_length=128)
+    catalog_fetched_at: datetime | None = None
+    conversion_latest_event_at: datetime | None = None
+    mart_refreshed_at: datetime | None = None
+    cap_target_available: Literal[False]
+    note: str = Field(min_length=1, max_length=2_000)
+
+
+class AnalyticsCompactSummaryOutput(StrictOutput):
+    tenant: Literal["theraw"]
+    period: AnalyticsCompactPeriod
+    filters: AnalyticsCompactFilters
+    metrics: AnalyticsCompactMetrics
+    available_filters: AnalyticsCompactAvailableFilters
+    coverage: AnalyticsCompactCoverage
+    empty: bool
+
+
+class AnalyticsCompactDestination(StrictOutput):
+    destination_id: str = Field(min_length=1, max_length=64)
+    destination: str = Field(min_length=1, max_length=512)
+    created_date: date
+    created_at: datetime
+    advertiser: str = Field(min_length=1, max_length=512)
+    reg_sum: int = Field(ge=0)
+    ftd_sum: int = Field(ge=0)
+    launched: bool
+    with_ftd: bool
+    is_archived: bool
+    latest_event_at: datetime | None = None
+
+
+class AnalyticsCompactSort(StrictOutput):
+    field: Literal["created_at", "reg_sum", "ftd_sum"]
+    direction: Literal["asc", "desc"]
+
+
+class AnalyticsCompactDestinationsOutput(StrictOutput):
+    tenant: Literal["theraw"]
+    period: AnalyticsCompactPeriod
+    filters: AnalyticsCompactListFilters
+    sort: AnalyticsCompactSort
+    rows: list[AnalyticsCompactDestination]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total: int = Field(ge=0)
+    has_more: bool
+    empty: bool
 
 
 class CatalogAdvertiserInput(StrictInput):

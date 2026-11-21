@@ -47,6 +47,8 @@ class Settings:
     analytics_signing_secret: str | None = None
     analytics_allowed_user_ids: frozenset[int] = frozenset()
     analytics_handoff_ttl_seconds: int = 300
+    analytics_compact_enabled: bool = False
+    analytics_compact_base_url: str | None = None
     init_data_max_age_seconds: int = 300
     session_ttl_seconds: int = 43_200
 
@@ -110,6 +112,32 @@ class Settings:
             raise ConfigurationError("Invalid analytics allowed user ID")
         if not 60 <= self.analytics_handoff_ttl_seconds <= 600:
             raise ConfigurationError("Invalid analytics handoff TTL")
+        if self.analytics_compact_base_url is not None:
+            compact = urlsplit(self.analytics_compact_base_url)
+            if (
+                compact.scheme != "https"
+                or not compact.hostname
+                or compact.username
+                or compact.password
+                or compact.query
+                or compact.fragment
+            ):
+                raise ConfigurationError(
+                    "ANALYTICS_COMPACT_BASE_URL must be an HTTPS URL without query or fragment"
+                )
+        if self.analytics_compact_enabled:
+            if not self.analytics_compact_base_url:
+                raise ConfigurationError(
+                    "Analytics compact API base URL is required"
+                )
+            if not self.analytics_url:
+                raise ConfigurationError(
+                    "Analytics compact API requires the existing handoff configuration"
+                )
+            if not self.analytics_allowed_user_ids:
+                raise ConfigurationError(
+                    "Analytics compact API requires an explicit user allowlist"
+                )
         if not 30 <= self.init_data_max_age_seconds <= 900:
             raise ConfigurationError("Invalid initData max age")
         if not 300 <= self.session_ttl_seconds <= 86_400:

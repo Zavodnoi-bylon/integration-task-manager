@@ -22,6 +22,12 @@ class AnalyticsHandoff:
     expires_at: int
 
 
+@dataclass(frozen=True)
+class AnalyticsToken:
+    token: str
+    expires_at: int
+
+
 def issue_analytics_handoff(
     settings: Settings,
     actor: Actor,
@@ -29,6 +35,21 @@ def issue_analytics_handoff(
     now: int | None = None,
     jti: str | None = None,
 ) -> AnalyticsHandoff:
+    issued = issue_analytics_token(settings, actor, now=now, jti=jti)
+    target = urlsplit(settings.analytics_url or "")
+    url = urlunsplit(
+        target._replace(fragment=urlencode({"handoff": issued.token}))
+    )
+    return AnalyticsHandoff(url=url, expires_at=issued.expires_at)
+
+
+def issue_analytics_token(
+    settings: Settings,
+    actor: Actor,
+    *,
+    now: int | None = None,
+    jti: str | None = None,
+) -> AnalyticsToken:
     if not settings.analytics_url:
         raise RuntimeError("analytics handoff is disabled")
     assert settings.analytics_issuer is not None
@@ -65,9 +86,7 @@ def issue_analytics_handoff(
     ).digest()
     token = f"{signing_input.decode('ascii')}.{_base64url(signature)}"
 
-    target = urlsplit(settings.analytics_url)
-    url = urlunsplit(target._replace(fragment=urlencode({"handoff": token})))
-    return AnalyticsHandoff(url=url, expires_at=expires_at)
+    return AnalyticsToken(token=token, expires_at=expires_at)
 
 
 def _encode_json(value: dict[str, object]) -> str:
