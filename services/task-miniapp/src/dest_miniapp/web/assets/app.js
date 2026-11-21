@@ -81,6 +81,7 @@
     $$("#bottom-nav button[data-page]").forEach((button) => button.addEventListener("click", () => {
       navigate(button.dataset.page);
     }));
+    $("#analytics-button").addEventListener("click", openAnalytics);
     $("#summary-button").addEventListener("click", () => navigate("summary"));
     $("#summary-open-explorer").addEventListener("click", openAnalytics);
     $$('[data-summary-period]').forEach((button) => button.addEventListener("click", () => selectSummaryPeriod(button.dataset.summaryPeriod)));
@@ -194,17 +195,20 @@
     const analyticsUrl = state.me.links?.analytics || "";
     const analyticsAvailable = Boolean(analyticsUrl);
     const compactAvailable = Boolean(state.me.capabilities.analytics_compact);
+    const standaloneAnalytics = analyticsAvailable && !compactAvailable;
+    $("#analytics-button").classList.toggle("hidden", !standaloneAnalytics);
     $("#summary-button").classList.toggle("hidden", !compactAvailable);
     $("#summary-open-explorer").classList.toggle("hidden", !analyticsAvailable);
+    $("#bottom-nav").classList.toggle("analytics-enabled", standaloneAnalytics);
     $("#bottom-nav").classList.toggle("summary-enabled", compactAvailable);
     $("#scope-switch").classList.toggle("hidden", !state.me.capabilities.team_queue);
     $("#buying-filter").classList.toggle("hidden", !state.me.capabilities.buying_flag);
     $$("#scope-switch button").forEach((button) => button.classList.toggle("active", button.dataset.scope === state.scope));
   }
 
-  async function openAnalytics() {
+  async function openAnalytics(event) {
     if (!state.me?.links?.analytics) return;
-    const button = $("#summary-open-explorer");
+    const button = event?.currentTarget || $("#summary-open-explorer");
     button.disabled = true;
     try {
       const handoff = await api("/api/analytics/handoff", {

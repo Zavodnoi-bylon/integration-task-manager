@@ -187,14 +187,18 @@ class UiAssetTests(unittest.TestCase):
             self.html.index('id="help-content"'),
         )
 
-    def test_explorer_handoff_is_only_in_summary_and_mobile_safe(self) -> None:
-        self.assertNotIn('id="analytics-button"', self.html)
+    def test_explorer_handoff_avoids_duplicate_when_summary_is_available(self) -> None:
+        self.assertIn('id="analytics-button"', self.html)
         self.assertIn('id="summary-open-explorer"', self.html)
         self.assertIn('state.me.links?.analytics', self.js)
+        self.assertIn(
+            "const standaloneAnalytics = analyticsAvailable && !compactAvailable",
+            self.js,
+        )
         self.assertIn('api("/api/analytics/handoff"', self.js)
         self.assertIn('tg.openLink(url)', self.js)
         self.assertNotIn('tg.openTelegramLink(url)', self.js)
-        self.assertNotIn(".bottom-nav.analytics-enabled", self.css)
+        self.assertIn(".bottom-nav.analytics-enabled", self.css)
         self.assertIn(".bottom-nav.summary-enabled", self.css)
         self.assertIn("repeat(4, minmax(0, 1fr))", self.css)
         self.assertRegex(
